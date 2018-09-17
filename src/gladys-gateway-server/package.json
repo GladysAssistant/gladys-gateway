@@ -1,0 +1,28 @@
+{
+  "name": "gladys-gateway-server",
+  "version": "0.1.0",
+  "description": "An End-to-End Encrypted Gateway to access Gladys from the internet",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/GladysProject/gladys-gateway.git"
+  },
+  "keywords": [
+    "gladys",
+    "gateway",
+    "end-to-end",
+    "encryption",
+    "nodejs",
+    "home",
+    "automation"
+  ],
+  "author": "Pierre-Gilles Leymarie",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/GladysProject/gladys-gateway/issues"
+  },
+  "homepage": "https://github.com/GladysProject/gladys-gateway#readme"
+}

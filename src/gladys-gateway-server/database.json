@@ -4,6 +4,6 @@
         "user": {"ENV": "POSTGRESQL_USER"},
         "password": {"ENV": "POSTGRESQL_PASSWORD"},
         "host": {"ENV": "POSTGRESQL_HOST"},
-        "database": {"ENV": "POSTGRESQL_DB"}
+        "database": {"ENV": "POSTGRESQL_DATABASE"}
     }
 }

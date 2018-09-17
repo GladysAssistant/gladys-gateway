@@ -2,5 +2,6 @@
     "indent_size": 2,
     "indent_char": " ",
     "indent_with_tabs": false,
-    "eol": "\n"
+    "eol": "\n",
+    "brace-style": "collapse-preserve-inline"
 }

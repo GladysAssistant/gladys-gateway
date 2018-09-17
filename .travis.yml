@@ -1,0 +1,39 @@
+language: node_js
+
+node_js:
+  - '8'
+  
+services:
+  - postgresql
+  - redis-server
+
+env:
+  - POSTGRESQL_DATABASE=travis_ci_test
+  - POSTGRESQL_USER=postgres
+  - POSTGRESQL_PASSWORD=
+  - POSTGRESQL_HOST=localhost
+  - POSTGRESQL_PORT=5432
+  - REDIS_HOST=localhost
+  - REDIS_PORT=6379
+  - REDIS_PASSWORD=
+
+addons:
+  apt:
+    sources:
+    - ubuntu-toolchain-r-test
+    packages:
+    - g++-4.8
+
+before_script:
+  - psql -c 'create database travis_ci_test;' -U postgres
+    
+before_install:
+  - npm install -g lerna eslint
+  - lerna bootstrap
+
+script:
+  - lerna run eslint
+  - lerna run test
+
+env:
+  - CXX=g++-4.8

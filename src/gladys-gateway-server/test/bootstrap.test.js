@@ -1,4 +1,5 @@
 var databaseTask, redisTask;
+var should = require('should'); // eslint-disable-line no-unused-vars
 
 before(async function() {
   require('dotenv').config();

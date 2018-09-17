@@ -18,11 +18,13 @@ module.exports = async () => {
   const redisClient = redis.createClient();
 
   const models = {
-    pingModel: require('./api/ping/ping.model')(db, redisClient)
+    pingModel: require('./api/ping/ping.model')(db, redisClient),
+    userModel: require('./api/user/user.model')(db, redisClient)
   };
 
   const controllers = {
-    pingController: require('./api/ping/ping.controller')(models.pingModel)
+    pingController: require('./api/ping/ping.controller')(models.pingModel),
+    userController: require('./api/user/user.controller')(models.userModel)
   };
 
   const routes = require('./api/routes');

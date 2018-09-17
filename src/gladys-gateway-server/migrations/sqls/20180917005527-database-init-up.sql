@@ -14,7 +14,7 @@ CREATE TABLE t_user (
     name character varying(255),
     email character varying(255) NOT NULL ,
     language character varying(10) NOT NULL,
-    email_confirmation_token character varying NOT NULL,
+    email_confirmation_token_hash character varying NOT NULL,
     email_confirmed boolean DEFAULT false NOT NULL,
     profile_url character varying(255),
     role user_role DEFAULT 'user' NOT NULL,

@@ -1,5 +1,6 @@
 const bodyParser = require('body-parser');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
+const errorMiddleware = require('../middleware/errorMiddleware.js');
 
 module.exports.load = function(app, controllers) {
 
@@ -12,4 +13,10 @@ module.exports.load = function(app, controllers) {
   app.use(bodyParser.json());
 
   app.get('/ping', asyncMiddleware(controllers.pingController.ping));
+
+  // user
+  app.post('/signup', asyncMiddleware(controllers.userController.signup));
+
+  // error
+  app.use(errorMiddleware);
 };

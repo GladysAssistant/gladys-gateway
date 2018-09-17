@@ -4,7 +4,8 @@
   "description": "An End-to-End Encrypted Gateway to access Gladys from the internet",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit"
+    "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
+    "eslint": "eslint core test index.js"
   },
   "repository": {
     "type": "git",

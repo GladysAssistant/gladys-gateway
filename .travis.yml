@@ -7,6 +7,9 @@ services:
   - postgresql
   - redis-server
 
+addons:
+  postgresql: '9.6'
+
 env:
   - POSTGRESQL_DATABASE=travis_ci_test
   - POSTGRESQL_USER=postgres

@@ -4,7 +4,7 @@ node_js:
   - '8'
 
 addons:
-    postgresql: '9.6'
+  postgresql: "9.5"
 
 services:
   - postgresql
@@ -31,6 +31,7 @@ before_install:
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres
+  - psql -c 'select version();' -U postgres
   - cd src/gladys-gateway-server && db-migrate up && cd ../..
 
 script:

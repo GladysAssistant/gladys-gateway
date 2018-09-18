@@ -1,3 +1,26 @@
+class NotFoundError extends Error {
+  constructor(errorMessage) {
+    super(errorMessage);
+    this.errorMessage = errorMessage;
+    // the next line is important so that the ValidationError constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, ValidationError);
+  }
+
+  // we can also define custom methods on this class
+  jsonError() {
+    return {
+      status: 404,
+      error_code: 'NOT_FOUND',
+      error_message: this.errorMessage
+    };
+  }
+
+  getStatus(){
+    return 404;
+  }
+}
+
 class ValidationError extends Error {
   constructor(objectName, joiError) {
     var errorMessage = `ValidationError: ${objectName} object.`;
@@ -25,7 +48,7 @@ class ValidationError extends Error {
 
 class AlreadyExistError extends Error {
   constructor(objectName, identifier) {
-    var errorMessage = `AlreadyExistError: ${objectName} "${identifier}" already exist.`;
+    var errorMessage = `${objectName} "${identifier}" already exist.`;
     super(errorMessage);
     this.objectName = objectName;
     this.identifier = identifier;
@@ -51,3 +74,4 @@ class AlreadyExistError extends Error {
 
 module.exports.ValidationError = ValidationError;
 module.exports.AlreadyExistError = AlreadyExistError;
+module.exports.NotFoundError = NotFoundError;

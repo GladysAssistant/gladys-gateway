@@ -7,11 +7,17 @@ module.exports = function(userModel, mailgunService) {
     mailgunService.send(user, 'confirmation', {
       confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/confirm-email/' + user.email_confirmation_token
     });
-    
+
+    res.json(user);
+  }
+  
+  async function confirmEmail(req, res, next){
+    var user = await userModel.confirmEmail(req.body.email_confirmation_token);
     res.json(user);
   }
 
   return {
-    signup
+    signup,
+    confirmEmail
   };
 };

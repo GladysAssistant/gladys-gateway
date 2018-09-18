@@ -74,7 +74,7 @@ module.exports = function UserModel(logger, db, redis) {
     });
   }
 
-  async function confirmEmail(confirmationToken) {
+  async function confirmEmail(emailConfirmationToken) {
 
     // we hash the token again
     var confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
@@ -86,13 +86,11 @@ module.exports = function UserModel(logger, db, redis) {
     }, {fields: ['id']});
 
     // if user is not found, the token is wrong
-    if(user !== null){
+    if(user === null){
       throw new NotFoundError('Confirmation token not found');
     }
 
-    var user = await db.t_user.update({
-      id: user.id
-    }, {
+    var user = await db.t_user.update(user.id, {
       email_confirmed: true
     }, {fields: ['id', 'email_confirmed']});
 

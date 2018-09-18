@@ -1,6 +1,7 @@
 const bodyParser = require('body-parser');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
 const errorMiddleware = require('../middleware/errorMiddleware.js');
+const { NotFoundError } = require('../common/error.js');
 
 module.exports.load = function(app, controllers) {
 
@@ -16,6 +17,12 @@ module.exports.load = function(app, controllers) {
 
   // user
   app.post('/signup', asyncMiddleware(controllers.userController.signup));
+  app.post('/users/verify', asyncMiddleware(controllers.userController.confirmEmail));
+
+  // 404 error
+  app.use(asyncMiddleware((req, res, next) => {
+    throw new NotFoundError(`Route ${req.url} not found`);
+  }));
 
   // error
   app.use(errorMiddleware);

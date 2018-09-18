@@ -19,9 +19,11 @@ env:
   - POSTGRESQL_DATABASE=travis_ci_test
   - POSTGRESQL_USER=postgres
   - POSTGRESQL_HOST=localhost
+  - POSTGRESQL_PASSWORD=
   - POSTGRESQL_PORT=5432
   - REDIS_HOST=localhost
   - REDIS_PORT=6379
+  - CXX=g++-4.8
 
 before_install:
   - npm install -g lerna eslint db-migrate
@@ -35,6 +37,3 @@ before_script:
 script:
   - lerna run eslint
   - lerna run test
-
-env:
-  - CXX=g++-4.8

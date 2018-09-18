@@ -10,12 +10,10 @@ services:
 env:
   - POSTGRESQL_DATABASE=travis_ci_test
   - POSTGRESQL_USER=postgres
-  - POSTGRESQL_PASSWORD=
   - POSTGRESQL_HOST=localhost
   - POSTGRESQL_PORT=5432
   - REDIS_HOST=localhost
   - REDIS_PORT=6379
-  - REDIS_PASSWORD=
 
 addons:
   apt:

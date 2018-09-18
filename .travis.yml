@@ -33,7 +33,7 @@ before_install:
 
 script:
   - lerna run eslint
-  - cd src/gladys-gateway-server && npm test
+  - lerna run test
 
 env:
   - CXX=g++-4.8

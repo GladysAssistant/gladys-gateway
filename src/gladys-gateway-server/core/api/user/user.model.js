@@ -1,14 +1,18 @@
 const Joi = require('joi');
-const { ValidationError, AlreadyExistError } = require('../../common/error');
+const { ValidationError, AlreadyExistError, NotFoundError } = require('../../common/error');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-var crypto = require('crypto');
+const crypto = require('crypto');
+const bcrypt = require('bcrypt');
+
+const bcryptSaltRounds = 12;
 
 module.exports = function UserModel(logger, db, redis) {
 
   const signupSchema = Joi.object().keys({
     email: Joi.string().email().required(),
-    language: Joi.string().required().allow(['fr', 'en'])
+    language: Joi.string().required().allow(['fr', 'en']),
+    password: Joi.string().min(8).required()
   });
 
   /**
@@ -52,6 +56,10 @@ module.exports = function UserModel(logger, db, redis) {
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
       value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+
+      // we hash the password with bcrypt
+      value.password_hash = await bcrypt.hash(value.password, bcryptSaltRounds);
+      delete value.password;
       
       // we insert the user in db
       var insertedUser = await tx.t_user.insert(value);
@@ -65,8 +73,34 @@ module.exports = function UserModel(logger, db, redis) {
       };
     });
   }
+
+  async function confirmEmail(confirmationToken) {
+
+    // we hash the token again
+    var confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+    
+    // search for a user with this hash in database
+    var user = await db.t_user.findOne({
+      is_deleted: false,
+      email_confirmation_token_hash: confirmationTokenHash
+    }, {fields: ['id']});
+
+    // if user is not found, the token is wrong
+    if(user !== null){
+      throw new NotFoundError('Confirmation token not found');
+    }
+
+    var user = await db.t_user.update({
+      id: user.id
+    }, {
+      email_confirmed: true
+    }, {fields: ['id', 'email_confirmed']});
+
+    return user;
+  }
   
   return {
-    signup
+    signup,
+    confirmEmail
   };
 };

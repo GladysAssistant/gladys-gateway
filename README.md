@@ -1,4 +1,4 @@
-# Gladys Gateway
+# Gladys Gateway [![Build Status](https://travis-ci.org/GladysProject/gladys-gateway.svg?branch=master&style=flat-square)](https://travis-ci.org/GladysProject/gladys-gateway)
 
 The Gladys Gateway is an end-to-end encrypted gateway between your local Gladys installation (your Raspberry Pi at home for example), and you on the internet.
 

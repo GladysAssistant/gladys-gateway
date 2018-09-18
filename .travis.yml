@@ -22,12 +22,13 @@ addons:
     packages:
     - g++-4.8
 
+before_install:
+  - npm install -g lerna eslint db-migrate
+  - lerna bootstrap
+
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres
-    
-before_install:
-  - npm install -g lerna eslint
-  - lerna bootstrap
+  - cd src/gladys-gateway-server && db-migrate up && cd ../..
 
 script:
   - lerna run eslint

@@ -3,7 +3,7 @@ var should = require('should'); // eslint-disable-line no-unused-vars
 
 before(async function() {
   require('dotenv').config();
-  console.log(process.env.POSTGRESQL_HOST + ' ' +process.env.POSTGRESQL_DATABASE + ' ' + process.env.POSTGRESQL_USER);
+  //console.log(process.env.POSTGRESQL_HOST + ' ' +process.env.POSTGRESQL_DATABASE + ' ' + process.env.POSTGRESQL_USER);
   const {app, db, redisClient} = await require('../core/index.js')();
   databaseTask = require('./tasks/database.js')(db);
   redisTask = require('./tasks/redis.js')(redisClient);

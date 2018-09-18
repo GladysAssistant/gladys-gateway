@@ -1,4 +1,4 @@
-module.exports = function PingModel(db, redisClient) {
+module.exports = function PingModel(logger, db, redisClient) {
 
   /**
    * We want to test if the database/redis

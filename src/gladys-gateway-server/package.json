@@ -5,7 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
-    "eslint": "eslint core test index.js"
+    "eslint": "eslint core test index.js",
+    "start": "nodemon index.js"
   },
   "repository": {
     "type": "git",
@@ -43,6 +44,7 @@
     "joi": "^13.6.0",
     "mailgun.js": "^2.0.1",
     "massive": "^5.4.0",
-    "redis": "^2.8.0"
+    "redis": "^2.8.0",
+    "tracer": "^0.9.1"
   }
 }

@@ -4,13 +4,11 @@ const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 var crypto = require('crypto');
 
-module.exports = function UserModel(db, redis) {
+module.exports = function UserModel(logger, db, redis) {
 
   const signupSchema = Joi.object().keys({
-    //    name: Joi.string().min(2).max(30).required(),
     email: Joi.string().email().required(),
-    language: Joi.string().required(),
-    //  account_id: Joi.string().uuid().required()
+    language: Joi.string().required().allow(['fr', 'en'])
   });
 
   /**
@@ -22,6 +20,7 @@ module.exports = function UserModel(db, redis) {
     const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true});
 
     if (error) {
+      logger.debug(error);
       throw new ValidationError('user', error);
     }
 
@@ -35,6 +34,7 @@ module.exports = function UserModel(db, redis) {
       }, {fields: ['id']});
 
       if(userAlreadyExist !== null) {
+        logger.warn(`A user with that email already exist (${userAlreadyExist.id})`);
         throw new AlreadyExistError('user', newUser.email);
       }
       
@@ -58,7 +58,9 @@ module.exports = function UserModel(db, redis) {
       
       return {
         id: insertedUser.id,
+        email: insertedUser.language,
         email_confirmation_token: emailConfirmationToken,
+        language: insertedUser.language,
         account_id: insertedAccount.id
       };
     });

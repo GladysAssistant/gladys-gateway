@@ -1,9 +1,11 @@
 module.exports = async () => {
+  const Promise = require('bluebird');
   const express = require('express');
   const massive = require('massive');
   const redis = require('redis');
-  const Promise = require('bluebird');
   Promise.promisifyAll(redis);
+  const logger = require('tracer').colorConsole();
+
 
   const app = express();
 
@@ -18,17 +20,17 @@ module.exports = async () => {
   const redisClient = redis.createClient();
 
   const services = {
-    mailgunService: require('./service/mailgun')()
+    mailgunService: require('./service/mailgun')(logger)
   };
 
   const models = {
-    pingModel: require('./api/ping/ping.model')(db, redisClient),
-    userModel: require('./api/user/user.model')(db, redisClient, services.mailgunService)
+    pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
+    userModel: require('./api/user/user.model')(logger, db, redisClient)
   };
 
   const controllers = {
     pingController: require('./api/ping/ping.controller')(models.pingModel),
-    userController: require('./api/user/user.controller')(models.userModel)
+    userController: require('./api/user/user.controller')(models.userModel, services.mailgunService)
   };
   
 

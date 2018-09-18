@@ -9,10 +9,10 @@ module.exports = async () => {
 
   const db = await massive({
     host: process.env.POSTGRESQL_HOST,
-    port: process.env.POSTGRESQL_PORT,
+    //port: process.env.POSTGRESQL_PORT,
     database: process.env.POSTGRESQL_DATABASE,
     user: process.env.POSTGRESQL_USER,
-    password: process.env.POSTGRESQL_PASSWORD || ''
+    //password: process.env.POSTGRESQL_PASSWORD || ''
   });
 
   const redisClient = redis.createClient();

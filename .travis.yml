@@ -16,6 +16,7 @@ services:
   - redis-server
 
 env:
+  - CXX=g++-4.8
   global:
     - POSTGRESQL_DATABASE=travis_ci_test
     - POSTGRESQL_USER=postgres
@@ -27,7 +28,7 @@ env:
     - MAILGUN_API_KEY=test
     - MAILGUN_DOMAIN=test.mailgun.org
     - EMAIL_FROM="Gladys Project <test.mailgun.org>"
-    - CXX=g++-4.8
+    
 
 before_install:
   - npm install -g lerna eslint db-migrate

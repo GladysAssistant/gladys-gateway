@@ -16,8 +16,9 @@ module.exports.load = function(app, controllers) {
   app.get('/ping', asyncMiddleware(controllers.pingController.ping));
 
   // user
-  app.post('/signup', asyncMiddleware(controllers.userController.signup));
+  app.post('/users/signup', asyncMiddleware(controllers.userController.signup));
   app.post('/users/verify', asyncMiddleware(controllers.userController.confirmEmail));
+  app.post('/users/login', asyncMiddleware(controllers.userController.login));
 
   // 404 error
   app.use(asyncMiddleware((req, res, next) => {

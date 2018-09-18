@@ -1,13 +1,15 @@
 const Joi = require('joi');
-const { ValidationError, AlreadyExistError, NotFoundError } = require('../../common/error');
+const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const crypto = require('crypto');
 const bcrypt = require('bcrypt');
+const speakeasy = require('speakeasy');
+const uuid = require('uuid');
 
 const bcryptSaltRounds = 12;
 
-module.exports = function UserModel(logger, db, redis) {
+module.exports = function UserModel(logger, db, redis, jwtService) {
 
   const signupSchema = Joi.object().keys({
     email: Joi.string().email().required(),
@@ -98,9 +100,60 @@ module.exports = function UserModel(logger, db, redis) {
 
     return user;
   }
+
+  /**
+   * Login to your account, return access_token and refresh_token
+   */
+  async function login({email, password, deviceName, scope}) {
+    var user = await db.t_user.findOne({
+      is_deleted: false,
+      email_confirmed: true,
+      email: email
+    }, {fields: ['id', 'password_hash']});
+
+    if(user === null){
+      throw new ForbiddenError();
+    }
+
+    var validPassword = await bcrypt.compare(password, user.password_hash);
+
+    if(validPassword === false){
+      throw new ForbiddenError();
+    }
+
+    var deviceId = uuid.v4();
+    var accessToken = jwtService.generateAccessToken(user, scope);
+    var refreshToken = jwtService.generateRefreshToken(user, scope, deviceId);
+    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+
+    var device = await db.t_device.insert({
+      id: deviceId,
+      name: deviceName,
+      refresh_token_hash: refreshTokenHash,
+      user_id: user.id
+    });
+
+    return {
+      device_id: device.id,
+      access_token: accessToken,
+      refresh_token: refreshToken
+    };
+  }
+
+  async function configureTwoFactor(user){
+    var secret = speakeasy.generateSecret();
+    await db.t_user.update(user.id, {
+      two_factor_secret: secret.base32
+    });
+    return {
+      otpauth_url: secret.otpauth_url
+    };
+  }
   
   return {
     signup,
-    confirmEmail
+    confirmEmail,
+    configureTwoFactor,
+    login
   };
 };

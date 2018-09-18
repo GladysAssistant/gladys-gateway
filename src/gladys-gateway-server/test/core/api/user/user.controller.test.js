@@ -1,9 +1,9 @@
 const request = require('supertest');
 
-describe('POST /signup', function() {
+describe('POST /users/signup', function() {
   it('should signup one user', function() {
     return request(TEST_BACKEND_APP)
-      .post('/signup')
+      .post('/users/signup')
       .send({
         email: 'tony.stark@gladysproject.com',
         language: 'en',
@@ -37,6 +37,68 @@ describe('POST /users/verify', function() {
           id: '29770e0d-26a9-444e-91a1-f175c99a5218',
           email_confirmed: true
         });
+      });
+  });
+});
+
+describe('POST /users/login', function() {
+  it('should login to the gateway', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login')
+      .send({
+        deviceName: 'Chrome MacOS Tony',
+        email: 'email-confirmed@gladysprojet.com',
+        password: 'biggestpasswordintheworld'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('device_id');
+        response.body.should.have.property('access_token');
+        response.body.should.have.property('refresh_token');
+      });
+  });
+  it('should refuse login (wrong password)', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login')
+      .send({
+        email: 'email-confirmed@gladysprojet.com',
+        password: 'test'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+        
+      });
+  });
+  it('should refuse login (wrong email)', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login')
+      .send({
+        email: 'email-2-confirmed@gladysprojet.com',
+        password: 'test'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+        
+      });
+  });
+  it('should refuse login (email not confirmed)', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login')
+      .send({
+        email: 'tony.stark@gladysproject.com',
+        password: 'thisisabigandsecurepassword'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+        
       });
   });
 });

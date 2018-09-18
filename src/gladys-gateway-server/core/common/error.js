@@ -72,6 +72,52 @@ class AlreadyExistError extends Error {
   }
 }
 
+class ForbiddenError extends Error {
+  constructor() {
+    super('Forbidden');
+
+    // the next line is important so that the ValidationError constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, ValidationError);
+  }
+
+  // we can also define custom methods on this class
+  jsonError() {
+    return {
+      status: 403,
+      error_code: 'FORBIDDEN'
+    };
+  }
+
+  getStatus(){
+    return 403;
+  }
+}
+
+class UnauthorizedError extends Error {
+  constructor() {
+    super('Unauthorized');
+
+    // the next line is important so that the ValidationError constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, ValidationError);
+  }
+
+  // we can also define custom methods on this class
+  jsonError() {
+    return {
+      status: 401,
+      error_code: 'UNAUTHORIZED'
+    };
+  }
+
+  getStatus(){
+    return 401;
+  }
+}
+
 module.exports.ValidationError = ValidationError;
 module.exports.AlreadyExistError = AlreadyExistError;
 module.exports.NotFoundError = NotFoundError;
+module.exports.ForbiddenError = ForbiddenError;
+module.exports.UnauthorizedError = UnauthorizedError;

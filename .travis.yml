@@ -17,17 +17,16 @@ services:
 
 env:
   - CXX=g++-4.8
-  global:
-    - POSTGRESQL_DATABASE=travis_ci_test
-    - POSTGRESQL_USER=postgres
-    - POSTGRESQL_HOST=localhost
-    - POSTGRESQL_PASSWORD=
-    - POSTGRESQL_PORT=5432
-    - REDIS_HOST=localhost
-    - REDIS_PORT=6379
-    - MAILGUN_API_KEY=test
-    - MAILGUN_DOMAIN=test.mailgun.org
-    - EMAIL_FROM="Gladys Project <test.mailgun.org>"
+  - POSTGRESQL_DATABASE=travis_ci_test
+  - POSTGRESQL_USER=postgres
+  - POSTGRESQL_HOST=localhost
+  - POSTGRESQL_PASSWORD=
+  - POSTGRESQL_PORT=5432
+  - REDIS_HOST=localhost
+  - REDIS_PORT=6379
+  - MAILGUN_API_KEY=test
+  - MAILGUN_DOMAIN=test.mailgun.org
+  - EMAIL_FROM="Gladys Project <test.mailgun.org>"
     
 
 before_install:

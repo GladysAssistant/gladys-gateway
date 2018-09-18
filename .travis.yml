@@ -27,6 +27,8 @@ env:
     - MAILGUN_API_KEY=test
     - MAILGUN_DOMAIN=test.mailgun.org
     - EMAIL_FROM="Gladys Project <test.mailgun.org>"
+    - JWT_ACCESS_TOKEN_SECRET=TESTTESTETSTTE5rPzwPhXvLt9Jb8CEeq5hr0GRyteTVL9wg1QKJJMImUjbJsLrl36hiNvmflDVm
+    - JWT_REFRESH_TOKEN_SECRET=TESTESTESTESTSTiqgbxZ5107HBHpR70OeVn9Lg3tG5HBDvUwrV2Rqur7LsxDZLDsmELtRuDvfMxGL7
     - CXX=g++-4.8
 
 before_install:

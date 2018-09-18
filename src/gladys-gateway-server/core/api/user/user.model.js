@@ -12,7 +12,9 @@ module.exports = function UserModel(logger, db, redis) {
   const signupSchema = Joi.object().keys({
     email: Joi.string().email().required(),
     language: Joi.string().required().allow(['fr', 'en']),
-    password: Joi.string().min(8).required()
+    password: Joi.string().min(8).required(),
+    public_key: Joi.string().required(),
+    encrypted_private_key: Joi.string().required()
   });
 
   /**

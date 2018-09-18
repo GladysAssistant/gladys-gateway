@@ -7,7 +7,9 @@ describe('POST /signup', function() {
       .send({
         email: 'tony.stark@gladysproject.com',
         language: 'en',
-        password: 'thisisabigandsecurepassword'
+        password: 'thisisabigandsecurepassword',
+        public_key: 'public-key',
+        encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)

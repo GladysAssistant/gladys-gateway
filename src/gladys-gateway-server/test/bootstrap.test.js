@@ -1,4 +1,4 @@
-var databaseTask, redisTask;
+var databaseTask, redisTask, nock; // eslint-disable-line no-unused-vars
 var should = require('should'); // eslint-disable-line no-unused-vars
 
 before(async function() {
@@ -7,6 +7,7 @@ before(async function() {
   const {app, db, redisClient} = await require('../core/index.js')();
   databaseTask = require('./tasks/database.js')(db);
   redisTask = require('./tasks/redis.js')(redisClient);
+  nock = require('./tasks/nock.js');
   global.TEST_BACKEND_APP = app;
 });
 

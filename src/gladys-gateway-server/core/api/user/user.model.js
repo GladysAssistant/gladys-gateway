@@ -3,18 +3,20 @@ const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = re
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const crypto = require('crypto');
-const bcrypt = require('bcrypt');
 const speakeasy = require('speakeasy');
 const uuid = require('uuid');
+const srpServer = require('secure-remote-password/server');
 
-const bcryptSaltRounds = 12;
+const redisLoginSessionExpiryInSecond = 60;
 
-module.exports = function UserModel(logger, db, redis, jwtService) {
+module.exports = function UserModel(logger, db, redisClient, jwtService) {
 
   const signupSchema = Joi.object().keys({
+    name: Joi.string().min(2).max(30).required(),
     email: Joi.string().email().required(),
     language: Joi.string().required().allow(['fr', 'en']),
-    password: Joi.string().min(8).required(),
+    srp_salt: Joi.string().required(),
+    srp_verifier: Joi.string().required(),
     public_key: Joi.string().required(),
     encrypted_private_key: Joi.string().required()
   });
@@ -25,7 +27,7 @@ module.exports = function UserModel(logger, db, redis, jwtService) {
   async function signup(newUser) {
     newUser.email = newUser.email.toLowerCase();
 
-    const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true});
+    const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true, abortEarly: false});
 
     if (error) {
       logger.debug(error);
@@ -60,10 +62,6 @@ module.exports = function UserModel(logger, db, redis, jwtService) {
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
       value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
-
-      // we hash the password with bcrypt
-      value.password_hash = await bcrypt.hash(value.password, bcryptSaltRounds);
-      delete value.password;
       
       // we insert the user in db
       var insertedUser = await tx.t_user.insert(value);
@@ -101,46 +99,98 @@ module.exports = function UserModel(logger, db, redis, jwtService) {
     return user;
   }
 
-  /**
-   * Login to your account, return access_token and refresh_token
-   */
-  async function login({email, password, deviceName, scope}) {
+  async function loginGetSalt({ email }) {
+    
     var user = await db.t_user.findOne({
       is_deleted: false,
       email_confirmed: true,
       email: email
-    }, {fields: ['id', 'password_hash']});
+    }, {fields: ['srp_salt']});
 
-    if(user === null){
-      throw new ForbiddenError();
+    if(user === null) {
+      throw new NotFoundError('Email not found');
     }
 
-    var validPassword = await bcrypt.compare(password, user.password_hash);
+    return user;
+  }
 
-    if(validPassword === false){
-      throw new ForbiddenError();
+  async function loginGenerateEphemeralValuePair(data){
+    
+    // we retrieve the verifier from the database
+    var user = await db.t_user.findOne({
+      is_deleted: false,
+      email_confirmed: true,
+      email: data.email
+    }, {fields: ['id', 'email', 'srp_salt', 'srp_verifier', 'two_factor_enabled']});
+
+    if(user === null) {
+      throw new NotFoundError('Email not found');
     }
 
-    var deviceId = uuid.v4();
-    var accessToken = jwtService.generateAccessToken(user, scope);
-    var refreshToken = jwtService.generateRefreshToken(user, scope, deviceId);
-    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+    const serverEphemeral = srpServer.generateEphemeral(user.srp_verifier);
+    const loginSessionKey = uuid.v4();
 
-    var device = await db.t_device.insert({
-      id: deviceId,
-      name: deviceName,
-      refresh_token_hash: refreshTokenHash,
-      user_id: user.id
-    });
+    var loginSessionState = {
+      serverEphemeral,
+      user,
+      clientEphemeralPublic: data.client_ephemeral_public
+    };
+    
+    await redisClient.setAsync(`login_session:${loginSessionKey}`, JSON.stringify(loginSessionState), 'EX', redisLoginSessionExpiryInSecond);
 
     return {
-      device_id: device.id,
-      access_token: accessToken,
-      refresh_token: refreshToken
+      server_ephemeral_public: serverEphemeral.public,
+      login_session_key: loginSessionKey
     };
   }
 
-  async function configureTwoFactor(user){
+  async function loginDeriveSession(data) {
+    var loginSessionState = await redisClient.getAsync(`login_session:${data.login_session_key}`);
+
+    if(loginSessionState === null) {
+      throw new NotFoundError('Login session not found');
+    }   
+
+    try {
+      var loginSessionState = JSON.parse(loginSessionState); 
+
+      // try to deriveSession, it will throw an Error if the proof is not right
+      const serverSession = srpServer.deriveSession(
+        loginSessionState.serverEphemeral.secret, 
+        loginSessionState.clientEphemeralPublic, 
+        loginSessionState.user.srp_salt, 
+        loginSessionState.user.email,
+        loginSessionState.user.srp_verifier, 
+        data.client_session_proof
+      );
+
+      // if two factor is enabled, we only return a token that gives access 
+      // to the two factor verify route
+      if(loginSessionState.user.two_factor_enabled) {
+        
+        var twoFactorToken = jwtService.generateTwoFactorToken(loginSessionState.user);
+
+        return {
+          server_session_proof: serverSession.proof,
+          two_factor_token: twoFactorToken
+        };
+      } 
+
+      // Otherwise, we send an access token only valid 1 hour so the user can enable two factor
+      else {
+        var accessToken = jwtService.generateAccessToken(loginSessionState.user, ['two_factor']);
+
+        return {
+          server_session_proof: serverSession.proof,
+          access_token: accessToken
+        };
+      }
+    } catch(e) {
+      throw new ForbiddenError();
+    }
+  }
+
+  async function configureTwoFactor(user) {
     var secret = speakeasy.generateSecret();
     await db.t_user.update(user.id, {
       two_factor_secret: secret.base32
@@ -154,6 +204,8 @@ module.exports = function UserModel(logger, db, redis, jwtService) {
     signup,
     confirmEmail,
     configureTwoFactor,
-    login
+    loginGetSalt,
+    loginGenerateEphemeralValuePair,
+    loginDeriveSession
   };
 };

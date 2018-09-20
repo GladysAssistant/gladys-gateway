@@ -4,7 +4,8 @@ module.exports = [
     email_confirmation_token_hash: 'UkmuMu1zeL7u+YafvCvRdjrxkEiQLJL/E/sq0zpGgqI=',
     email: 'tony.stark@gladysproject.com',
     email_confirmed: false,
-    password_hash: '$2b$12$QFc/UZ1RTsONcBmc5lHnLePemTqGkjEvOI6S0XHlbE2jhx9mtm1Ae',
+    srp_salt: 'ddd',
+    srp_verifier: 'sdfsdf',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
     language: 'en'
   },
@@ -13,7 +14,8 @@ module.exports = [
     email_confirmation_token_hash: 'ksjdklf',
     email: 'email-confirmed@gladysprojet.com',
     email_confirmed: true,
-    password_hash: '$2b$12$1Uoy8wctEsSG0vUVMcvNl.yOwnb7VFFVIdkIBD.eoxsaaxn5sPT7K',
+    srp_salt: 'e0812f8c57be08780bafcc7e2cbacd155b6f63962114c12cc12462a7aa669fdb',
+    srp_verifier: '63170c5520811f1d16bd27d3f8097a92c7b4ed403a687c316b148cd3f31a066374726fd79ff81e68247d3af57ffef6a371c2f0d9f77c6ec0f4be857b808912b5cb8fd34d1cc0c55154bf8ffcf70874ea71bd1cdcf5a8fe5cf1616fa7f7404535f3b1723695f88c896ffea7f774f5332eadb21ffcc445809fe5513d8ac9580559d70f5069a1c5ca8d88c5e36502e08fee7730f5fad210171edc1f79cec6210a622b8a4be2d0e96a820210e498692d367cd4fc5521380d868968d8b6400efb92ff1599706ef092381cd675066232a9221ad8551e086c154acff89ec2eb4d1cd53dca6107427af4f09a4d8df8170aab9eca34b18a46413403cf35f88742d1ed383f',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
     language: 'en'
   }

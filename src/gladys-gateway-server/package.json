@@ -36,7 +36,6 @@
     "supertest": "^3.3.0"
   },
   "dependencies": {
-    "bcrypt": "^3.0.0",
     "body-parser": "^1.18.3",
     "db-migrate": "^0.11.3",
     "db-migrate-pg": "^0.4.0",
@@ -47,6 +46,7 @@
     "mailgun.js": "^2.0.1",
     "massive": "^5.4.0",
     "redis": "^2.8.0",
+    "secure-remote-password": "^0.3.1",
     "speakeasy": "^2.0.0",
     "tracer": "^0.9.1",
     "uuid": "^3.3.2"

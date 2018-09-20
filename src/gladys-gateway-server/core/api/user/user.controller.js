@@ -8,7 +8,10 @@ module.exports = function(userModel, mailgunService) {
       confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/confirm-email/' + user.email_confirmation_token
     });
 
-    res.json(user);
+    res.status(201).json({
+      status: 201,
+      message: 'User created with success. You need now to confirm your email.'
+    });
   }
   
   async function confirmEmail(req, res, next){
@@ -16,9 +19,17 @@ module.exports = function(userModel, mailgunService) {
     res.json(user);
   }
 
-  async function login(req, res, next) {
-    var result = await userModel.login(req.body);
-    res.json(result);
+  async function loginGetSalt(req, res, next){
+    var user = await userModel.loginGetSalt(req.body);
+    res.json(user);
+  }
+
+  async function loginGenerateEphemeralValuePair(req, res, next) {
+    res.json(await userModel.loginGenerateEphemeralValuePair(req.body));
+  }
+
+  async function loginDeriveSession(req, res, next) {
+    res.json(await userModel.loginDeriveSession(req.body));
   }
 
   async function configureTwoFactor(req, res, next){
@@ -30,6 +41,8 @@ module.exports = function(userModel, mailgunService) {
     signup,
     confirmEmail,
     configureTwoFactor,
-    login
+    loginGetSalt,
+    loginGenerateEphemeralValuePair,
+    loginDeriveSession
   };
 };

@@ -5,19 +5,22 @@ describe('POST /users/signup', function() {
     return request(TEST_BACKEND_APP)
       .post('/users/signup')
       .send({
+        name: 'Tony',
         email: 'tony.stark@gladysproject.com',
         language: 'en',
-        password: 'thisisabigandsecurepassword',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
         public_key: 'public-key',
         encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(200)
+      .expect(201)
       .then(response => {
-        response.body.should.have.property('id');
-        response.body.should.have.property('email_confirmation_token');
-        response.body.should.have.property('account_id');
+        should.deepEqual(response.body, { 
+          status: 201,
+          message: 'User created with success. You need now to confirm your email.' 
+        });
       });
   });
 });
@@ -41,64 +44,83 @@ describe('POST /users/verify', function() {
   });
 });
 
-describe('POST /users/login', function() {
-  it('should login to the gateway', function() {
+describe('POST /users/login-salt', function() {
+  it('should return a salt', function() {
     return request(TEST_BACKEND_APP)
-      .post('/users/login')
+      .post('/users/login-salt')
       .send({
-        deviceName: 'Chrome MacOS Tony',
-        email: 'email-confirmed@gladysprojet.com',
-        password: 'biggestpasswordintheworld'
+        email: 'email-confirmed@gladysprojet.com'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
       .expect(200)
       .then(response => {
-        response.body.should.have.property('device_id');
-        response.body.should.have.property('access_token');
-        response.body.should.have.property('refresh_token');
+        should.deepEqual(response.body, {
+          srp_salt: 'e0812f8c57be08780bafcc7e2cbacd155b6f63962114c12cc12462a7aa669fdb'
+        });
       });
   });
-  it('should refuse login (wrong password)', function() {
+  it('should return 404 not found', function() {
     return request(TEST_BACKEND_APP)
-      .post('/users/login')
+      .post('/users/login-salt')
+      .send({
+        email: 'this-email-doesnt-exist@gladysprojet.com'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(404)
+      .then(response => {
+        
+      });
+  });
+});
+
+describe('POST /users/login-generate-ephemeral', function() {
+  it('should return a salt', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-generate-ephemeral')
       .send({
         email: 'email-confirmed@gladysprojet.com',
-        password: 'test'
+        client_ephemeral_public: 'heyheyhey'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(403)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('server_ephemeral_public');
+        response.body.should.have.property('login_session_key');
+      });
+  });
+  it('should return 404 not found', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-generate-ephemeral')
+      .send({
+        email: 'this-email-doesnt-exist@gladysprojet.com'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(404)
       .then(response => {
         
       });
   });
-  it('should refuse login (wrong email)', function() {
+});
+
+describe('POST /users/login-finalize', function() {
+  var srpFixture = require('../../../tasks/srp-fixture.json');
+  it('should return a server_session_proof and access_token', function() {
     return request(TEST_BACKEND_APP)
-      .post('/users/login')
+      .post('/users/login-finalize')
       .send({
-        email: 'email-2-confirmed@gladysprojet.com',
-        password: 'test'
+        login_session_key: '2b2aa099-4323-44e8-bb07-0b9b55dbe1dc',
+        client_session_proof: srpFixture.clientSession.proof
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(403)
+      .expect(200)
       .then(response => {
-        
-      });
-  });
-  it('should refuse login (email not confirmed)', function() {
-    return request(TEST_BACKEND_APP)
-      .post('/users/login')
-      .send({
-        email: 'tony.stark@gladysproject.com',
-        password: 'thisisabigandsecurepassword'
-      })
-      .set('Accept', 'application/json')
-      .expect('Content-Type', /json/)
-      .expect(403)
-      .then(response => {
-        
+        response.body.should.have.property('server_session_proof');
+        response.body.should.have.property('access_token');
       });
   });
 });

@@ -1,4 +1,5 @@
 const request = require('supertest');
+const configTest = require('../../../tasks/config');
 
 describe('POST /users/signup', function() {
   it('should signup one user', function() {
@@ -121,6 +122,20 @@ describe('POST /users/login-finalize', function() {
       .then(response => {
         response.body.should.have.property('server_session_proof');
         response.body.should.have.property('access_token');
+      });
+  });
+});
+
+describe('POST /users/two-factor-configure', function() {
+  it('should configure two factor and return otpauth_url', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/two-factor-configure')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenTwoFactorConfigure)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('otpauth_url');
       });
   });
 });

@@ -1,9 +1,8 @@
 const bodyParser = require('body-parser');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
-const errorMiddleware = require('../middleware/errorMiddleware.js');
 const { NotFoundError } = require('../common/error.js');
 
-module.exports.load = function(app, controllers) {
+module.exports.load = function(app, controllers, middlewares) {
 
   // parse application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({
@@ -33,7 +32,9 @@ module.exports.load = function(app, controllers) {
   app.post('/users/login-salt', asyncMiddleware(controllers.userController.loginGetSalt));
   app.post('/users/login-generate-ephemeral', asyncMiddleware(controllers.userController.loginGenerateEphemeralValuePair));
   app.post('/users/login-finalize', asyncMiddleware(controllers.userController.loginDeriveSession));
-  app.post('/users/login', asyncMiddleware(controllers.userController.login));
+
+  app.post('/users/two-factor-configure', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.configureTwoFactor));
+  
 
   // 404 error
   app.use(asyncMiddleware((req, res, next) => {
@@ -41,5 +42,5 @@ module.exports.load = function(app, controllers) {
   }));
 
   // error
-  app.use(errorMiddleware);
+  app.use(middlewares.errorMiddleware);
 };

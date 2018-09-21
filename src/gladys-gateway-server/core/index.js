@@ -6,7 +6,6 @@ module.exports = async () => {
   Promise.promisifyAll(redis);
   const logger = require('tracer').colorConsole();
 
-
   const app = express();
 
   const db = await massive({
@@ -33,11 +32,17 @@ module.exports = async () => {
     pingController: require('./api/ping/ping.controller')(models.pingModel),
     userController: require('./api/user/user.controller')(models.userModel, services.mailgunService)
   };
+
+  const middlewares = {
+    twoFactorTokenAuth: require('./middleware/twoFactorTokenAuth')(db, redisClient),
+    accessTokenAuth: require('./middleware/accessTokenAuth')(logger),
+    errorMiddleware: require('./middleware/errorMiddleware.js')
+  };
   
 
   const routes = require('./api/routes');
 
-  routes.load(app, controllers);
+  routes.load(app, controllers, middlewares);
 
   app.listen(process.env.SERVER_PORT);
 

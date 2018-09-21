@@ -178,7 +178,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
 
       // Otherwise, we send an access token only valid 1 hour so the user can enable two factor
       else {
-        var accessToken = jwtService.generateAccessToken(loginSessionState.user, ['two_factor']);
+        var accessToken = jwtService.generateAccessToken(loginSessionState.user, ['two-factor-configure']);
 
         return {
           server_session_proof: serverSession.proof,

@@ -6,7 +6,8 @@
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
     "eslint": "eslint core test index.js",
-    "start": "nodemon index.js"
+    "start": "nodemon index.js",
+    "apidoc": "apidoc -i core/ -o apidoc/"
   },
   "repository": {
     "type": "git",
@@ -25,6 +26,10 @@
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/GladysProject/gladys-gateway/issues"
+  },
+  "apidoc": {
+    "title": "Gladys Gateway",
+    "name": "Gladys Gateway"
   },
   "homepage": "https://github.com/GladysProject/gladys-gateway#readme",
   "devDependencies": {

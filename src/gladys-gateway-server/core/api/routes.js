@@ -2,7 +2,7 @@ const bodyParser = require('body-parser');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
 const { NotFoundError } = require('../common/error.js');
 
-module.exports.load = function(app, controllers, middlewares) {
+module.exports.load = function(app, io, controllers, middlewares) {
 
   // parse application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({
@@ -39,6 +39,8 @@ module.exports.load = function(app, controllers, middlewares) {
 
   app.post('/users/access-token', asyncMiddleware(middlewares.refreshTokenAuth), asyncMiddleware(controllers.userController.getAccessToken));
   
+  // socket
+  io.on('connection', controllers.socketController.connection);
 
   // 404 error
   app.use(asyncMiddleware((req, res, next) => {

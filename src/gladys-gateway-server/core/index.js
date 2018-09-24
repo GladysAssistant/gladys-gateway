@@ -7,6 +7,16 @@ module.exports = async () => {
   const logger = require('tracer').colorConsole();
 
   const app = express();
+  const server = require('http').Server(app);
+  const io = require('socket.io')(server);
+  const redisAdapter = require('socket.io-redis');
+
+  io.adapter(redisAdapter({ 
+    host: process.env.REDIS_HOST, 
+    port: process.env.REDIS_PORT
+  }));
+
+  const redisClient = redis.createClient();
 
   const db = await massive({
     host: process.env.POSTGRESQL_HOST,
@@ -16,8 +26,6 @@ module.exports = async () => {
     password: process.env.POSTGRESQL_PASSWORD
   });
 
-  const redisClient = redis.createClient();
-
   const services = {
     mailgunService: require('./service/mailgun')(logger),
     jwtService: require('./service/jwt')()
@@ -25,12 +33,14 @@ module.exports = async () => {
 
   const models = {
     pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
-    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService)
+    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService),
+    socketModel: require('./api/socket/socket.model')(logger, db, redisClient)
   };
 
   const controllers = {
     pingController: require('./api/ping/ping.controller')(models.pingModel),
-    userController: require('./api/user/user.controller')(models.userModel, services.mailgunService)
+    userController: require('./api/user/user.controller')(models.userModel, services.mailgunService),
+    socketController: require('./api/socket/socket.controller')(logger, models.socketModel)
   };
 
   const middlewares = {
@@ -43,12 +53,13 @@ module.exports = async () => {
 
   const routes = require('./api/routes');
 
-  routes.load(app, controllers, middlewares);
+  routes.load(app, io, controllers, middlewares);
 
-  app.listen(process.env.SERVER_PORT);
+  server.listen(process.env.SERVER_PORT);
 
   return {
     app,
+    io,
     db, 
     redisClient,
     models,

@@ -52,6 +52,9 @@
     "massive": "^5.4.0",
     "redis": "^2.8.0",
     "secure-remote-password": "^0.3.1",
+    "socket.io": "^2.1.1",
+    "socket.io-client": "^2.1.1",
+    "socket.io-redis": "^5.2.0",
     "speakeasy": "^2.0.0",
     "tracer": "^0.9.1",
     "uuid": "^3.3.2"

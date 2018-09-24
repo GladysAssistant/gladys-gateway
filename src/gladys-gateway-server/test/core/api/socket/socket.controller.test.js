@@ -1,5 +1,4 @@
 var io = require('socket.io-client');
-const configTest = require('../../../tasks/config');
 
 describe('socket', function(){
   it('should connect to socket.io server', function(done){

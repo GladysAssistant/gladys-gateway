@@ -290,14 +290,14 @@ describe('POST /users/login-two-factor', function() {
   });
 });
 
-describe('POST /users/access-token', function() {
+describe('GET /users/access-token', function() {
   
   it('should return a new access token', function() {
     
     var userAgent = 'my-browser-is-awesome';
 
     return request(TEST_BACKEND_APP)
-      .post('/users/access-token')
+      .get('/users/access-token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtRefreshToken)
       .set('user-agent', userAgent)
@@ -313,7 +313,7 @@ describe('POST /users/access-token', function() {
     var userAgent = 'my-user-agent-is-wrong';
 
     return request(TEST_BACKEND_APP)
-      .post('/users/access-token')
+      .get('/users/access-token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtRefreshToken)
       .set('user-agent', userAgent)
@@ -329,7 +329,7 @@ describe('POST /users/access-token', function() {
     var userAgent = 'my-user-agent-is-wrong';
 
     return request(TEST_BACKEND_APP)
-      .post('/users/access-token')
+      .get('/users/access-token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenTwoFactorEnable)
       .set('user-agent', userAgent)

@@ -279,7 +279,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     });
   }
   
-  async function getAccessToken(user, data, refreshToken){
+  async function getAccessToken(user, refreshToken){
 
     var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
 

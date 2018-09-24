@@ -177,7 +177,7 @@ module.exports = function(userModel, mailgunService) {
   }
 
   /**
-   * @api {post} /users/access-token Get access token
+   * @api {get} /users/access-token Get access token
    * @apiName Get access token
    * @apiGroup User
    * 
@@ -189,7 +189,7 @@ module.exports = function(userModel, mailgunService) {
    * }
    */
   async function getAccessToken(req, res, next) {
-    var token = await userModel.getAccessToken(req.user, req.body, req.headers.authorization);
+    var token = await userModel.getAccessToken(req.user, req.headers.authorization);
     res.json(token);
   }
 

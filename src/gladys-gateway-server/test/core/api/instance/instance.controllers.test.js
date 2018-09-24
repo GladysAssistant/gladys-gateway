@@ -41,3 +41,18 @@ describe('POST /instances', function() {
       });
   });
 });
+
+describe('GET /instances/access-token', function() {
+  it('should return a new access token', function() {
+
+    return request(TEST_BACKEND_APP)
+      .get('/instances/access-token')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtRefreshTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('access_token');
+      });
+  });
+});

@@ -42,8 +42,26 @@ module.exports = function(instanceModel) {
     res.json(instances);
   }
 
+  /**
+   * @api {get} /instances/access-token get access token
+   * @apiName get access token
+   * @apiGroup Instance
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "access_token": "ejkjlsf"
+   * }
+   */
+  async function getAccessToken(req, res, next) {
+    var token = await instanceModel.getAccessToken(req.instance, req.headers.authorization);
+    res.json(token);
+  }
+
   return {
     createInstance,
-    getInstances
+    getInstances,
+    getAccessToken
   };
 };

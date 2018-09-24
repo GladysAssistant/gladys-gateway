@@ -1,7 +1,7 @@
 const Joi = require('joi');
 const uuid = require('uuid');
 const crypto = require('crypto');
-const { ValidationError } = require('../../common/error');
+const { ValidationError, ForbiddenError } = require('../../common/error');
 
 module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
 
@@ -60,8 +60,32 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
     return instances;
   }
 
+  async function getAccessToken(instance, refreshToken) {
+    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+
+    // we are looking for instance not deleted with 
+    // this refresh_token_hash
+    var instance = await db.t_instance.findOne({
+      id: instance.id,
+      refresh_token_hash: refreshTokenHash,
+      is_deleted: false
+    });
+
+    // the instance doesn't exist or has been deleted
+    if(instance === null) {
+      throw new ForbiddenError();
+    }
+
+    var accessToken = jwtService.generateAccessTokenInstance(instance);
+
+    return {
+      access_token: accessToken
+    };
+  }
+
   return {
     createInstance,
-    getInstances
+    getInstances,
+    getAccessToken
   };
 };

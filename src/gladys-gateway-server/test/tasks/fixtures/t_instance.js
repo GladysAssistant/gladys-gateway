@@ -3,5 +3,5 @@ module.exports = [{
   name: 'Raspberry Pi 1',
   account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
   public_key: 'public-key',
-  refresh_token_hash: 'sf'
+  refresh_token_hash: 'l5BnlorBFm5KoPG0UlM9JFQ+sJX/A+XXKol3xtZS6fY='
 }];

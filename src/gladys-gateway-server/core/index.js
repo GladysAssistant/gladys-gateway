@@ -49,6 +49,7 @@ module.exports = async () => {
     twoFactorTokenAuth: require('./middleware/twoFactorTokenAuth')(db, redisClient),
     accessTokenAuth: require('./middleware/accessTokenAuth')(logger),
     refreshTokenAuth: require('./middleware/refreshTokenAuth')(logger),
+    refreshTokenInstanceAuth: require('./middleware/refreshTokenInstanceAuth')(logger),
     errorMiddleware: require('./middleware/errorMiddleware.js')
   };
   

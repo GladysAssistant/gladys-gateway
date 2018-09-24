@@ -171,9 +171,26 @@ module.exports = function(userModel, mailgunService) {
    *   "device_id": "b82ef923-d849-4b98-9dee-0a6e0005903d"
    * }
    */
-  async function loginTwoFactor(req, res, next){
+  async function loginTwoFactor(req, res, next) {
     var tokens = await userModel.loginTwoFactor(req.user, req.body.two_factor_code, req.body.device_name, req.headers['user-agent']);
     res.json(tokens);
+  }
+
+  /**
+   * @api {post} /users/access-token Get access token
+   * @apiName Get access token
+   * @apiGroup User
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiM2I2OWYxYzUtZDM2Yy00MTlkLTg4NGMtNTBiOWRkNmUzM2U0Iiwic2NvcGUiOlsidHdvLWZhY3Rvci1jb25maWd1cmUiXSwiaWF0IjoxNTM3NzQ2ODk2LCJleHAiOjMzMDczNzQ2ODk2LCJhdWQiOiJ1c2VyIiwiaXNzIjoiZ2xhZHlzLWdhdGV3YXkifQ.-fBNWml3S6ZTyszwN7BK44UpOfeDXEjRkgwboletRUU"
+   * }
+   */
+  async function getAccessToken(req, res, next) {
+    var token = await userModel.getAccessToken(req.user, req.body, req.headers.authorization);
+    res.json(token);
   }
 
   return {
@@ -184,6 +201,7 @@ module.exports = function(userModel, mailgunService) {
     loginGetSalt,
     loginGenerateEphemeralValuePair,
     loginDeriveSession,
-    loginTwoFactor
+    loginTwoFactor,
+    getAccessToken
   };
 };

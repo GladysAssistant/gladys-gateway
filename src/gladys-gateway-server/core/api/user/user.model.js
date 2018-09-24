@@ -279,6 +279,32 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     });
   }
   
+  async function getAccessToken(user, data, refreshToken){
+
+    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+
+    // we are looking for devices not revoked with 
+    // this refresh_token_hash
+    var device = await db.t_device.findOne({
+      user_id: user.id,
+      refresh_token_hash: refreshTokenHash,
+      revoked: false,
+      is_deleted: false
+    });
+
+    // the device doesn't exist or has been revoked
+    if(device === null) {
+      throw new ForbiddenError();
+    }
+
+    var scope =  ['dashoard:read', 'dashboard:write', 'two-factor-configure'];
+    var accessToken = jwtService.generateAccessToken(user, scope);
+
+    return {
+      access_token: accessToken
+    };
+  }
+  
   return {
     signup,
     confirmEmail,
@@ -287,6 +313,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     loginGetSalt,
     loginGenerateEphemeralValuePair,
     loginDeriveSession,
-    loginTwoFactor
+    loginTwoFactor,
+    getAccessToken
   };
 };

@@ -289,3 +289,55 @@ describe('POST /users/login-two-factor', function() {
       });
   });
 });
+
+describe('POST /users/access-token', function() {
+  
+  it('should return a new access token', function() {
+    
+    var userAgent = 'my-browser-is-awesome';
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/access-token')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtRefreshToken)
+      .set('user-agent', userAgent)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('access_token');
+      });
+  });
+
+  it('should return 401, wrong user agent', function() {
+    
+    var userAgent = 'my-user-agent-is-wrong';
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/access-token')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtRefreshToken)
+      .set('user-agent', userAgent)
+      .expect('Content-Type', /json/)
+      .expect(401)
+      .then(response => {
+        
+      });
+  });
+
+  it('should return 401, wrong jwt', function() {
+    
+    var userAgent = 'my-user-agent-is-wrong';
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/access-token')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenTwoFactorEnable)
+      .set('user-agent', userAgent)
+      .expect('Content-Type', /json/)
+      .expect(401)
+      .then(response => {
+        
+      });
+  });
+
+});

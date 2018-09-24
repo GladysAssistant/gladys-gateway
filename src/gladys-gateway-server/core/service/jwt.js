@@ -27,10 +27,30 @@ module.exports = function() {
       expiresIn: 30*24*60*60 // refresh token is valid 30 days
     });
   }
+  
+  function generateRefreshTokenInstance(instance) {
+    return jwt.sign({ instance_id: instance.id }, process.env.JWT_REFRESH_TOKEN_SECRET, {
+      algorithm: 'HS256',
+      audience: 'instance',
+      issuer: 'gladys-gateway',
+      expiresIn: 10*365*24*60*60 // refresh token of instance basically never expires, they are invalidated server side
+    });
+  }
+
+  function generateAccessTokenInstance(instance) {
+    return jwt.sign({ instance_id: instance.id }, process.env.JWT_ACCESS_TOKEN_SECRET, {
+      algorithm: 'HS256',
+      audience: 'instance',
+      issuer: 'gladys-gateway',
+      expiresIn: 1*60*60 // access token is valid 1 hour
+    });
+  }
 
   return {
     generateTwoFactorToken,
     generateAccessToken,
-    generateRefreshToken
+    generateRefreshToken,
+    generateRefreshTokenInstance,
+    generateAccessTokenInstance
   };
 };

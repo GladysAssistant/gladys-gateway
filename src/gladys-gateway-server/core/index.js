@@ -34,13 +34,15 @@ module.exports = async () => {
   const models = {
     pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
     userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService),
-    socketModel: require('./api/socket/socket.model')(logger, db, redisClient)
+    socketModel: require('./api/socket/socket.model')(logger, db, redisClient),
+    instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService)
   };
 
   const controllers = {
     pingController: require('./api/ping/ping.controller')(models.pingModel),
     userController: require('./api/user/user.controller')(models.userModel, services.mailgunService),
-    socketController: require('./api/socket/socket.controller')(logger, models.socketModel)
+    socketController: require('./api/socket/socket.controller')(logger, models.socketModel),
+    instanceController: require('./api/instance/instance.controller')(models.instanceModel)
   };
 
   const middlewares = {

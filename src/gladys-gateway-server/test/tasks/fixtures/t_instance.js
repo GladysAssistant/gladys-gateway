@@ -1,1 +1,7 @@
-module.exports = [];
+module.exports = [{
+  id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+  name: 'Raspberry Pi 1',
+  account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+  public_key: 'public-key',
+  refresh_token_hash: 'sf'
+}];

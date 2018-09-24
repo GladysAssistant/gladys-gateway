@@ -24,6 +24,7 @@ env:
     - POSTGRESQL_PORT=5432
     - REDIS_HOST=localhost
     - REDIS_PORT=6379
+    - SERVER_URL=3000
     - MAILGUN_API_KEY=test
     - MAILGUN_DOMAIN=test.mailgun.org
     - EMAIL_FROM="Gladys Project <test.mailgun.org>"

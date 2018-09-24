@@ -19,8 +19,8 @@ module.exports = function() {
     });
   }
 
-  function generateRefreshToken(user, scope, deviceId){
-    return jwt.sign({ user_id: user.id, scope, device_id: deviceId }, process.env.JWT_REFRESH_TOKEN_SECRET, {
+  function generateRefreshToken(user, scope, deviceId, userAgentHash) {
+    return jwt.sign({ user_id: user.id, scope, device_id: deviceId, fingerprint: userAgentHash}, process.env.JWT_REFRESH_TOKEN_SECRET, {
       algorithm: 'HS256',
       audience: 'user',
       issuer: 'gladys-gateway',

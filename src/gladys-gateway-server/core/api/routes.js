@@ -32,8 +32,10 @@ module.exports.load = function(app, controllers, middlewares) {
   app.post('/users/login-salt', asyncMiddleware(controllers.userController.loginGetSalt));
   app.post('/users/login-generate-ephemeral', asyncMiddleware(controllers.userController.loginGenerateEphemeralValuePair));
   app.post('/users/login-finalize', asyncMiddleware(controllers.userController.loginDeriveSession));
-
+  app.post('/users/login-two-factor', asyncMiddleware(middlewares.twoFactorTokenAuth), asyncMiddleware(controllers.userController.loginTwoFactor));
+  
   app.post('/users/two-factor-configure', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.configureTwoFactor));
+  app.post('/users/two-factor-enable', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.enableTwoFactor));
   
 
   // 404 error

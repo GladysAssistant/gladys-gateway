@@ -37,12 +37,23 @@ module.exports = function(userModel, mailgunService) {
     res.json(secret);
   }
 
+  async function enableTwoFactor(req, res, next) {
+    res.json(await userModel.enableTwoFactor(req.user, req.body.two_factor_code));
+  }
+
+  async function loginTwoFactor(req, res, next){
+    var tokens = await userModel.loginTwoFactor(req.user, req.body.two_factor_code, req.body.device_name, req.headers['user-agent']);
+    res.json(tokens);
+  }
+
   return {
     signup,
     confirmEmail,
     configureTwoFactor,
+    enableTwoFactor,
     loginGetSalt,
     loginGenerateEphemeralValuePair,
-    loginDeriveSession
+    loginDeriveSession,
+    loginTwoFactor
   };
 };

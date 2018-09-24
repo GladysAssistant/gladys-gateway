@@ -109,6 +109,7 @@ describe('POST /users/login-generate-ephemeral', function() {
 
 describe('POST /users/login-finalize', function() {
   var srpFixture = require('../../../tasks/srp-fixture.json');
+  
   it('should return a server_session_proof and access_token', function() {
     return request(TEST_BACKEND_APP)
       .post('/users/login-finalize')
@@ -124,6 +125,21 @@ describe('POST /users/login-finalize', function() {
         response.body.should.have.property('access_token');
       });
   });
+
+  it('should return 403 forbidden. Wrong client proof', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-finalize')
+      .send({
+        login_session_key: '2b2aa099-4323-44e8-bb07-0b9b55dbe1dc',
+        client_session_proof: 'wrong-proof'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+        
+      });
+  });
 });
 
 describe('POST /users/two-factor-configure', function() {
@@ -136,6 +152,140 @@ describe('POST /users/two-factor-configure', function() {
       .expect(200)
       .then(response => {
         response.body.should.have.property('otpauth_url');
+      });
+  });
+
+  it('should return 401 unauthorized, no jwt provided', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/two-factor-configure')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401)
+      .then(response => {
+        
+      });
+  });
+});
+
+describe('POST /users/two-factor-enable', function() {
+  it('should enable two factor', function() {
+    var twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+    const speakeasy = require('speakeasy');
+    
+    var token = speakeasy.totp({
+      secret: twoFactorSecret,
+      encoding: 'base32'
+    });
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/two-factor-enable')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenTwoFactorEnable)
+      .send({
+        two_factor_code: token
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('two_factor_enabled', true);
+      });
+  });
+
+  it('should not enable two factor, wrong token', function() {
+    var twoFactorSecret = 'wrong-secret';
+    const speakeasy = require('speakeasy');
+    
+    var token = speakeasy.totp({
+      secret: twoFactorSecret,
+      encoding: 'base32'
+    });
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/two-factor-enable')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenTwoFactorEnable)
+      .send({
+        two_factor_code: token
+      })
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+
+      });
+  });
+});
+
+describe('POST /users/login-two-factor', function() {
+  it('should return access_token and refresh_token', function() {
+    var twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+
+    const speakeasy = require('speakeasy');
+
+    var token = speakeasy.totp({
+      secret: twoFactorSecret,
+      encoding: 'base32'
+    });
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .send({
+        two_factor_code: token
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('access_token');
+        response.body.should.have.property('refresh_token');
+        response.body.should.have.property('device_id');
+      });
+  });
+
+  it('should return 403 error, invalid token', function() {
+    var twoFactorSecret = 'wrong-secret';
+
+    const speakeasy = require('speakeasy');
+
+    var token = speakeasy.totp({
+      secret: twoFactorSecret,
+      encoding: 'base32'
+    });
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .send({
+        two_factor_code: token
+      })
+      .expect('Content-Type', /json/)
+      .expect(403)
+      .then(response => {
+
+      });
+  });
+
+  it('should return 401 error, unauthorized (no jwt)', function() {
+    var twoFactorSecret = 'wrong-secret';
+
+    const speakeasy = require('speakeasy');
+
+    var token = speakeasy.totp({
+      secret: twoFactorSecret,
+      encoding: 'base32'
+    });
+
+    return request(TEST_BACKEND_APP)
+      .post('/users/login-two-factor')
+      .set('Accept', 'application/json')
+      .send({
+        two_factor_code: token
+      })
+      .expect('Content-Type', /json/)
+      .expect(401)
+      .then(response => {
+
       });
   });
 });

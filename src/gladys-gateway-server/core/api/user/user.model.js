@@ -199,13 +199,94 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
       otpauth_url: secret.otpauth_url
     };
   }
+
+  async function enableTwoFactor(user, twoFactorCode) {
+    var userWithSecret = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'two_factor_secret']});
+    
+    var tokenValidates = speakeasy.totp.verify({
+      secret: userWithSecret.two_factor_secret,
+      encoding: 'base32',
+      token: twoFactorCode,
+      window: 2
+    });
+
+    if(!tokenValidates) {
+      throw new ForbiddenError();
+    }
+
+    await db.t_user.update({
+      id: user.id
+    }, {two_factor_enabled: true});
+    
+    return {
+      two_factor_enabled: true
+    };
+  }
+
+  async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent){
+    var userWithSecret = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'two_factor_secret']});
+
+    var tokenValidates = speakeasy.totp.verify({
+      secret: userWithSecret.two_factor_secret,
+      encoding: 'base32',
+      token: twoFactorCode,
+      window: 2
+    });
+
+    if(!tokenValidates) {
+      throw new ForbiddenError();
+    }
+
+    var newDevice = {
+      id: uuid.v4(),
+      name: deviceName,
+      user_id: user.id
+    };
+
+    var scope =  ['dashoard:read', 'dashboard:write', 'two-factor-configure'];
+    var userAgentHash = crypto.createHash('sha256').update(userAgent).digest('base64');
+
+    var refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
+    var accessToken = jwtService.generateAccessToken(user, scope);
+
+    // we save a hash of the refresh token so we can invalidate it after. 
+    // We don't want to save the refresh token in clear text because if an attacker get read access 
+    // to the DB (ex: SQL injection) he could get the token and use it for write use
+    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+
+    return db.withTransaction(async tx => {
+
+      var insertedDevice = await tx.t_device.insert(newDevice);
+      
+      // save login action in history table
+      await tx.t_history.insert({
+        action: 'login',
+        user_id: user.id,
+        params: {
+          device_id: insertedDevice.id
+        }
+      });
+
+      return {
+        access_token: accessToken,
+        refresh_token: refreshToken,
+        device_id: insertedDevice.id
+      };
+    });
+  }
   
   return {
     signup,
     confirmEmail,
     configureTwoFactor,
+    enableTwoFactor,
     loginGetSalt,
     loginGenerateEphemeralValuePair,
-    loginDeriveSession
+    loginDeriveSession,
+    loginTwoFactor
   };
 };

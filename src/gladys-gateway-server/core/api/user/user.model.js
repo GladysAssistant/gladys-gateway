@@ -12,13 +12,13 @@ const redisLoginSessionExpiryInSecond = 60;
 module.exports = function UserModel(logger, db, redisClient, jwtService) {
 
   const signupSchema = Joi.object().keys({
-    name: Joi.string().min(2).max(30).required(),
-    email: Joi.string().email().required(),
-    language: Joi.string().required().allow(['fr', 'en']),
-    srp_salt: Joi.string().required(),
-    srp_verifier: Joi.string().required(),
-    public_key: Joi.string().required(),
-    encrypted_private_key: Joi.string().required()
+    name: Joi.string().min(2).max(30),
+    email: Joi.string().email(),
+    language: Joi.string().allow(['fr', 'en']),
+    srp_salt: Joi.string(),
+    srp_verifier: Joi.string(),
+    public_key: Joi.string(),
+    encrypted_private_key: Joi.string()
   });
 
   /**
@@ -27,7 +27,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   async function signup(newUser) {
     newUser.email = newUser.email.toLowerCase();
 
-    const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true, abortEarly: false});
+    const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
 
     if (error) {
       logger.debug(error);
@@ -74,6 +74,41 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
         account_id: insertedAccount.id
       };
     });
+  }
+
+  async function updateUser(user, data) {
+    const { error, value } = Joi.validate(data, signupSchema, {stripUnknown: true, abortEarly: false, presence: 'optional'});
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('user', error);
+    }
+
+    // we get the current user to see if his email has changed
+    const currentUser = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email']});
+
+    var emailConfirmationToken;
+
+    if(value.email) {
+      value.email = value.email.toLowerCase();
+      
+      if(value.email !== currentUser.email) {
+        value.email_confirmed = false;
+        
+        // generate email confirmation token
+        emailConfirmationToken = (await randomBytes(64)).toString('base64');
+
+        // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
+        // (due to SQL injection for example)
+        value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+      }
+    }
+
+    var updatedUser = await db.t_user.update(user.id, value, {fields: ['id', 'name', 'email', 'email_confirmed', 'language']});
+    updatedUser.email_confirmation_token = emailConfirmationToken;
+    return updatedUser;
   }
 
   async function confirmEmail(emailConfirmationToken) {
@@ -307,6 +342,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   
   return {
     signup,
+    updateUser,
     confirmEmail,
     configureTwoFactor,
     enableTwoFactor,

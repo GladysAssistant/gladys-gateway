@@ -35,6 +35,44 @@ module.exports = function(userModel, mailgunService) {
       message: 'User created with success. You need now to confirm your email.'
     });
   }
+
+  /**
+   * @api {patch} /users/me Update user
+   * @apiName Update user
+   * @apiGroup User
+   * 
+   * @apiParam {String} name Between 2 and 30 characters
+   * @apiParam {String} email Email of the user
+   * @apiParam {string="en","fr"} language language of the user
+   * @apiParam {string} srp_salt secure remote password salt
+   * @apiParam {string} srp_verifier secure remote password verifier
+   * @apiParam {string} public_key user publick key
+   * @apiParam {string} encrypted_private_key user encrypted private key
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "id": "4e7ff439-2b96-4606-adda-fd981277c39d",
+   *   "name": "my name",
+   *   "email": "myemail@email.com",
+   *   "email_confirmed": false
+   * }
+   *
+   */
+  async function updateUser(req, res, next) {
+    var user = await userModel.updateUser(req.user, req.body);
+
+    if(user.email_confirmed === false) {
+      
+      // send confirmation email to user
+      mailgunService.send(user, 'confirmation', {
+        confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/confirm-email/' + user.email_confirmation_token
+      });
+    }
+
+    res.json(user);
+  }
   
   /**
    * @api {post} /users/verify Verify user email
@@ -195,6 +233,7 @@ module.exports = function(userModel, mailgunService) {
 
   return {
     signup,
+    updateUser,
     confirmEmail,
     configureTwoFactor,
     enableTwoFactor,

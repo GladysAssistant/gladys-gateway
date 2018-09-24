@@ -24,6 +24,25 @@ describe('POST /users/signup', function() {
         });
       });
   });
+
+  it('should not signup user, missing attributes', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/signup')
+      .send({
+        email: 'tony.stark@gladysproject.com',
+        language: 'en',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        public_key: 'public-key',
+        encrypted_private_key: 'this-is-the-encrypted-private-key'
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(422)
+      .then(response => {
+        
+      });
+  });
 });
 
 describe('POST /users/verify', function() {
@@ -340,4 +359,37 @@ describe('GET /users/access-token', function() {
       });
   });
 
+});
+
+describe('PATCH /users/me', function() {
+  it('should update user account', function() {
+    return request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        name: 'my new name'
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('name', 'my new name');
+      });
+  });
+
+  it('should update user email and send email', function() {
+    return request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'new-email@gladysproject.com'
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('email', 'new-email@gladysproject.com');
+        response.body.should.have.property('email_confirmed', false);
+      });
+  });
 });

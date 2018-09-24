@@ -4,7 +4,7 @@
   "description": "Gladys Gateway JS client",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit"
   },
   "keywords": [
     "gladys",
@@ -21,5 +21,10 @@
     "encode-utf8": "^1.0.2",
     "hex-to-array-buffer": "^1.1.0",
     "secure-remote-password": "^0.3.1"
+  },
+  "devDependencies": {
+    "mocha": "^5.2.0",
+    "node-webcrypto-ossl": "^1.0.38",
+    "should": "^13.2.3"
   }
 }

@@ -12,6 +12,16 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/fr/confirmation.ejs', 'utf8'))
     }
   },
+  invitation: {
+    en: {
+      subject: 'Gladys Gateway - Welcome!',
+      ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/en/invitation.ejs', 'utf8'))
+    },
+    fr: {
+      subject: 'Gladys Gateway - Bienvenue !',
+      ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/fr/invitation.ejs', 'utf8'))
+    }
+  },
   password_reset: {
     en: {
       subject: 'Gladys Gateway - Password reset',

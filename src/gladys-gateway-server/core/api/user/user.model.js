@@ -10,7 +10,7 @@ const schema = require('../../common/schema');
 
 const redisLoginSessionExpiryInSecond = 60;
 
-module.exports = function UserModel(logger, db, redisClient, jwtService) {
+module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
 
   /**
    * Create a new user with his email and language
@@ -344,6 +344,33 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
       access_token: accessToken
     };
   }
+
+  async function forgotPassword(email) {
+
+    var user = await db.t_user.findOne({
+      email,
+      email_confirmed: true,
+      is_deleted: false
+    }, {fields: ['id', 'language', 'email']});
+
+    if(user === null) {
+      throw new NotFoundError();
+    }
+
+    var resetPasswordToken = (await randomBytes(64)).toString('hex');
+    var tokenHash = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
+
+    var resetPassword = await db.t_reset_password.insert({
+      token_hash: tokenHash,
+      user_id: user.id
+    });
+
+    await mailgunService.send(user, 'password_reset', {
+      resetPasswordUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/reset-password/' + encodeURI(resetPasswordToken)
+    });
+
+    return resetPassword;
+  }
   
   return {
     signup,
@@ -355,6 +382,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     loginGenerateEphemeralValuePair,
     loginDeriveSession,
     loginTwoFactor,
-    getAccessToken
+    getAccessToken,
+    forgotPassword
   };
 };

@@ -34,7 +34,7 @@ module.exports = async () => {
 
   const models = {
     pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
-    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService),
+    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService, services.mailgunService),
     socketModel: require('./api/socket/socket.model')(logger, db, redisClient),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),

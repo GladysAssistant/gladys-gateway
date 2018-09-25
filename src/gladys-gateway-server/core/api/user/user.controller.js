@@ -231,6 +231,25 @@ module.exports = function(userModel, mailgunService) {
     res.json(token);
   }
 
+  /**
+   * @api {post} /users/forgot-password Forgot password
+   * @apiName Forgot password
+   * @apiGroup User
+   * 
+   * @apiParam {String} email Email of the user
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function forgotPassword(req, res, next) {
+    await userModel.forgotPassword(req.body.email);
+    res.json({ success: true });
+  }
+
   return {
     signup,
     updateUser,
@@ -241,6 +260,7 @@ module.exports = function(userModel, mailgunService) {
     loginGenerateEphemeralValuePair,
     loginDeriveSession,
     loginTwoFactor,
-    getAccessToken
+    getAccessToken,
+    forgotPassword
   };
 };

@@ -398,3 +398,35 @@ describe('PATCH /users/me', function() {
       });
   });
 });
+
+describe('POST /users/forgot-password', function() {
+  it('should return success', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/forgot-password')
+      .set('Accept', 'application/json')
+      .send({
+        email: 'email-confirmed-two-factor-enabled@gladysprojet.com'
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, {
+          success: true
+        });
+      });
+  });
+
+  it('should return 404', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/users/forgot-password')
+      .set('Accept', 'application/json')
+      .send({
+        email: 'this-email-does-not-exist@gladysproject.com'
+      })
+      .expect('Content-Type', /json/)
+      .expect(404)
+      .then(response => {
+
+      });
+  });
+});

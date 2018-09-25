@@ -25,7 +25,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
    * Create a new user with his email and language
    */
   async function signup(newUser) {
-    newUser.email = newUser.email.toLowerCase();
+    newUser.email = newUser.email.trim().toLowerCase();
 
     const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
 
@@ -63,6 +63,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
       // (due to SQL injection for example)
       value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
       
+      // user signing up is admin
+      value.role = 'admin';
+
       // we insert the user in db
       var insertedUser = await tx.t_user.insert(value);
       
@@ -92,7 +95,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     var emailConfirmationToken;
 
     if(value.email) {
-      value.email = value.email.toLowerCase();
+      value.email = value.email.trim().toLowerCase();
       
       if(value.email !== currentUser.email) {
         value.email_confirmed = false;

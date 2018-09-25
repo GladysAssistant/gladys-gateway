@@ -24,7 +24,37 @@ module.exports = function(invitationModel) {
     });
   }
 
+  /**
+   * @api {post} /invitations/accept Accept invitation
+   * @apiName Accept invitation
+   * @apiGroup Invitation
+   *
+   * @apiParam {String} name Between 2 and 30 characters
+   * @apiParam {string="en","fr"} language language of the user
+   * @apiParam {string} srp_salt secure remote password salt
+   * @apiParam {string} srp_verifier secure remote password verifier
+   * @apiParam {string} public_key user publick key
+   * @apiParam {string} encrypted_private_key user encrypted private key
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 201 CREATED
+   * 
+   * {
+   *   "status": 201,
+   *   "message": "User created with success."
+   * }
+   */
+  async function accept(req, res, next) {
+    await invitationModel.accept(req.body);
+    
+    res.status(201).json({
+      status: 201,
+      message: 'User created with success.'
+    });
+  }
+
   return {
-    inviteUser
+    inviteUser,
+    accept
   };
 };

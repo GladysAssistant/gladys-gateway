@@ -6,20 +6,11 @@ const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const uuid = require('uuid');
 const srpServer = require('secure-remote-password/server');
+const schema = require('../../common/schema');
 
 const redisLoginSessionExpiryInSecond = 60;
 
 module.exports = function UserModel(logger, db, redisClient, jwtService) {
-
-  const signupSchema = Joi.object().keys({
-    name: Joi.string().min(2).max(30),
-    email: Joi.string().email(),
-    language: Joi.string().allow(['fr', 'en']),
-    srp_salt: Joi.string(),
-    srp_verifier: Joi.string(),
-    public_key: Joi.string(),
-    encrypted_private_key: Joi.string()
-  });
 
   /**
    * Create a new user with his email and language
@@ -27,7 +18,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   async function signup(newUser) {
     newUser.email = newUser.email.trim().toLowerCase();
 
-    const { error, value } = Joi.validate(newUser, signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+    const { error, value } = Joi.validate(newUser, schema.signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
 
     if (error) {
       logger.debug(error);
@@ -80,7 +71,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   }
 
   async function updateUser(user, data) {
-    const { error, value } = Joi.validate(data, signupSchema, {stripUnknown: true, abortEarly: false, presence: 'optional'});
+    const { error, value } = Joi.validate(data, schema.signupSchema, {stripUnknown: true, abortEarly: false, presence: 'optional'});
 
     if (error) {
       logger.debug(error);

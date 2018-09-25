@@ -48,6 +48,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   // invitation
   app.post('/invitations', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.invitationController.inviteUser));
+  app.post('/invitations/accept', asyncMiddleware(controllers.invitationController.accept));
   
   // socket
   io.on('connection', controllers.socketController.connection);

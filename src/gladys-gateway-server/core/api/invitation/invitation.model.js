@@ -1,18 +1,15 @@
-const { ValidationError, AlreadyExistError, ForbiddenError } = require('../../common/error');
+const { ValidationError, AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const Joi = require('joi');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
+const schema = require('../../common/schema');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailgunService) {
 
-  const schema = {
-    email: Joi.string().email()
-  };
-
   async function inviteUser(user, newInvitation) {
 
-    const { error, value } = Joi.validate(newInvitation, schema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
 
     if (error) {
       logger.debug(error);
@@ -66,7 +63,55 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
     });
   }
 
+  async function accept(data) {
+
+    var tokenHash = crypto.createHash('sha256').update(data.token).digest('base64');
+
+    // we look if for the token hash in the db
+    var invitation = await db.t_invitation.findOne({
+      token_hash: tokenHash,
+      revoked: false,
+      accepted: false,
+      is_deleted: false
+    });
+
+    if(invitation === null) {
+      throw new NotFoundError();
+    }
+
+    data.email = invitation.email;
+
+    const { error, value } = Joi.validate(data, schema.signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('user', error);
+    }
+
+    return db.withTransaction(async tx => {
+
+      // email of the user is already confirmed as he clicked on the link in his email
+      value.email_confirmed = true;
+      value.account_id = invitation.account_id;
+      value.email_confirmation_token_hash = invitation.token_hash;
+
+      var insertedUser = await tx.t_user.insert(value);
+
+      await tx.t_invitation.update(invitation.id, {
+        accepted: true
+      });
+
+      return {
+        id: insertedUser.id,
+        email: insertedUser.language,
+        language: insertedUser.language,
+        account_id: insertedUser.account_id
+      };
+    });
+  }
+
   return {
-    inviteUser
+    inviteUser,
+    accept
   };
 };

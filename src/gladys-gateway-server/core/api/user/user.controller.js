@@ -14,7 +14,7 @@ module.exports = function(userModel, mailgunService) {
    * @apiParam {string} encrypted_private_key user encrypted private key
    * 
    * @apiSuccessExample {json} Success-Response:
-   * HTTP/1.1 200 OK
+   * HTTP/1.1 201 CREATED
    * 
    * {
    *   "status": 201,

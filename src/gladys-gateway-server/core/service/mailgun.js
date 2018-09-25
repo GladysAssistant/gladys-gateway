@@ -28,6 +28,12 @@ module.exports = function mailgunService(logger) {
 
     if(process.env.DISABLE_EMAIL === 'true'){
       logger.info(`Sending email is disabled. Not sending email.`);
+      
+      // Displaying the scope in dev so it's easier to test
+      if(process.env.NODE_ENV === 'development') {
+        logger.debug(scope);
+      }
+
       return Promise.resolve();
     }
 

@@ -95,6 +95,15 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       value.account_id = invitation.account_id;
       value.email_confirmation_token_hash = invitation.token_hash;
 
+      // set gravatar image for the user
+      var emailHash = crypto.createHash('md5').update(value.email).digest('hex');
+      value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
+
+      if(process.env.DEFAULT_USER_PROFILE_URL) {
+        value.profile_url += `?d=${process.env.DEFAULT_USER_PROFILE_URL}`;
+        value.profile_url = encodeURI(value.profile_url);
+      }
+
       var insertedUser = await tx.t_user.insert(value);
 
       await tx.t_invitation.update(invitation.id, {
@@ -105,6 +114,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
         id: insertedUser.id,
         email: insertedUser.language,
         language: insertedUser.language,
+        profile_url: insertedUser.profile_url,
         account_id: insertedUser.account_id
       };
     });

@@ -57,6 +57,15 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
       // user signing up is admin
       value.role = 'admin';
 
+      // set gravatar image for the user
+      var emailHash = crypto.createHash('md5').update(value.email).digest('hex');
+      value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
+
+      if(process.env.DEFAULT_USER_PROFILE_URL) {
+        value.profile_url += `?d=${process.env.DEFAULT_USER_PROFILE_URL}`;
+        value.profile_url = encodeURI(value.profile_url);
+      }
+
       // we insert the user in db
       var insertedUser = await tx.t_user.insert(value);
       
@@ -64,6 +73,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
         id: insertedUser.id,
         email: insertedUser.language,
         email_confirmation_token: emailConfirmationToken,
+        profile_url: insertedUser.profile_url,
         language: insertedUser.language,
         account_id: insertedAccount.id
       };

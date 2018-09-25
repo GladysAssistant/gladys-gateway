@@ -58,6 +58,7 @@ describe('POST /users/verify', function() {
       .then(response => {
         should.deepEqual(response.body, {
           id: '29770e0d-26a9-444e-91a1-f175c99a5218',
+          email: 'tony.stark@gladysproject.com',
           email_confirmed: true
         });
       });

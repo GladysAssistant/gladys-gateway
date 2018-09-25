@@ -133,7 +133,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
 
     var user = await db.t_user.update(user.id, {
       email_confirmed: true
-    }, {fields: ['id', 'email_confirmed']});
+    }, {fields: ['id', 'email', 'email_confirmed']});
 
     return user;
   }

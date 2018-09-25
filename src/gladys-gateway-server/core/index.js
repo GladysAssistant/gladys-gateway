@@ -36,7 +36,8 @@ module.exports = async () => {
     userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService),
     socketModel: require('./api/socket/socket.model')(logger, db, redisClient),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService),
-    invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService)
+    invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
+    accountModel: require('./api/account/account.model')(logger, db, redisClient)
   };
 
   const controllers = {
@@ -44,7 +45,8 @@ module.exports = async () => {
     userController: require('./api/user/user.controller')(models.userModel, services.mailgunService),
     socketController: require('./api/socket/socket.controller')(logger, models.socketModel),
     instanceController: require('./api/instance/instance.controller')(models.instanceModel),
-    invitationController: require('./api/invitation/invitation.controller')(models.invitationModel)
+    invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),
+    accountController: require('./api/account/account.controller')(models.accountModel)
   };
 
   const middlewares = {

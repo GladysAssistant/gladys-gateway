@@ -25,7 +25,6 @@ CREATE TABLE t_user (
     two_factor_enabled boolean DEFAULT false NOT NULL,
     public_key character varying,
     encrypted_private_key character varying,
-    stripe_customer_id character varying,
     account_id uuid NOT NULL,
     created_at timestamp NOT NULL default now(),
     updated_at timestamp NOT NULL default now(),
@@ -66,7 +65,9 @@ ALTER TABLE t_reset_password OWNER TO postgres;
 CREATE TABLE t_account (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     name character varying(255) NOT NULL,
-    active boolean DEFAULT true NOT NULL,
+    stripe_customer_id character varying,
+    stripe_subscription_id character varying,
+    current_period_end timestamp,
     created_at timestamp NOT NULL default now(),
     updated_at timestamp NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL

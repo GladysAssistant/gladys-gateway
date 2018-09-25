@@ -19,7 +19,27 @@ module.exports = function(accountModel) {
     res.json(users);
   }
 
+  /**
+   * @api {post} /accounts/subscribe Subscribe plan
+   * @apiName Subcribe plan
+   * @apiGroup Account
+   * 
+   * @apiParam {String} stripe_customer_id Stripe Customer id
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "current_period_end": 1537841579580,
+   * }
+   */
+  async function subscribeMonthlyPlan(req, res, next) {
+    var account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_customer_id);
+    res.json({ current_period_end: account.current_period_end });
+  }
+
   return {
-    getUsers
+    getUsers,
+    subscribeMonthlyPlan
   };
 };

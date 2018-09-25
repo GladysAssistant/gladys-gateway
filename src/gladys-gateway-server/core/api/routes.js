@@ -52,6 +52,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   // account
   app.get('/accounts/users', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getUsers));
+  app.post('/accounts/subscribe', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.subscribeMonthlyPlan));
   
   // socket
   io.on('connection', controllers.socketController.connection);

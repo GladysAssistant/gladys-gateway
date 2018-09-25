@@ -19,3 +19,20 @@ describe('GET /accounts/users', function() {
       });
   });
 });
+
+describe('POST /accounts/subscribe', function() {
+  it('should subscribe to monthly plan and return next expiration', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/accounts/subscribe')
+      .send({
+        stripe_customer_id: 'stripe-customer-id-sample'
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('current_period_end');
+      });
+  });
+});

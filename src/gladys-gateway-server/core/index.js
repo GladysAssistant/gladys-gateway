@@ -28,7 +28,8 @@ module.exports = async () => {
 
   const services = {
     mailgunService: require('./service/mailgun')(logger),
-    jwtService: require('./service/jwt')()
+    jwtService: require('./service/jwt')(),
+    stripeService: require('./service/stripe')(logger)
   };
 
   const models = {
@@ -37,7 +38,7 @@ module.exports = async () => {
     socketModel: require('./api/socket/socket.model')(logger, db, redisClient),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
-    accountModel: require('./api/account/account.model')(logger, db, redisClient)
+    accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService)
   };
 
   const controllers = {

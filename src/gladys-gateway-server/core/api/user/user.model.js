@@ -48,11 +48,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
       value.account_id = insertedAccount.id;
 
       // generate email confirmation token
-      var emailConfirmationToken = (await randomBytes(64)).toString('base64');
+      var emailConfirmationToken = (await randomBytes(64)).toString('hex');
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+      value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
       
       // user signing up is admin
       value.role = 'admin';
@@ -102,11 +102,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
         value.email_confirmed = false;
         
         // generate email confirmation token
-        emailConfirmationToken = (await randomBytes(64)).toString('base64');
+        emailConfirmationToken = (await randomBytes(64)).toString('hex');
 
         // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
         // (due to SQL injection for example)
-        value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+        value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
       }
     }
 
@@ -118,7 +118,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   async function confirmEmail(emailConfirmationToken) {
 
     // we hash the token again
-    var confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('base64');
+    var confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
     
     // search for a user with this hash in database
     var user = await db.t_user.findOne({
@@ -287,7 +287,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     };
 
     var scope =  ['dashoard:read', 'dashboard:write', 'two-factor-configure'];
-    var userAgentHash = crypto.createHash('sha256').update(userAgent).digest('base64');
+    var userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
 
     var refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
     var accessToken = jwtService.generateAccessToken(user, scope);
@@ -295,7 +295,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
     // we save a hash of the refresh token so we can invalidate it after. 
     // We don't want to save the refresh token in clear text because if an attacker get read access 
     // to the DB (ex: SQL injection) he could get the token and use it for write use
-    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     return db.withTransaction(async tx => {
 
@@ -320,7 +320,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
   
   async function getAccessToken(user, refreshToken){
 
-    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // we are looking for devices not revoked with 
     // this refresh_token_hash
@@ -333,6 +333,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService) {
 
     // the device doesn't exist or has been revoked
     if(device === null) {
+      logger.debug(`Forbidden: Refresh token not found in DB`);
       throw new ForbiddenError();
     }
 

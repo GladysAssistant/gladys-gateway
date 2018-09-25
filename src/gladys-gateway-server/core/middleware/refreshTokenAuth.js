@@ -11,7 +11,7 @@ module.exports = function (logger) {
         issuer: 'gladys-gateway'
       });
 
-      var userAgentHash = crypto.createHash('sha256').update(req.headers['user-agent']).digest('base64');
+      var userAgentHash = crypto.createHash('sha256').update(req.headers['user-agent']).digest('hex');
 
       if(decoded.fingerprint !== userAgentHash) {
         throw new Error('User agent has changed, user not authorized');

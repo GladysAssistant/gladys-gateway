@@ -32,7 +32,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
     // so we can invalidate it later
     var refreshToken = jwtService.generateRefreshTokenInstance(value);
     var accessToken = jwtService.generateAccessTokenInstance(value);
-    value.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+    value.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     var insertedInstance = await db.t_instance.insert(value);
     
@@ -61,7 +61,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
   }
 
   async function getAccessToken(instance, refreshToken) {
-    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('base64');
+    var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // we are looking for instance not deleted with 
     // this refresh_token_hash

@@ -42,11 +42,11 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       }
       
       // generate email confirmation token
-      var token = (await randomBytes(64)).toString('base64');
+      var token = (await randomBytes(64)).toString('hex');
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      var tokenHash = crypto.createHash('sha256').update(token).digest('base64');
+      var tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
       var insertedInvitation = await tx.t_invitation.insert({
         email,
@@ -55,7 +55,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       });
 
       await mailgunService.send(userWithAccount, 'invitation', {
-        invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/invitation-link/' + token,
+        invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/invitation-link/' + encodeURI(token),
         nameOfAdminInviting: userWithAccount.name
       });
 
@@ -65,7 +65,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
 
   async function accept(data) {
 
-    var tokenHash = crypto.createHash('sha256').update(data.token).digest('base64');
+    var tokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
 
     // we look if for the token hash in the db
     var invitation = await db.t_invitation.findOne({

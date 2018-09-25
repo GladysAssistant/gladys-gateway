@@ -45,7 +45,7 @@ describe('POST /invitations/accept', function() {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .send({
-        token: 'sWCYa6btbsCmrrZPMIshoEy2TEQdjbz/4tGIRl/pfeS1s91Zs/+7egQ36lk5cZTZwGUy5uli3hLYcR4hipST+w==',
+        token: 'b429430dfc4c1765ae97b15a76bd41fcef8f58ddf6c1bd19bce034cadc45b88f0a5f45f2f00fe0809aa5dcb8947bd8eb86a177609785d8d73e498b444b534413',
         name: 'Tony',
         language: 'en',
         srp_salt: 'sfds',
@@ -90,7 +90,7 @@ describe('POST /invitations/accept', function() {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .send({
-        token: 'sWCYa6btbsCmrrZPMIshoEy2TEQdjbz/4tGIRl/pfeS1s91Zs/+7egQ36lk5cZTZwGUy5uli3hLYcR4hipST+w==',
+        token: 'b429430dfc4c1765ae97b15a76bd41fcef8f58ddf6c1bd19bce034cadc45b88f0a5f45f2f00fe0809aa5dcb8947bd8eb86a177609785d8d73e498b444b534413',
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',

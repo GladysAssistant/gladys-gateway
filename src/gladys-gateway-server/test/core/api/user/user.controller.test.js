@@ -50,7 +50,7 @@ describe('POST /users/verify', function() {
     return request(TEST_BACKEND_APP)
       .post('/users/verify')
       .send({
-        email_confirmation_token: 'VKaUQRKsEAQPAizrzYlqnFqZiR0vB8vy9nfayj/FMm31Hz2G16o3YA5vcN2ZzntyeCX7qBvLNrqGMAeLTHVz1w=='
+        email_confirmation_token: '0fbb7645bf4e9f6ed9f767b9957a57dc79fd828792374d3c91359054e1858e067f498e4479369e4b4fee4514be6ba14699805a33dbc6fb6f9b264d02772eacf9'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
@@ -245,10 +245,13 @@ describe('POST /users/login-two-factor', function() {
       encoding: 'base32'
     });
 
+    var userAgent = 'my-browser-is-awesome';
+
     return request(TEST_BACKEND_APP)
       .post('/users/login-two-factor')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', userAgent)
       .send({
         two_factor_code: token
       })
@@ -258,6 +261,7 @@ describe('POST /users/login-two-factor', function() {
         response.body.should.have.property('access_token');
         response.body.should.have.property('refresh_token');
         response.body.should.have.property('device_id');
+        console.log(response.body);
       });
   });
 

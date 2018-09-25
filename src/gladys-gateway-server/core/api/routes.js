@@ -21,7 +21,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   });
 
   app.options('/*', function(req, res, next) {
-    res.send(200);
+    res.sendStatus(200);
   });
 
   app.get('/ping', asyncMiddleware(controllers.pingController.ping));

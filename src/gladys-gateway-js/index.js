@@ -75,9 +75,14 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     })).data;
   }
 
+  async function confirmEmail(token) {
+    return (await axios.post(serverUrl + '/users/verify', { email_confirmation_token: token })).data;
+  }
+
   return {
     signup,
     login,
-    configureTwoFactor
+    configureTwoFactor,
+    confirmEmail
   };
 };

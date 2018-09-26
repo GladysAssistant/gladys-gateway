@@ -26,8 +26,8 @@ CREATE TABLE t_user (
     public_key character varying,
     encrypted_private_key character varying,
     account_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -41,8 +41,8 @@ CREATE TABLE t_device (
     refresh_token_hash character varying,
     revoked boolean DEFAULT false NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -54,8 +54,8 @@ CREATE TABLE t_reset_password (
     token_hash character varying NOT NULL,
     used boolean DEFAULT false NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -67,9 +67,9 @@ CREATE TABLE t_account (
     name character varying(255) NOT NULL,
     stripe_customer_id character varying,
     stripe_subscription_id character varying,
-    current_period_end timestamp,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    current_period_end timestamptz,
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -82,8 +82,8 @@ CREATE TABLE t_instance (
     public_key character varying,
     refresh_token_hash character varying,
     account_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -97,8 +97,8 @@ CREATE TABLE t_invitation (
     revoked boolean DEFAULT false NOT NULL,
     accepted boolean DEFAULT false NOT NULL,
     account_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 
@@ -112,8 +112,8 @@ CREATE TABLE t_history (
     action history_action NOT NULL,
     params jsonb DEFAULT '{}' NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamp NOT NULL default now(),
-    updated_at timestamp NOT NULL default now(),
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL
 );
 

@@ -9,6 +9,7 @@ const srpServer = require('secure-remote-password/server');
 const schema = require('../../common/schema');
 
 const redisLoginSessionExpiryInSecond = 60;
+const resetPasswordTokenExpiryInMilliSeconds = 2*60*60*1000;
 
 module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
 
@@ -371,6 +372,83 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
 
     return resetPassword;
   }
+
+  async function resetPassword(forgotPasswordToken, data) {
+    
+    // first, we validate the data sent
+    const { error } = Joi.validate(data, schema.resetPasswordSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('resetPassword', error);
+    }
+
+    var tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
+
+    var resetPasswordRequest = await db.t_reset_password.findOne({
+      token_hash: tokenHash,
+      used: false,
+      is_deleted: false
+    });
+
+    if(resetPasswordRequest === null) {
+      throw new NotFoundError();
+    }
+
+    var tokenExpirationTime = new Date(resetPasswordRequest.created_at).getTime() + resetPasswordTokenExpiryInMilliSeconds;
+    var now = new Date().getTime();
+
+    // if token has been issued to much in the past
+    if(tokenExpirationTime < now) {
+      logger.info(`Reset password: Token has expired`);
+      throw new NotFoundError();
+    }
+
+    var userWithSecret = await db.t_user.findOne({
+      id: resetPasswordRequest.user_id
+    }, {fields: ['id', 'two_factor_secret', 'two_factor_enabled']});
+
+    // user need its two factor token to reset password if enabled
+    if(userWithSecret.two_factor_enabled === true) {
+      var tokenValidates = speakeasy.totp.verify({
+        secret: userWithSecret.two_factor_secret,
+        encoding: 'base32',
+        token: data.two_factor_code,
+        window: 2
+      });
+  
+      if(!tokenValidates) {
+        logger.info(`Reset password error: two factor code is not valid.`);
+        throw new ForbiddenError();
+      }
+    }
+
+    return db.withTransaction(async tx => {
+
+      // now update user password
+      var newUser = await tx.t_user.update(resetPasswordRequest.user_id, {
+        srp_salt: data.srp_salt,
+        srp_verifier: data.srp_verifier, 
+        encrypted_private_key: data.encrypted_private_key
+      }, {fields: ['id', 'email']});
+
+      // invalidate all current sessions
+      var sessionsInvalidated = await tx.t_device.update({
+        user_id: resetPasswordRequest.user_id,
+        revoked: false,
+        is_deleted: false
+      }, { revoked: true }, {fields: ['id']});
+
+      // mark reset password token as used
+      await tx.t_reset_password.update(resetPasswordRequest.id, {
+        used: true
+      });
+
+      logger.info(`Reset password: Successfully invalidated ${sessionsInvalidated.length} sessions.`);
+
+      return newUser;
+    });
+  }
   
   return {
     signup,
@@ -383,6 +461,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     loginDeriveSession,
     loginTwoFactor,
     getAccessToken,
-    forgotPassword
+    forgotPassword,
+    resetPassword
   };
 };

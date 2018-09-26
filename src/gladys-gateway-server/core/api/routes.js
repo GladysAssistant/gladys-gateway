@@ -42,6 +42,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.get('/users/access-token', asyncMiddleware(middlewares.refreshTokenAuth), asyncMiddleware(controllers.userController.getAccessToken));
 
   app.post('/users/forgot-password', asyncMiddleware(controllers.userController.forgotPassword));
+  app.post('/users/reset-password', asyncMiddleware(controllers.userController.resetPassword));
 
   // instance
   app.get('/instances', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.instanceController.getInstances));

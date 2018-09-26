@@ -14,6 +14,13 @@ const invitationSchema = Joi.object().keys({
   email: Joi.string().email()
 });
 
+const resetPasswordSchema = Joi.object().keys({
+  srp_salt: Joi.string(),
+  srp_verifier: Joi.string(),
+  encrypted_private_key: Joi.string()
+});
+
 module.exports.signupSchema = signupSchema;
 module.exports.invitationSchema = invitationSchema;
+module.exports.resetPasswordSchema = resetPasswordSchema;
   

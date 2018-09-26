@@ -250,6 +250,29 @@ module.exports = function(userModel, mailgunService) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {post} /users/reset-password Reset password
+   * @apiName Reset password
+   * @apiGroup User
+   * 
+   * @apiParam {String} token token sent by email
+   * @apiParam {String} srp_salt new SRP salt
+   * @apiParam {String} srp_verifier new SRP verifier
+   * @apiParam {String} encrypted_private_key encrypted private key
+   * @apiParam {String} two_factor_code 2FA code
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function resetPassword(req, res, next) {
+    await userModel.resetPassword(req.body.token, req.body);
+    res.json({ success: true });
+  }
+
   return {
     signup,
     updateUser,
@@ -261,6 +284,7 @@ module.exports = function(userModel, mailgunService) {
     loginDeriveSession,
     loginTwoFactor,
     getAccessToken,
-    forgotPassword
+    forgotPassword,
+    resetPassword
   };
 };

@@ -1,42 +1,73 @@
-const Signup = () => (
-  <div className="page">
-    <div className="page-single" style={{ marginTop: '40px' }}>
-      <div className="container">
-        <div className="row">
-          <div className="col col-login mx-auto">
-            <div className="text-center mb-6">
-              {false && <img src="./demo/brand/tabler.svg" className="h-6" alt="" />}
-              <h2 className="h-6">Gladys Gateway</h2>
-            </div>
-            <form className="card" action="" method="post">
-              <div className="card-body p-6">
-                <div className="card-title">Create new account</div>
-                <div className="form-group">
-                  <label className="form-label">Name</label>
-                  <input type="text" className="form-control" placeholder="Enter name" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Email address</label>
-                  <input type="email" className="form-control" placeholder="Enter email" />
-                </div>
-                <div className="form-group">
-                  <label className="form-label">Password (min 8 characters)</label>
-                  <input type="password" className="form-control" placeholder="Password" />
-                </div>
-                <div className="form-footer">
-                  <button type="submit" className="btn btn-primary btn-block">Create new account</button>
-                </div>
-              </div>
-            </form>
-            <div className="text-center text-muted">
-              Already have account?
-              <a href="./login.html">Sign in</a>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-);
+import { Component } from 'preact';
+import linkState from 'linkstate';
+import Auth from '../../api/Auth';
+import SignupForm from './SignupForm';
+import SignupBase from './SignupBase';
+import SignupGeneratingKeys from './SignupGeneratingKeys';
 
-export default Signup;
+class SignupPage extends Component {
+  state = {
+    name: '',
+    email: '',
+    password: '',
+    fieldsErrored: [],
+    currentStep: 1,
+    accountAlreadyExist: false
+  };
+
+  validateForm = event => {
+    event.preventDefault();
+
+    let currentBrowserLanguage = (navigator.language || navigator.userLanguage)
+      .toLowerCase()
+      .substr(0, 2);
+
+    let newUser = {
+      name: this.state.name,
+      email: this.state.email,
+      password: this.state.password,
+      language: currentBrowserLanguage
+    };
+
+    Auth.signup(newUser)
+      .then(() => {
+        this.setState({ fieldsErrored: [], currentStep: 2, accountAlreadyExist: false });
+      })
+      .catch(error => {
+        if (error.response && error.response.status === 422 && error.response.data.details) {
+          let fieldsErrored = [];
+          error.response.data.details.forEach(err => {
+            fieldsErrored.push(err.context.key);
+          });
+          this.setState({ fieldsErrored });
+        } else if (error.response && error.response.status === 409) {
+          this.setState({ accountAlreadyExist: true });
+        } else {
+          
+        }
+      });
+  };
+
+  render({}, { name, email, password, fieldsErrored, currentStep, accountAlreadyExist }) {
+    return (
+      <SignupBase>
+        {currentStep === 1 && (
+          <SignupForm
+            name={name}
+            email={email}
+            password={password}
+            accountAlreadyExist={accountAlreadyExist}
+            fieldsErrored={fieldsErrored}
+            updateName={linkState(this, 'name')}
+            updateEmail={linkState(this, 'email')}
+            updatePassword={linkState(this, 'password')}
+            validateForm={this.validateForm}
+          />
+        )}
+        {currentStep === 2 && <SignupGeneratingKeys />}
+      </SignupBase>
+    );
+  }
+}
+
+export default SignupPage;

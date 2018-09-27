@@ -8,8 +8,8 @@ describe('crypto.generateKeyPair', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    keys.should.have.property('publicKeyJwk');
-    keys.should.have.property('privateKeyJwk');
+    keys.should.have.property('rsaPublicKeyJwk');
+    keys.should.have.property('rsaPrivateKeyJwk');
   });
 });
 
@@ -19,7 +19,7 @@ describe('crypto.encryptPrivateKey', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.keys.privateKey);
+    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
 
     encrypted.should.have.property('wrappedKey');
     encrypted.should.have.property('iv');
@@ -33,8 +33,19 @@ describe('crypto.decryptPrivateKey', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.keys.privateKey);
-    var decrypted = await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, encrypted.salt, encrypted.iv);
+    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
+    var decrypted = await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'RSA-OAEP', encrypted.salt, encrypted.iv);
+  });
+});
+
+describe('crypto.decryptPrivateKey', function () {
+  it('should encrypt a ecdsa private key and decrypt it again', async function () {
+    var crypto = require('../lib/crypto')({
+      cryptoLib: webcrypto
+    });
+    var keys = await crypto.generateKeyPair();
+    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.ecdsaKeys.privateKey);
+    var decrypted = await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'ECDSA', encrypted.salt, encrypted.iv);
   });
 });
 
@@ -44,8 +55,9 @@ describe('crypto encrypt and decrypt', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    var encryptedData = await crypto.encryptMessage(keys.keys.publicKey, 'message');
-    var decrypted = await crypto.decryptMessage(keys.keys.privateKey, encryptedData);
+    var encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, 'message');
+    encryptedData.should.have.property('signature');
+    var decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.equal('message');
   });
 });
@@ -56,10 +68,10 @@ describe('crypto encrypt and decrypt with decrypted private key', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    var encryptedKey = await crypto.encryptPrivateKey('mypassword', keys.keys.privateKey);
-    var decryptedKey = await crypto.decryptPrivateKey('mypassword', encryptedKey.wrappedKey, encryptedKey.salt, encryptedKey.iv);
-    var encryptedData = await crypto.encryptMessage(keys.keys.publicKey, 'message');
-    var decrypted = await crypto.decryptMessage(decryptedKey, encryptedData);
+    var encryptedKey = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
+    var decryptedKey = await crypto.decryptPrivateKey('mypassword', encryptedKey.wrappedKey, 'RSA-OAEP', encryptedKey.salt, encryptedKey.iv);
+    var encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, 'message');
+    var decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.equal('message');
   });
 });
@@ -95,10 +107,10 @@ describe('crypto encrypt and decrypt with decrypted private key', function () {
       cryptoLib: webcrypto
     });
     var keys = await crypto.generateKeyPair();
-    var encryptedKey = await crypto.encryptPrivateKey('mypassword', keys.keys.privateKey);
-    var decryptedKey = await crypto.decryptPrivateKey('mypassword', encryptedKey.wrappedKey, encryptedKey.salt, encryptedKey.iv);
-    var encryptedData = await crypto.encryptMessage(keys.keys.publicKey, toSendStr);
-    var decrypted = await crypto.decryptMessage(decryptedKey, encryptedData);
+    var encryptedKey = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
+    var decryptedKey = await crypto.decryptPrivateKey('mypassword', encryptedKey.wrappedKey, 'RSA-OAEP', encryptedKey.salt, encryptedKey.iv);
+    var encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, toSendStr);
+    var decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.equal(toSendStr);
   });
 });

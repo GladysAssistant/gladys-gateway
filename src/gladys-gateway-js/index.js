@@ -6,7 +6,7 @@ const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
 
 const PBKDF2_HASH = 'SHA-256';
-const PBKDF2_ITERATIONS = 200000;
+const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
 
 module.exports = function ({ cryptoLib, serverUrl }) {

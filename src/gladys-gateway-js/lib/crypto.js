@@ -2,10 +2,12 @@ const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
 const { str2ab, ab2str } = require('./helpers');
 
+const PBKDF2_ITERATIONS = 100000;
+
 module.exports = function ({ cryptoLib }) {
 
   async function generateKeyPair() {
-    var keys = await cryptoLib.subtle.generateKey({
+    var rsaKeys = await cryptoLib.subtle.generateKey({
       name: 'RSA-OAEP',
       modulusLength: 2048,
       publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
@@ -14,20 +16,41 @@ module.exports = function ({ cryptoLib }) {
       },
     }, true, ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey']);
 
-    var publicKeyJwk = await cryptoLib.subtle.exportKey(
-      'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
-      keys.publicKey //can be a publicKey or privateKey, as long as extractable was true
+    var ecdsaKeys = await cryptoLib.subtle.generateKey({
+      name: 'ECDSA',
+      namedCurve: 'P-256', //can be "P-256", "P-384", or "P-521"
+    },
+    true, //whether the key is extractable (i.e. can be used in exportKey)
+    ['sign', 'verify'] //can be any combination of "sign" and "verify"
     );
 
-    var privateKeyJwk = await cryptoLib.subtle.exportKey(
-      'jwk',
-      keys.privateKey
+    var rsaPublicKeyJwk = await cryptoLib.subtle.exportKey(
+      'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
+      rsaKeys.publicKey //can be a publicKey or privateKey, as long as extractable was true
     );
+
+    var rsaPrivateKeyJwk = await cryptoLib.subtle.exportKey(
+      'jwk',
+      rsaKeys.privateKey
+    );
+
+    var ecdsaPublicKeyJwk = await cryptoLib.subtle.exportKey(
+      'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
+      ecdsaKeys.publicKey //can be a publicKey or privateKey, as long as extractable was true
+    );
+
+    var ecdsaPrivateKeyJwk = await cryptoLib.subtle.exportKey(
+      'jwk',
+      ecdsaKeys.privateKey
+    ); 
 
     return {
-      keys,
-      publicKeyJwk,
-      privateKeyJwk
+      rsaKeys,
+      ecdsaKeys,
+      rsaPublicKeyJwk,
+      rsaPrivateKeyJwk,
+      ecdsaPublicKeyJwk,
+      ecdsaPrivateKeyJwk
     };
   }
 
@@ -48,7 +71,7 @@ module.exports = function ({ cryptoLib }) {
     var wrappingKey = await cryptoLib.subtle.deriveKey({
       name: 'PBKDF2',
       salt: salt,
-      iterations: 200000,
+      iterations: PBKDF2_ITERATIONS,
       hash: {name: 'SHA-256'},
     },
     key, //your key from generateKey or importKey
@@ -81,7 +104,12 @@ module.exports = function ({ cryptoLib }) {
     };
   }
 
-  async function decryptPrivateKey(passphrase, wrappedKey, salt, iv){
+  async function decryptPrivateKey(passphrase, wrappedKey, type, salt, iv){
+    
+    if(type !== 'RSA-OAEP' && type !== 'ECDSA') {
+      throw new Error('decryptPrivateKey: Unsupported type. Only: RSA-OAEP and ECDSA');
+    }
+    
     var key = await cryptoLib.subtle.importKey(
       'raw', //only 'raw' is allowed
       str2ab(passphrase), //your password
@@ -95,7 +123,7 @@ module.exports = function ({ cryptoLib }) {
     var wrappingKey = await cryptoLib.subtle.deriveKey({
       name: 'PBKDF2',
       salt: salt,
-      iterations: 200000,
+      iterations: PBKDF2_ITERATIONS,
       hash: {name: 'SHA-256'},
     },
     key, //your key from generateKey or importKey
@@ -107,24 +135,40 @@ module.exports = function ({ cryptoLib }) {
     ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey'] //limited to the options in that algorithm's importKey
     );
 
-    var decrypted = await cryptoLib.subtle.unwrapKey(
-      'jwk', hexToArrayBuffer(wrappedKey), wrappingKey, {
-        name: 'AES-GCM',
-        iv: iv
-      }, {
+    var resultingKeyOptions = null;
+    var keyUsage = null;
+
+    if(type === 'RSA-OAEP') {
+      resultingKeyOptions = {
         name: 'RSA-OAEP',
         modulusLength: 2048,
         publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
         hash: {
           name: 'SHA-256'
-        },
-      }, true, ['decrypt', 'unWrapKey']
+        }
+      };
+
+      keyUsage = ['decrypt', 'unWrapKey'];
+    } else if(type === 'ECDSA') {
+      resultingKeyOptions = {
+        name: 'ECDSA',
+        namedCurve: 'P-256'
+      };
+      keyUsage = ['sign'];
+    } 
+
+    var decrypted = await cryptoLib.subtle.unwrapKey(
+      'jwk', hexToArrayBuffer(wrappedKey), wrappingKey, {
+        name: 'AES-GCM',
+        iv: iv
+      },
+      resultingKeyOptions, true, keyUsage
     );
 
     return decrypted;
   }
 
-  async function encryptMessage(publicKey, data) {
+  async function encryptMessage(publicKey, ecdsaPrivateKey, data) {
     
     // first, we generate a symetric key
     var symetricKey = await cryptoLib.subtle.generateKey({
@@ -162,14 +206,38 @@ module.exports = function ({ cryptoLib }) {
       }
     );
 
+    var signature = await cryptoLib.subtle.sign({
+      name: 'ECDSA',
+      hash: {name: 'SHA-256'}, //can be "SHA-1", "SHA-256", "SHA-384", or "SHA-512"
+    },
+    ecdsaPrivateKey, //from generateKey or importKey above
+    encryptedData //ArrayBuffer of data you want to sign
+    );
+
     return {
       iv, 
       wrappedSymetricKey: arrayBufferToHex(wrappedSymetricKey),
-      encryptedData: arrayBufferToHex(encryptedData)
+      encryptedData: arrayBufferToHex(encryptedData),
+      signature: arrayBufferToHex(signature)
     };
   }
 
-  async function decryptMessage(privateKey, data) {
+  async function decryptMessage(privateKey, ecdsaPublicKey, data) {
+
+    var encryptedDataArrayBuffer = hexToArrayBuffer(data.encryptedData);
+
+    var isSignatureValid = await cryptoLib.subtle.verify({
+      name: 'ECDSA',
+      hash: {name: 'SHA-256'}, //can be "SHA-1", "SHA-256", "SHA-384", or "SHA-512"
+    },
+    ecdsaPublicKey, //from generateKey or importKey above
+    hexToArrayBuffer(data.signature), //ArrayBuffer of the signature
+    encryptedDataArrayBuffer //ArrayBuffer of the data
+    );
+
+    if(isSignatureValid === false) {
+      throw new Error('decryptMessage: Invalid signature');
+    }
 
     var decryptedSymetricKey = await cryptoLib.subtle.unwrapKey(
       'raw', //the import format, must be "raw" (only available sometimes)
@@ -195,7 +263,7 @@ module.exports = function ({ cryptoLib }) {
       tagLength: 128, //The tagLength you used to encrypt (if any)
     },
     decryptedSymetricKey, //from generateKey or importKey above
-    hexToArrayBuffer(data.encryptedData) //ArrayBuffer of the data
+    encryptedDataArrayBuffer //ArrayBuffer of the data
     );
 
     return ab2str(decryptedData);

@@ -1,3 +1,7 @@
+const arrayBufferToHex = require('array-buffer-to-hex');
+const hexToArrayBuffer = require('hex-to-array-buffer');
+const { str2ab, ab2str } = require('./helpers');
+
 module.exports = function ({ cryptoLib }) {
 
   async function generateKeyPair() {
@@ -27,7 +31,181 @@ module.exports = function ({ cryptoLib }) {
     };
   }
 
+  async function encryptPrivateKey(passphrase, privateKey) {
+    var salt = cryptoLib.getRandomValues(new Uint8Array(16));
+    var iv = cryptoLib.getRandomValues(new Uint8Array(12));
+
+    var key = await cryptoLib.subtle.importKey(
+      'raw', //only 'raw' is allowed
+      str2ab(passphrase), //your password
+      {
+        name: 'PBKDF2',
+      },
+      false, //whether the key is extractable (i.e. can be used in exportKey)
+      ['deriveKey', 'deriveBits'] //can be any combination of 'deriveKey' and 'deriveBits'
+    );
+
+    var wrappingKey = await cryptoLib.subtle.deriveKey({
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 200000,
+      hash: {name: 'SHA-256'},
+    },
+    key, //your key from generateKey or importKey
+    {
+      name: 'AES-GCM', //can be any AES algorithm ('AES-CTR', 'AES-CBC', 'AES-CMAC', 'AES-GCM', 'AES-CFB', 'AES-KW', 'ECDH', 'DH', or 'HMAC')
+      length: 256, //can be  128, 192, or 256
+    },
+    false, //whether the derived key is extractable (i.e. can be used in exportKey)
+    ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey'] //limited to the options in that algorithm's importKey
+    );
+
+    var wrappedKey = await cryptoLib.subtle.wrapKey(
+      'jwk', //can be "jwk", "raw", "spki", or "pkcs8"
+      privateKey, //the key you want to wrap, must be able to export to above format
+      wrappingKey, //the AES-GCM key with "wrapKey" usage flag
+      {  
+        name: 'AES-GCM',
+  
+        //Don't re-use initialization vectors!
+        //Always generate a new iv every time your encrypt!
+        //Recommended to use 12 bytes length
+        iv: iv
+      }
+    );
+
+    return {
+      wrappedKey: arrayBufferToHex(wrappedKey),
+      salt,
+      iv
+    };
+  }
+
+  async function decryptPrivateKey(passphrase, wrappedKey, salt, iv){
+    var key = await cryptoLib.subtle.importKey(
+      'raw', //only 'raw' is allowed
+      str2ab(passphrase), //your password
+      {
+        name: 'PBKDF2',
+      },
+      false, //whether the key is extractable (i.e. can be used in exportKey)
+      ['deriveKey', 'deriveBits'] //can be any combination of 'deriveKey' and 'deriveBits'
+    );
+
+    var wrappingKey = await cryptoLib.subtle.deriveKey({
+      name: 'PBKDF2',
+      salt: salt,
+      iterations: 200000,
+      hash: {name: 'SHA-256'},
+    },
+    key, //your key from generateKey or importKey
+    {
+      name: 'AES-GCM', //can be any AES algorithm ('AES-CTR', 'AES-CBC', 'AES-CMAC', 'AES-GCM', 'AES-CFB', 'AES-KW', 'ECDH', 'DH', or 'HMAC')
+      length: 256, //can be  128, 192, or 256
+    },
+    false, //whether the derived key is extractable (i.e. can be used in exportKey)
+    ['encrypt', 'decrypt', 'wrapKey', 'unwrapKey'] //limited to the options in that algorithm's importKey
+    );
+
+    var decrypted = await cryptoLib.subtle.unwrapKey(
+      'jwk', hexToArrayBuffer(wrappedKey), wrappingKey, {
+        name: 'AES-GCM',
+        iv: iv
+      }, {
+        name: 'RSA-OAEP',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+        hash: {
+          name: 'SHA-256'
+        },
+      }, true, ['decrypt', 'unWrapKey']
+    );
+
+    return decrypted;
+  }
+
+  async function encryptMessage(publicKey, data) {
+    
+    // first, we generate a symetric key
+    var symetricKey = await cryptoLib.subtle.generateKey({
+      name: 'AES-GCM',
+      length: 256, //can be  128, 192, or 256
+    },
+    true, //whether the key is extractable (i.e. can be used in exportKey)
+    ['encrypt', 'decrypt'] //can "encrypt", "decrypt", "wrapKey", or "unwrapKey"
+    );
+
+    var iv = cryptoLib.getRandomValues(new Uint8Array(12));
+
+    var encryptedData = await cryptoLib.subtle.encrypt({
+      name: 'AES-GCM',
+
+      //Don't re-use initialization vectors!
+      //Always generate a new iv every time your encrypt!
+      //Recommended to use 12 bytes length
+      iv: iv,
+
+      //Tag length (optional)
+      tagLength: 128, //can be 32, 64, 96, 104, 112, 120 or 128 (default)
+    },
+    symetricKey, //from generateKey or importKey above
+    str2ab(data) //ArrayBuffer of data you want to encrypt
+    );
+
+    var wrappedSymetricKey = await cryptoLib.subtle.wrapKey(
+      'raw', //the export format, must be "raw" (only available sometimes)
+      symetricKey, //the key you want to wrap, must be able to fit in RSA-OAEP padding
+      publicKey, //the public key with "wrapKey" usage flag
+      {   //these are the wrapping key's algorithm options
+        name: 'RSA-OAEP',
+        hash: {name: 'SHA-256'},
+      }
+    );
+
+    return {
+      iv, 
+      wrappedSymetricKey: arrayBufferToHex(wrappedSymetricKey),
+      encryptedData: arrayBufferToHex(encryptedData)
+    };
+  }
+
+  async function decryptMessage(privateKey, data) {
+
+    var decryptedSymetricKey = await cryptoLib.subtle.unwrapKey(
+      'raw', //the import format, must be "raw" (only available sometimes)
+      hexToArrayBuffer(data.wrappedSymetricKey), //the key you want to unwrap
+      privateKey, //the private key with "unwrapKey" usage flag
+      {   //these are the wrapping key's algorithm options
+        name: 'RSA-OAEP',
+        modulusLength: 2048,
+        publicExponent: new Uint8Array([0x01, 0x00, 0x01]),
+        hash: { name: 'SHA-256' },
+      },
+      {   //this what you want the wrapped key to become (same as when wrapping)
+        name: 'AES-GCM',
+        length: 256
+      },
+      false, //whether the key is extractable (i.e. can be used in exportKey)
+      ['encrypt', 'decrypt'] //the usages you want the unwrapped key to have
+    );
+
+    var decryptedData = await cryptoLib.subtle.decrypt({
+      name: 'AES-GCM',
+      iv: data.iv, //The initialization vector you used to encrypt
+      tagLength: 128, //The tagLength you used to encrypt (if any)
+    },
+    decryptedSymetricKey, //from generateKey or importKey above
+    hexToArrayBuffer(data.encryptedData) //ArrayBuffer of the data
+    );
+
+    return ab2str(decryptedData);
+  }
+
   return {
-    generateKeyPair
+    generateKeyPair,
+    encryptPrivateKey,
+    decryptPrivateKey,
+    encryptMessage,
+    decryptMessage
   };
 };

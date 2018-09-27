@@ -1,6 +1,6 @@
 const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
-const { str2ab, ab2str } = require('./helpers');
+const { str2ab, ab2str, appendBuffer } = require('./helpers');
 
 const PBKDF2_ITERATIONS = 100000;
 
@@ -206,12 +206,18 @@ module.exports = function ({ cryptoLib }) {
       }
     );
 
+    var hashOfData = await cryptoLib.subtle.digest({
+      name: 'SHA-256',
+    },
+    appendBuffer(encryptedData, wrappedSymetricKey)
+    );
+
     var signature = await cryptoLib.subtle.sign({
       name: 'ECDSA',
       hash: {name: 'SHA-256'}, //can be "SHA-1", "SHA-256", "SHA-384", or "SHA-512"
     },
     ecdsaPrivateKey, //from generateKey or importKey above
-    encryptedData //ArrayBuffer of data you want to sign
+    hashOfData //ArrayBuffer of data you want to sign
     );
 
     return {
@@ -225,6 +231,13 @@ module.exports = function ({ cryptoLib }) {
   async function decryptMessage(privateKey, ecdsaPublicKey, data) {
 
     var encryptedDataArrayBuffer = hexToArrayBuffer(data.encryptedData);
+    var wrappedSymetricKeyArrayBuffer = hexToArrayBuffer(data.wrappedSymetricKey);
+
+    var hashOfData = await cryptoLib.subtle.digest({
+      name: 'SHA-256',
+    },
+    appendBuffer(encryptedDataArrayBuffer, wrappedSymetricKeyArrayBuffer)
+    );
 
     var isSignatureValid = await cryptoLib.subtle.verify({
       name: 'ECDSA',
@@ -232,7 +245,7 @@ module.exports = function ({ cryptoLib }) {
     },
     ecdsaPublicKey, //from generateKey or importKey above
     hexToArrayBuffer(data.signature), //ArrayBuffer of the signature
-    encryptedDataArrayBuffer //ArrayBuffer of the data
+    hashOfData //ArrayBuffer of the data
     );
 
     if(isSignatureValid === false) {
@@ -241,7 +254,7 @@ module.exports = function ({ cryptoLib }) {
 
     var decryptedSymetricKey = await cryptoLib.subtle.unwrapKey(
       'raw', //the import format, must be "raw" (only available sometimes)
-      hexToArrayBuffer(data.wrappedSymetricKey), //the key you want to unwrap
+      wrappedSymetricKeyArrayBuffer, //the key you want to unwrap
       privateKey, //the private key with "unwrapKey" usage flag
       {   //these are the wrapping key's algorithm options
         name: 'RSA-OAEP',

@@ -6,8 +6,10 @@ const signupSchema = Joi.object().keys({
   language: Joi.string().allow(['fr', 'en']),
   srp_salt: Joi.string(),
   srp_verifier: Joi.string(),
-  public_key: Joi.string(),
-  encrypted_private_key: Joi.string()
+  rsa_public_key: Joi.string(),
+  rsa_encrypted_private_key: Joi.string(),
+  ecdsa_public_key: Joi.string(),
+  ecdsa_encrypted_private_key: Joi.string()
 });
 
 const invitationSchema = Joi.object().keys({
@@ -17,7 +19,8 @@ const invitationSchema = Joi.object().keys({
 const resetPasswordSchema = Joi.object().keys({
   srp_salt: Joi.string(),
   srp_verifier: Joi.string(),
-  encrypted_private_key: Joi.string()
+  rsa_encrypted_private_key: Joi.string(),
+  ecdsa_encrypted_private_key: Joi.string()
 });
 
 module.exports.signupSchema = signupSchema;

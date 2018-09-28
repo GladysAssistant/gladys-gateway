@@ -15,7 +15,8 @@ describe('GET /instances', function() {
         should.deepEqual(response.body, [{
           id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
           name: 'Raspberry Pi 1',
-          public_key: 'public-key'
+          rsa_public_key: 'public-key',
+          ecdsa_public_key: 'public-key'
         }]);
       });
   });
@@ -28,7 +29,8 @@ describe('POST /instances', function() {
       .post('/instances')
       .send({
         name: 'rasp',
-        public_key: 'hey'
+        rsa_public_key: 'hey',
+        ecdsa_public_key: 'hey'
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)

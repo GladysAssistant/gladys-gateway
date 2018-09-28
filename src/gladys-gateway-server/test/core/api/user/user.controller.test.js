@@ -11,8 +11,10 @@ describe('POST /users/signup', function() {
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
-        public_key: 'public-key',
-        encrypted_private_key: 'this-is-the-encrypted-private-key'
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
@@ -33,8 +35,10 @@ describe('POST /users/signup', function() {
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
-        public_key: 'public-key',
-        encrypted_private_key: 'this-is-the-encrypted-private-key'
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
@@ -450,7 +454,8 @@ describe('POST /users/reset-password', function() {
         token: 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
         srp_salt: 'salt',
         srp_verifier: 'verifier',
-        encrypted_private_key: 'encrypted-private-key',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
         two_factor_code: twoFactorCode
       })
       .expect('Content-Type', /json/)
@@ -470,7 +475,8 @@ describe('POST /users/reset-password', function() {
       .send({
         token: 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
         srp_verifier: 'verifier',
-        encrypted_private_key: 'encrypted-private-key',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
         two_factor_code: twoFactorCode
       })
       .expect('Content-Type', /json/)
@@ -488,7 +494,8 @@ describe('POST /users/reset-password', function() {
         token: '237078dab6815cf2a13b8af3c97d979394b928e5be7b2e9fcb1ac1a8645acf33d9ed9965560ea90cc1e1fde5fedd5041fec41b0e2a986d50cfa9314f183d740b',
         srp_salt: 'salt',
         srp_verifier: 'verifier',
-        encrypted_private_key: 'encrypted-private-key',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
         two_factor_code: twoFactorCode
       })
       .expect('Content-Type', /json/)
@@ -506,7 +513,8 @@ describe('POST /users/reset-password', function() {
         token: 'wrong-token',
         srp_salt: 'salt',
         srp_verifier: 'verifier',
-        encrypted_private_key: 'encrypted-private-key',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
         two_factor_code: twoFactorCode
       })
       .expect('Content-Type', /json/)

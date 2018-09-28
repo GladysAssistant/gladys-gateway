@@ -50,8 +50,10 @@ describe('POST /invitations/accept', function() {
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
-        public_key: 'public-key',
-        encrypted_private_key: 'this-is-the-encrypted-private-key'
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .expect('Content-Type', /json/)
       .expect(201)
@@ -74,8 +76,10 @@ describe('POST /invitations/accept', function() {
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
-        public_key: 'public-key',
-        encrypted_private_key: 'this-is-the-encrypted-private-key'
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .expect('Content-Type', /json/)
       .expect(404)
@@ -94,8 +98,10 @@ describe('POST /invitations/accept', function() {
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
-        public_key: 'public-key',
-        encrypted_private_key: 'this-is-the-encrypted-private-key'
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key'
       })
       .expect('Content-Type', /json/)
       .expect(422)

@@ -7,7 +7,8 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
 
   const instanceSchema = Joi.object().keys({
     name: Joi.string().min(2).max(30).required(),
-    public_key: Joi.string().required()
+    rsa_public_key: Joi.string().required(),
+    ecdsa_public_key: Joi.string().required(),
   });
 
   async function createInstance(user, newInstance) {
@@ -55,7 +56,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
     var instances = await db.t_instance.find({
       account_id: userWithAccount.account_id,
       is_deleted: false
-    }, { fields: ['id', 'name', 'public_key']});
+    }, { fields: ['id', 'name', 'rsa_public_key', 'ecdsa_public_key']});
 
     return instances;
   }

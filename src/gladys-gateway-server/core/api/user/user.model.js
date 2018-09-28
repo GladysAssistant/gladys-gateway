@@ -430,7 +430,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       var newUser = await tx.t_user.update(resetPasswordRequest.user_id, {
         srp_salt: data.srp_salt,
         srp_verifier: data.srp_verifier, 
-        encrypted_private_key: data.encrypted_private_key
+        rsa_encrypted_private_key: data.rsa_encrypted_private_key,
+        ecdsa_encrypted_private_key: data.ecdsa_encrypted_private_key
       }, {fields: ['id', 'email']});
 
       // invalidate all current sessions

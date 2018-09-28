@@ -10,8 +10,10 @@ module.exports = function(userModel, mailgunService) {
    * @apiParam {string="en","fr"} language language of the user
    * @apiParam {string} srp_salt secure remote password salt
    * @apiParam {string} srp_verifier secure remote password verifier
-   * @apiParam {string} public_key user publick key
-   * @apiParam {string} encrypted_private_key user encrypted private key
+   * @apiParam {string} rsa_public_key RSA user publick key
+   * @apiParam {string} rsa_encrypted_private_key RSA user encrypted private key
+   * @apiParam {string} ecdsa_public_key ECDSA user publick key
+   * @apiParam {string} ecdsa_encrypted_private_key ECDSA user encrypted private key
    * 
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 201 CREATED
@@ -46,8 +48,10 @@ module.exports = function(userModel, mailgunService) {
    * @apiParam {string="en","fr"} language language of the user
    * @apiParam {string} srp_salt secure remote password salt
    * @apiParam {string} srp_verifier secure remote password verifier
-   * @apiParam {string} public_key user publick key
-   * @apiParam {string} encrypted_private_key user encrypted private key
+   * @apiParam {string} rsa_public_key RSA user publick key
+   * @apiParam {string} rsa_encrypted_private_key RSA user encrypted private key
+   * @apiParam {string} ecdsa_public_key ECDSA user publick key
+   * @apiParam {string} ecdsa_encrypted_private_key ECDSA user encrypted private key
    * 
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
@@ -258,7 +262,8 @@ module.exports = function(userModel, mailgunService) {
    * @apiParam {String} token token sent by email
    * @apiParam {String} srp_salt new SRP salt
    * @apiParam {String} srp_verifier new SRP verifier
-   * @apiParam {String} encrypted_private_key encrypted private key
+   * @apiParam {String} rsa_encrypted_private_key RSA encrypted private key
+   * @apiParam {String} ecdsa_encrypted_private_key ECDSA encrypted private key
    * @apiParam {String} two_factor_code 2FA code
    * 
    * @apiSuccessExample {json} Success-Response:

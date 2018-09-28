@@ -33,8 +33,10 @@ module.exports = function(invitationModel) {
    * @apiParam {string="en","fr"} language language of the user
    * @apiParam {string} srp_salt secure remote password salt
    * @apiParam {string} srp_verifier secure remote password verifier
-   * @apiParam {string} public_key user publick key
-   * @apiParam {string} encrypted_private_key user encrypted private key
+   * @apiParam {string} rsa_public_key user RSA publick key
+   * @apiParam {string} rsa_encrypted_private_key user RSA encrypted private key
+   * @apiParam {string} ecdsa_public_key user ECDSA publick key
+   * @apiParam {string} ecdsa_encrypted_private_key user ECDSA encrypted private key
    * 
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 201 CREATED

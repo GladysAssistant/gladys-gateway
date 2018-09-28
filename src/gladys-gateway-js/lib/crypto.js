@@ -101,6 +101,10 @@ module.exports = function ({ cryptoLib }) {
       }
     );
 
+    // transform iv and salt into exportable format for JSON.stringify
+    iv = Array.from(iv);
+    salt = Array.from(salt);
+
     return {
       wrappedKey: arrayBufferToHex(wrappedKey),
       salt,
@@ -109,6 +113,9 @@ module.exports = function ({ cryptoLib }) {
   }
 
   async function decryptPrivateKey(passphrase, wrappedKey, type, salt, iv){
+
+    iv = Uint8Array.from(iv);
+    salt = Uint8Array.from(salt);
 
     // sanitize passphrase
     passphrase = sanitizePassPhrase(passphrase);
@@ -228,7 +235,7 @@ module.exports = function ({ cryptoLib }) {
     );
 
     return {
-      iv, 
+      iv: Array.from(iv), 
       wrappedSymetricKey: arrayBufferToHex(wrappedSymetricKey),
       encryptedData: arrayBufferToHex(encryptedData),
       signature: arrayBufferToHex(signature)
@@ -236,6 +243,8 @@ module.exports = function ({ cryptoLib }) {
   }
 
   async function decryptMessage(privateKey, ecdsaPublicKey, data) {
+
+    data.iv = Uint8Array.from(data.iv);
 
     var encryptedDataArrayBuffer = hexToArrayBuffer(data.encryptedData);
     var wrappedSymetricKeyArrayBuffer = hexToArrayBuffer(data.wrappedSymetricKey);

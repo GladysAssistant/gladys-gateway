@@ -15,7 +15,8 @@ class SignupPage extends Component {
     password: '',
     fieldsErrored: [],
     currentStep: 1,
-    accountAlreadyExist: false
+    accountAlreadyExist: false,
+    signupCompleted: false
   };
 
   validateEmail = email => {
@@ -44,6 +45,8 @@ class SignupPage extends Component {
   validateForm = event => {
     event.preventDefault();
 
+    this.setState({ currentStep: 2 });
+
     let currentBrowserLanguage = (navigator.language || navigator.userLanguage)
       .toLowerCase()
       .substr(0, 2);
@@ -62,15 +65,18 @@ class SignupPage extends Component {
     let fieldsErrored = this.validateData(newUser);
 
     if (fieldsErrored.length > 0) {
-      this.setState({ fieldsErrored });
+      this.setState({ fieldsErrored, currentStep: 1 });
       return;
     }
 
     Auth.signup(newUser)
       .then(() => {
-        this.setState({ fieldsErrored: [], currentStep: 2, accountAlreadyExist: false });
+        setTimeout(() => {
+          this.setState({ fieldsErrored: [], currentStep: 2, accountAlreadyExist: false, signupCompleted: true });
+        }, 1000);
       })
       .catch(error => {
+        this.setState({ currentStep: 1 });
         if (error.response && error.response.status === 422 && error.response.data.details) {
           let fieldsErrored = [];
           error.response.data.details.forEach(err => {
@@ -85,9 +91,9 @@ class SignupPage extends Component {
       });
   };
 
-  render({}, { name, email, password, fieldsErrored, currentStep, accountAlreadyExist }) {
+  render({}, { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted }) {
     return (
-      <SignupBase>
+      <SignupBase currentStep={currentStep}>
         {currentStep === 1 && (
           <SignupForm
             name={name}
@@ -99,9 +105,10 @@ class SignupPage extends Component {
             updateEmail={linkState(this, 'email')}
             updatePassword={linkState(this, 'password')}
             validateForm={this.validateForm}
+            signupCompleted={signupCompleted}
           />
         )}
-        {currentStep === 2 && <SignupGeneratingKeys />}
+        {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} />}
       </SignupBase>
     );
   }

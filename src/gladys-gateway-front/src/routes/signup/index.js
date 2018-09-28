@@ -5,6 +5,9 @@ import SignupForm from './SignupForm';
 import SignupBase from './SignupBase';
 import SignupGeneratingKeys from './SignupGeneratingKeys';
 
+const ACCEPTED_LANGUAGES = ['en', 'fr'];
+const DEFAULT_LANGUAGE = 'en';
+
 class SignupPage extends Component {
   state = {
     name: '',
@@ -15,6 +18,29 @@ class SignupPage extends Component {
     accountAlreadyExist: false
   };
 
+  validateEmail = email => {
+    let re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    return re.test(String(email).toLowerCase());
+  }
+
+  validateData = data => {
+    let fieldsErrored = [];
+
+    if (!data.name || data.name.length < 2 || data.name.length > 30) {
+      fieldsErrored.push('name');
+    }
+
+    if (!data.email || !(this.validateEmail(data.email)) ) {
+      fieldsErrored.push('email');
+    }
+
+    if (!data.password || data.password.length < 8) {
+      fieldsErrored.push('password');
+    }
+
+    return fieldsErrored;
+  };
+
   validateForm = event => {
     event.preventDefault();
 
@@ -22,12 +48,23 @@ class SignupPage extends Component {
       .toLowerCase()
       .substr(0, 2);
 
+    if (!ACCEPTED_LANGUAGES.includes(currentBrowserLanguage)) {
+      currentBrowserLanguage = DEFAULT_LANGUAGE;
+    }
+
     let newUser = {
       name: this.state.name,
       email: this.state.email,
       password: this.state.password,
       language: currentBrowserLanguage
     };
+
+    let fieldsErrored = this.validateData(newUser);
+
+    if (fieldsErrored.length > 0) {
+      this.setState({ fieldsErrored });
+      return;
+    }
 
     Auth.signup(newUser)
       .then(() => {
@@ -43,7 +80,7 @@ class SignupPage extends Component {
         } else if (error.response && error.response.status === 409) {
           this.setState({ accountAlreadyExist: true });
         } else {
-          
+          console.log(error);
         }
       });
   };

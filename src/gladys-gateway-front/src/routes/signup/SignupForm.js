@@ -43,7 +43,7 @@ const SignupForm = ({ children, ...props }) => (
         <div class="invalid-feedback">Password should be 8 characters</div>
       </div>
       <div className="form-footer">
-        <button className="btn btn-primary btn-block">Create new account</button>
+        <button type="submit" className="btn btn-primary btn-block">Create new account</button>
       </div>
     </div>
   </form>

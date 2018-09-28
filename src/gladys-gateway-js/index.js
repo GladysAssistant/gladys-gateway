@@ -25,8 +25,11 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
 
     // generate public/private key for the Gladys Gateway
-    const { keys, publicKeyJwk, privateKeyJwk } = await crypto.generateKeyPair();
-    const encSalt = srpClient.generateSalt();
+    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk } = await crypto.generateKeyPair();
+
+    const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, rsaKeys.privateKey);
+    const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, ecdsaKeys.privateKey);
+  
 
     var newUser = {
       name,
@@ -34,8 +37,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       srp_salt: srpSalt,
       srp_verifier: srpVerifier,
       language,
-      public_key: JSON.stringify(publicKeyJwk),
-      encrypted_private_key: JSON.stringify(privateKeyJwk)
+      rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
+      rsa_encrypted_private_key: JSON.stringify(rsaEncryptedPrivateKey),
+      ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
+      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey)
     };
     
     return axios.post(serverUrl + '/users/signup', newUser);

@@ -1,6 +1,6 @@
 const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
-const { str2ab, ab2str, appendBuffer } = require('./helpers');
+const { str2ab, ab2str, appendBuffer, sanitizePassPhrase } = require('./helpers');
 
 const PBKDF2_ITERATIONS = 100000;
 
@@ -55,6 +55,10 @@ module.exports = function ({ cryptoLib }) {
   }
 
   async function encryptPrivateKey(passphrase, privateKey) {
+
+    // sanitize passphrase
+    passphrase = sanitizePassPhrase(passphrase);
+
     var salt = cryptoLib.getRandomValues(new Uint8Array(16));
     var iv = cryptoLib.getRandomValues(new Uint8Array(12));
 
@@ -105,6 +109,9 @@ module.exports = function ({ cryptoLib }) {
   }
 
   async function decryptPrivateKey(passphrase, wrappedKey, type, salt, iv){
+
+    // sanitize passphrase
+    passphrase = sanitizePassPhrase(passphrase);
     
     if(type !== 'RSA-OAEP' && type !== 'ECDSA') {
       throw new Error('decryptPrivateKey: Unsupported type. Only: RSA-OAEP and ECDSA');

@@ -18,6 +18,11 @@ function appendBuffer(buffer1, buffer2) {
   return tmp.buffer;
 }
 
+function sanitizePassPhrase(passphrase) {
+  return passphrase.trim().normalize('NFKD');
+}
+
 module.exports.ab2str = ab2str;
 module.exports.str2ab = str2ab;
 module.exports.appendBuffer = appendBuffer;
+module.exports.sanitizePassPhrase = sanitizePassPhrase;

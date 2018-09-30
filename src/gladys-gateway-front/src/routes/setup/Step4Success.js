@@ -9,7 +9,7 @@ const Step4Success = ({ children, ...props }) => (
         </div>
         <div class="col-md" style={{ height: '100%' }}>
           <div class="d-flex flex-column">
-            <h4>Let me say you thank you 🙏</h4>
+            <h4>Allow me to thank you 🙏</h4>
             <p class="text">
               Thank you for supporting open-source and making this project possible 🙌
             </p>

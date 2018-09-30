@@ -73,9 +73,10 @@ class AlreadyExistError extends Error {
 }
 
 class ForbiddenError extends Error {
-  constructor() {
-    super('Forbidden');
-
+  constructor(message) {
+    super(message || 'Forbidden');
+    this.message = message;
+    
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
     Error.captureStackTrace(this, ValidationError);
@@ -83,10 +84,16 @@ class ForbiddenError extends Error {
 
   // we can also define custom methods on this class
   jsonError() {
-    return {
+    var error = {
       status: 403,
       error_code: 'FORBIDDEN'
     };
+
+    if(this.message) {
+      error.error_message = this.message;
+    }
+
+    return error;
   }
 
   getStatus(){

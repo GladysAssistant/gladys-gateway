@@ -20,7 +20,8 @@
     "axios": "^0.18.0",
     "encode-utf8": "^1.0.2",
     "hex-to-array-buffer": "^1.1.0",
-    "secure-remote-password": "^0.3.1"
+    "secure-remote-password": "^0.3.1",
+    "socket.io-client": "^2.1.1"
   },
   "devDependencies": {
     "mocha": "^5.2.0",

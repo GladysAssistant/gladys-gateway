@@ -8,6 +8,7 @@ import ConfigureTwoFactor from '../routes/configure-two-factor';
 import Setup from '../routes/setup';
 import Dashboard from '../routes/dashboard';
 import ConfirmEmail from '../routes/confirm-email';
+import ForgotPassword from '../routes/forgot-password';
 
 export default class App extends Component {
   
@@ -28,6 +29,7 @@ export default class App extends Component {
           <Login path="/login" />
           <ConfigureTwoFactor path="/configure-two-factor" />
           <Setup path="/setup" />
+          <ForgotPassword path="/forgot-password" />
           <Dashboard path="/dashboard" />
         </Router>
       </div>

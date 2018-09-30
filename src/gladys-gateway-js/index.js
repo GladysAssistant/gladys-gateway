@@ -4,6 +4,7 @@ const pbkdf2 = require('@ctrlpanel/pbkdf2');
 const encodeUtf8 = require('encode-utf8');
 const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
+const io = require('socket.io-client');
 
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_ITERATIONS = 100000;
@@ -12,6 +13,15 @@ const PBKDF2_KEYLEN = 32;
 module.exports = function ({ cryptoLib, serverUrl }) {
 
   const crypto = require('./lib/crypto')({ cryptoLib });
+
+  const state = {
+    socket: null,
+    refreshToken: null,
+    rsaKeys: null,
+    ecdsaKeys: null,
+    gladysInstance: null,
+    gladysInstancePublicKey: null
+  };
 
   async function signup(rawName, rawEmail, rawPassword, rawLanguage) {
     var name = rawName.trim();
@@ -30,6 +40,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, rsaKeys.privateKey);
     const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, ecdsaKeys.privateKey);
   
+    state.rsaKeys = rsaKeys;
+    state.ecdsaKeys = ecdsaKeys;
 
     var newUser = {
       name,
@@ -72,8 +84,67 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return serverFinalLoginResult;
   }
 
+  async function loginTwoFactor(accessToken, password, code) {
+
+    const result = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: code }, {
+      headers: {
+        authorization: accessToken
+      }
+    }));
+
+    const loginData = result.data;
+
+    loginData.rsa_encrypted_private_key = JSON.parse(loginData.rsa_encrypted_private_key);
+    loginData.ecdsa_encrypted_private_key = JSON.parse(loginData.ecdsa_encrypted_private_key);
+
+    // We decrypt the encrypted RSA private key
+    state.rsaKeys = {
+      private_key: await crypto.decryptPrivateKey(
+        password, 
+        loginData.rsa_encrypted_private_key.wrappedKey, 
+        'RSA-OAEP',
+        loginData.rsa_encrypted_private_key.salt,
+        loginData.rsa_encrypted_private_key.iv  
+      )
+    };
+
+    // We decrypt the encrypted ECDSA private key
+    state.ecdsaKeys = {
+      private_key: await crypto.decryptPrivateKey(
+        password, 
+        loginData.ecdsa_encrypted_private_key.wrappedKey, 
+        'ECDSA',
+        loginData.ecdsa_encrypted_private_key.salt,
+        loginData.ecdsa_encrypted_private_key.iv  
+      )
+    };
+
+    state.gladysInstance = await getInstance(loginData.access_token);
+
+    if(state.gladysInstance) {
+      state.gladysInstancePublicKey = await crypto.importKey(state.gladysInstance.rsa_public_key, 'RSA-OEAP');
+    } 
+
+    return {
+      gladysInstance: state.gladysInstance,
+      gladysInstancePublicKey: state.gladysInstancePublicKey,
+      rsaKeys: state.rsaKeys,
+      ecdsaKeys: state.ecdsaKeys,
+      refreshToken: loginData.refresh_token,
+      accessToken: loginData.access_token
+    };
+  }
+
   async function configureTwoFactor(accessToken) {
     return (await axios.post(serverUrl + '/users/two-factor-configure', {}, {
+      headers: {
+        authorization: accessToken
+      }
+    })).data;
+  }
+
+  async function enableTwoFactor(accessToken, twoFactorCode) {
+    return (await axios.post(serverUrl + '/users/two-factor-enable', { two_factor_code: twoFactorCode }, {
       headers: {
         authorization: accessToken
       }
@@ -84,10 +155,99 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return (await axios.post(serverUrl + '/users/verify', { email_confirmation_token: token })).data;
   }
 
+  async function getAccessToken(refreshToken) {
+    return (await axios.get(serverUrl + '/users/access-token', {
+      headers: {
+        authorization: refreshToken
+      }
+    })).data;
+  }
+
+  async function getInstance(accessToken) {
+    let instances = (await axios.get(serverUrl + '/instances', {
+      headers: {
+        authorization: accessToken
+      }
+    })).data;
+
+    if(instances.length === 0) {
+      return null;
+    }    
+    
+    return instances[0];
+  }
+
+  async function userConnect(refreshToken) {
+    state.refreshToken = refreshToken;
+    
+    const { accessToken } = await getAccessToken(refreshToken);
+
+    socket = io(serverUrl);
+
+    socket.on('connect', function(){
+      socket.send('user-authentication', {
+        access_token: accessToken
+      });
+    });
+
+    socket.on('disconnect', function(){
+      console.log('Socket disconnected');
+    });
+  }
+
+  async function sendMessageGladys(data) {
+    
+    if(socket === null) {
+      throw new Error('Not connected to socket, cannot send message');
+    }
+
+    if(!state.gladysInstancePublicKey) {
+      throw new Error('NO_INSTANCE_DETECTED');
+    }
+
+    if(!state.ecdsaKeys) {
+      throw new Error('NO_ECDSA_PRIVATE_KEY');
+    }
+
+    const encryptedMessage = await crypto.encryptMessage(state.gladysInstancePublicKey, state.ecdsaKeys.private_key, data);
+
+    return socket.send('message', encryptedMessage);
+  }
+
+  async function sendRequest(method, path, body) {
+    
+    var message = {
+      version: '1.0',
+      type: 'gladys-api-call',
+      options: {
+        url: path,
+        method: method
+      }
+    };
+
+    if(method === 'GET' && body) {
+      message.options.query = body;
+    } else if(body) {
+      message.options.data = body;
+    }
+
+    return sendMessageGladys(message);
+  }
+
+  var request = {
+    get: (path, query) => sendRequest('GET', path, query), 
+    post: (path, body) => sendRequest('POST', path, body), 
+    patch: (path, body) => sendRequest('PATCH', path, body) 
+  };
+
   return {
     signup,
     login,
+    loginTwoFactor,
     configureTwoFactor,
-    confirmEmail
+    enableTwoFactor,
+    confirmEmail,
+    userConnect,
+    request
   };
 };

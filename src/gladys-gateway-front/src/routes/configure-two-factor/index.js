@@ -7,7 +7,8 @@ class ConfigureTwoFactorPage extends Component {
   state = {
     dataUrl: null,
     twoFactorCode: '',
-    step: 1
+    step: 1,
+    errored: false
   };
 
   getOtpAuthUrl = () => {
@@ -38,17 +39,34 @@ class ConfigureTwoFactorPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
+  enableTwoFactor = (event) => {
+    event.preventDefault();
+    const accessToken = Auth.getAccessToken();
+
+    let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
+
+    Auth.enableTwoFactor(accessToken, twoFactorCode)
+      .then((data) => {
+
+      })
+      .catch((err) => {
+        this.setState({ errored: true });
+      });
+  };
+
   componentWillMount = () => {
     this.getOtpAuthUrl();
   };
 
-  render({}, { dataUrl, step, twoFactorCode }) {
+  render({}, { dataUrl, step, twoFactorCode, errored }) {
     return (
       <ConfigureTwoFactorForm
         dataUrl={dataUrl}
+        errored={errored}
         nextStep={this.nextStep}
         twoFactorCode={twoFactorCode}
         updateTwoFactorCode={this.updateTwoFactorCode}
+        enableTwoFactor={this.enableTwoFactor}
         step={step}
       />
     );

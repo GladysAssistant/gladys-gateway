@@ -3,6 +3,7 @@ const hexToArrayBuffer = require('hex-to-array-buffer');
 const { str2ab, ab2str, appendBuffer, sanitizePassPhrase } = require('./helpers');
 
 const PBKDF2_ITERATIONS = 100000;
+const MESSAGE_MAX_LIFETIME = 5*60*1000; // a message expire after 5 minutes
 
 module.exports = function ({ cryptoLib }) {
 
@@ -162,17 +163,19 @@ module.exports = function ({ cryptoLib }) {
         }
       };
 
-      keyUsage = ['decrypt', 'unWrapKey'];
+      keyUsage = ['decrypt', 'unwrapKey'];
     } else if(type === 'ECDSA') {
       resultingKeyOptions = {
         name: 'ECDSA',
         namedCurve: 'P-256'
       };
       keyUsage = ['sign'];
-    } 
+    }
 
     var decrypted = await cryptoLib.subtle.unwrapKey(
-      'jwk', hexToArrayBuffer(wrappedKey), wrappingKey, {
+      'jwk', hexToArrayBuffer(wrappedKey), 
+      wrappingKey, 
+      {
         name: 'AES-GCM',
         iv: iv
       },
@@ -183,6 +186,12 @@ module.exports = function ({ cryptoLib }) {
   }
 
   async function encryptMessage(publicKey, ecdsaPrivateKey, data) {
+
+    // add timestamp to message to avoid replay attack
+    data.timestamp = new Date().getTime();
+    
+    // stringify data
+    data = JSON.stringify(data);
     
     // first, we generate a symetric key
     var symetricKey = await cryptoLib.subtle.generateKey({
@@ -295,7 +304,41 @@ module.exports = function ({ cryptoLib }) {
     encryptedDataArrayBuffer //ArrayBuffer of the data
     );
 
-    return ab2str(decryptedData);
+    // we decrypt the data
+    var strData = ab2str(decryptedData);
+
+    // then convert it to JS object
+    var jsonData = JSON.parse(strData);
+
+    var now = new Date().getTime();
+
+    if(jsonData.timestamp + MESSAGE_MAX_LIFETIME < now) {
+      throw new Error('EXPIRED_MESSAGE');
+    }
+
+    return jsonData;
+  }
+
+  async function importKey(jwkKey, type) {
+
+    var keyOptions = null;
+
+    if(type === 'RSA-OEAP') {
+      keyOptions = { 
+        name: 'RSA-OAEP',
+        hash: {name: 'SHA-256'},
+      };  
+    } else {
+      throw new Error('Unkown type ' + type);
+    }
+
+    return cryptoLib.subtle.importKey(
+      'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
+      jwtKey,
+      keyOptions,
+      false, //whether the key is extractable (i.e. can be used in exportKey)
+      ['encrypt', 'wrapKey']
+    );
   }
 
   return {
@@ -303,6 +346,7 @@ module.exports = function ({ cryptoLib }) {
     encryptPrivateKey,
     decryptPrivateKey,
     encryptMessage,
-    decryptMessage
+    decryptMessage,
+    importKey
   };
 };

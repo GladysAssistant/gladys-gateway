@@ -1,4 +1,5 @@
 import { Component } from 'preact';
+import { route } from 'preact-router';
 import linkState from 'linkstate';
 import Auth from '../../api/Auth';
 import LoginForm from './LoginForm';
@@ -6,7 +7,9 @@ import LoginForm from './LoginForm';
 class LoginPage extends Component {
   state = {
     email: '',
-    password: ''
+    password: '',
+    displayTwoFactorInput: false,
+    twoFactorCode: ''
   };
 
   login = event => {
@@ -14,14 +17,50 @@ class LoginPage extends Component {
 
     Auth.login(this.state)
       .then(data => {
-        Auth.saveAccessToken(data.access_token);
+        if (data.two_factor_token) {
+          this.setState({ displayTwoFactorInput: true, twoFactorToken: data.two_factor_token });
+        } else {
+          Auth.saveAccessToken(data.access_token);
+          route('/configure-two-factor');
+        }
       })
       .catch(err => {
         
       });
   };
 
-  render({}, { email, password }) {
+  loginTwoFactor = event => {
+    event.preventDefault();
+
+    let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
+
+    Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode)
+      .then((data) => {
+        Auth.saveRefreshToken(data.refreshToken);
+        Auth.saveAccessToken(data.accessToken);
+        return Auth.connectSocket(data.refreshToken);
+      })
+      .catch((err) => {
+        console.log(err);
+      });
+  }
+
+  updateTwoFactorCode = event => {
+    let newValue = event.target.value;
+
+    // we add a space between the two group of 3 digits code
+    // so it's more readable
+    if (newValue.length === 3) {
+      if (newValue.length > this.state.twoFactorCode.length) {
+        newValue += ' ';
+      } else {
+        newValue = newValue.substr(0, newValue.length - 1);
+      }
+    }
+    this.setState({ twoFactorCode: newValue });
+  };
+
+  render({}, { email, password, displayTwoFactorInput, twoFactorCode }) {
     return (
       <LoginForm
         email={email}
@@ -29,6 +68,10 @@ class LoginPage extends Component {
         login={this.login}
         updateEmail={linkState(this, 'email')}
         updatePassword={linkState(this, 'password')}
+        displayTwoFactorInput={displayTwoFactorInput}
+        twoFactorCode={twoFactorCode}
+        loginTwoFactor={this.loginTwoFactor}
+        updateTwoFactorCode={this.updateTwoFactorCode}
       />
     );
   }

@@ -27,6 +27,8 @@ module.exports = function(logger, socketModel) {
         
         isClientAuthenticated = true;
 
+        logger.debug(`User ${user.id} connected in websockets`);
+
         // we answer the client that he is authenticated
         fn({authenticated: true});
 

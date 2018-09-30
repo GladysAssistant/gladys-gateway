@@ -266,6 +266,9 @@ describe('POST /users/login-two-factor', function() {
         response.body.should.have.property('access_token');
         response.body.should.have.property('refresh_token');
         response.body.should.have.property('device_id');
+        response.body.should.have.property('rsa_encrypted_private_key');
+        response.body.should.have.property('ecdsa_encrypted_private_key');
+        
         console.log(response.body);
       });
   });

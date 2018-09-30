@@ -231,25 +231,47 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
   }
 
   async function configureTwoFactor(user) {
+    
+    var fullUser = await db.t_user.findOne({
+      id: user.id
+    });
+
+    if(fullUser.two_factor_enabled === true) {
+      throw new ForbiddenError('Two Factor Authentication is already enabled');
+    }
+
     var secret = speakeasy.generateSecret();
+    
     await db.t_user.update(user.id, {
       two_factor_secret: secret.base32
     });
+
+    var url = speakeasy.otpauthURL({ 
+      secret: secret.base32, 
+      label: fullUser.email, 
+      issuer: 'Gladys Gateway'
+    });
+
     return {
-      otpauth_url: secret.otpauth_url
+      otpauth_url: url
     };
   }
 
   async function enableTwoFactor(user, twoFactorCode) {
     var userWithSecret = await db.t_user.findOne({
       id: user.id
-    }, {fields: ['id', 'two_factor_secret']});
+    }, {fields: ['id', 'two_factor_secret', 'two_factor_enabled']});
+
+    // two factor is already enabled
+    if(userWithSecret.two_factor_enabled === true) {
+      return {
+        two_factor_enabled: true
+      };
+    }
     
     var tokenValidates = speakeasy.totp.verify({
       secret: userWithSecret.two_factor_secret,
-      encoding: 'base32',
-      token: twoFactorCode,
-      window: 2
+      token: twoFactorCode
     });
 
     if(!tokenValidates) {
@@ -266,13 +288,13 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
   }
 
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent){
+
     var userWithSecret = await db.t_user.findOne({
       id: user.id
-    }, {fields: ['id', 'two_factor_secret']});
+    }, {fields: ['id', 'two_factor_secret', 'rsa_encrypted_private_key', 'ecdsa_encrypted_private_key']});
 
     var tokenValidates = speakeasy.totp.verify({
       secret: userWithSecret.two_factor_secret,
-      encoding: 'base32',
       token: twoFactorCode,
       window: 2
     });
@@ -287,7 +309,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       user_id: user.id
     };
 
-    var scope =  ['dashoard:read', 'dashboard:write', 'two-factor-configure'];
+    var scope =  ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
     var userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
 
     var refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
@@ -314,7 +336,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       return {
         access_token: accessToken,
         refresh_token: refreshToken,
-        device_id: insertedDevice.id
+        device_id: insertedDevice.id,
+        rsa_encrypted_private_key: userWithSecret.rsa_encrypted_private_key,
+        ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key
       };
     });
   }

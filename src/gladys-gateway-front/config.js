@@ -1,6 +1,7 @@
 const local = {
   serverUrl: 'http://localhost:3000',
   accessTokenCookieKey: 'gladys-gateway-access-token',
+  refreshTokenCookieKey: 'gladys-gateway-refresh-token',
   stripeApiKey: ''
 };
 

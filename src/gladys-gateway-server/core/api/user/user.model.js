@@ -381,7 +381,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       throw new ForbiddenError();
     }
 
-    var scope =  ['dashoard:read', 'dashboard:write', 'two-factor-configure'];
+    var scope =  ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
     var accessToken = jwtService.generateAccessToken(user, scope);
 
     return {

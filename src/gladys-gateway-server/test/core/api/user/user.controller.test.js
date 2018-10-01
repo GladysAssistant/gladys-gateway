@@ -197,8 +197,7 @@ describe('POST /users/two-factor-enable', function() {
     const speakeasy = require('speakeasy');
     
     var token = speakeasy.totp({
-      secret: twoFactorSecret,
-      encoding: 'base32'
+      secret: twoFactorSecret
     });
 
     return request(TEST_BACKEND_APP)
@@ -246,8 +245,7 @@ describe('POST /users/login-two-factor', function() {
     const speakeasy = require('speakeasy');
 
     var token = speakeasy.totp({
-      secret: twoFactorSecret,
-      encoding: 'base32'
+      secret: twoFactorSecret
     });
 
     var userAgent = 'my-browser-is-awesome';

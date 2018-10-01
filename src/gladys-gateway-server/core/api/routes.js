@@ -38,6 +38,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/users/two-factor-enable', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.enableTwoFactor));
 
   app.patch('/users/me', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.userController.updateUser));
+  app.get('/users/me', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.userController.getMySelf));
 
   app.get('/users/access-token', asyncMiddleware(middlewares.refreshTokenAuth), asyncMiddleware(controllers.userController.getAccessToken));
 

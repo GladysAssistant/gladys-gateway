@@ -81,6 +81,25 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     });
   }
 
+  async function getMySelf(user) {
+    
+    const currentUser = await db.t_user.findOne({
+      id: user.id
+    }, {fields: [
+      'id', 
+      'name', 
+      'email', 
+      'role', 
+      'language', 
+      'profile_url', 
+      'gladys_user_id', 
+      'rsa_encrypted_private_key', 
+      'ecdsa_encrypted_private_key'
+    ]});
+
+    return currentUser;
+  }
+
   async function updateUser(user, data) {
     const { error, value } = Joi.validate(data, schema.signupSchema, {stripUnknown: true, abortEarly: false, presence: 'optional'});
 
@@ -490,6 +509,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     loginTwoFactor,
     getAccessToken,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    getMySelf
   };
 };

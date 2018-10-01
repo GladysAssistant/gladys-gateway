@@ -406,6 +406,30 @@ describe('PATCH /users/me', function() {
   });
 });
 
+describe('GET /users/me', function() {
+  it('should get user account', function() {
+    return request(TEST_BACKEND_APP)
+      .get('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, 
+          { id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+            name: null,
+            email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+            role: 'admin',
+            language: 'en',
+            profile_url: null,
+            gladys_user_id: null,
+            rsa_encrypted_private_key: null,
+            ecdsa_encrypted_private_key: null 
+          });
+      });
+  });
+});
+
 describe('POST /users/forgot-password', function() {
   it('should return success', function() {
     return request(TEST_BACKEND_APP)

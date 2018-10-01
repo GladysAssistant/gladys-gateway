@@ -26,7 +26,7 @@ module.exports = function(userModel, mailgunService) {
    */
   async function signup(req, res, next) {
     var user = await userModel.signup(req.body);
-    
+
     // send confirmation email to user
     mailgunService.send(user, 'confirmation', {
       confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/confirm-email/' + encodeURI(user.email_confirmation_token)
@@ -67,8 +67,8 @@ module.exports = function(userModel, mailgunService) {
   async function updateUser(req, res, next) {
     var user = await userModel.updateUser(req.user, req.body);
 
-    if(user.email_confirmed === false) {
-      
+    if (user.email_confirmed === false) {
+
       // send confirmation email to user
       mailgunService.send(user, 'confirmation', {
         confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/confirm-email/' + user.email_confirmation_token
@@ -77,7 +77,7 @@ module.exports = function(userModel, mailgunService) {
 
     res.json(user);
   }
-  
+
   /**
    * @api {post} /users/verify Verify user email
    * @apiName Verify user email
@@ -94,7 +94,7 @@ module.exports = function(userModel, mailgunService) {
    * }
    *
    */
-  async function confirmEmail(req, res, next){
+  async function confirmEmail(req, res, next) {
     var user = await userModel.confirmEmail(req.body.email_confirmation_token);
     res.json(user);
   }
@@ -114,7 +114,7 @@ module.exports = function(userModel, mailgunService) {
    * }
    *
    */
-  async function loginGetSalt(req, res, next){
+  async function loginGetSalt(req, res, next) {
     var user = await userModel.loginGetSalt(req.body);
     res.json(user);
   }
@@ -173,7 +173,7 @@ module.exports = function(userModel, mailgunService) {
    *   "otpauth_url": "otpauth://totp/SecretKey?secret=F5NCGUKXFZCEA6BUIBLWSZZBME7FMUR4GFJSS4SUIYUUY62WOQ2Q"
    * }
    */
-  async function configureTwoFactor(req, res, next){
+  async function configureTwoFactor(req, res, next) {
     var secret = await userModel.configureTwoFactor(req.user);
     res.json(secret);
   }
@@ -230,7 +230,7 @@ module.exports = function(userModel, mailgunService) {
    *   "access_token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiM2I2OWYxYzUtZDM2Yy00MTlkLTg4NGMtNTBiOWRkNmUzM2U0Iiwic2NvcGUiOlsidHdvLWZhY3Rvci1jb25maWd1cmUiXSwiaWF0IjoxNTM3NzQ2ODk2LCJleHAiOjMzMDczNzQ2ODk2LCJhdWQiOiJ1c2VyIiwiaXNzIjoiZ2xhZHlzLWdhdGV3YXkifQ.-fBNWml3S6ZTyszwN7BK44UpOfeDXEjRkgwboletRUU"
    * }
    */
-  async function getAccessToken(req, res, next) {
+  async function getAccessToken(req, res, next) {
     var token = await userModel.getAccessToken(req.user, req.headers.authorization);
     res.json(token);
   }
@@ -278,6 +278,30 @@ module.exports = function(userModel, mailgunService) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {get} /users/me Get Myself
+   * @apiName Get Myself
+   * @apiGroup User
+   *
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "id": "30d56556-0aaa-4933-97cd-d226e6ffb11d",
+   *   "name": "Tony Stark",
+   *   "email": "tony.stark@gladysproject.com",
+   *   "role": "admin",
+   *   "language": "en",
+   *   "profile_url": "https://gravatar.com/sdkflmskd",
+   *   "gladys_user_id": 1
+   * }
+   */
+  async function getMySelf(req, res, next) {
+    const currentUser = await userModel.getMySelf(req.user);
+    res.json(currentUser);
+  }
+
   return {
     signup,
     updateUser,
@@ -290,6 +314,7 @@ module.exports = function(userModel, mailgunService) {
     loginTwoFactor,
     getAccessToken,
     forgotPassword,
-    resetPassword
+    resetPassword,
+    getMySelf
   };
 };

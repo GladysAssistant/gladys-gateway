@@ -420,9 +420,7 @@ describe('GET /users/me', function() {
             role: 'admin',
             language: 'en',
             profile_url: null,
-            gladys_user_id: null,
-            rsa_encrypted_private_key: null,
-            ecdsa_encrypted_private_key: null 
+            gladys_user_id: null
           });
       });
   });

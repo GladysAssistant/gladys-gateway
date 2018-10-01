@@ -92,9 +92,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       'role', 
       'language', 
       'profile_url', 
-      'gladys_user_id', 
-      'rsa_encrypted_private_key', 
-      'ecdsa_encrypted_private_key'
+      'gladys_user_id'
     ]});
 
     return currentUser;

@@ -13,7 +13,7 @@ module.exports = function(logger, socketModel) {
     }, 5000);
 
     socket.on('user-authentication', async function(data, fn) {
-
+      
       try {
         // we first authenticate the user thanks to his access token
         var user = await socketModel.authenticateUser(data.access_token);
@@ -23,7 +23,7 @@ module.exports = function(logger, socketModel) {
         socket.join('account:users:' + user.account_id);
 
         // on message (request to one instance)
-        socket.on('message', (message, fn) => socketModel.handleNewMessage(user, message, fn));
+        socket.on('message', (message, callback) => socketModel.handleNewMessage(user, message, callback));
         
         isClientAuthenticated = true;
 
@@ -56,9 +56,11 @@ module.exports = function(logger, socketModel) {
         socket.join('account:instances:' + instance.account_id);
 
         // on message (message to user)
-        socket.on('message', (message, fn) => socketModel.handleNewMessageFromInstance(instance, message, fn));
+        socket.on('message', (message, callback) => socketModel.handleNewMessageFromInstance(instance, message, callback));
         
         isClientAuthenticated = true;
+
+        logger.debug(`Instance ${instance.id} connected in websockets`);
 
         // we answer the client that he is authenticated
         fn({authenticated: true});

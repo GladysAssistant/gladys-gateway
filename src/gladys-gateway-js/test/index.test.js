@@ -34,7 +34,7 @@ describe('crypto.decryptPrivateKey', function () {
     });
     var keys = await crypto.generateKeyPair();
     var encrypted = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
-    var decrypted = await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'RSA-OAEP', encrypted.salt, encrypted.iv);
+    await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'RSA-OAEP', encrypted.salt, encrypted.iv);
   });
 });
 
@@ -45,7 +45,7 @@ describe('crypto.decryptPrivateKey', function () {
     });
     var keys = await crypto.generateKeyPair();
     var encrypted = await crypto.encryptPrivateKey('mypassword', keys.ecdsaKeys.privateKey);
-    var decrypted = await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'ECDSA', encrypted.salt, encrypted.iv);
+    await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'ECDSA', encrypted.salt, encrypted.iv);
   });
 });
 

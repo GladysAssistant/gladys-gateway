@@ -160,6 +160,30 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       headers: {
         authorization: refreshToken
       }
+    })).data.access_token;
+  }
+
+  async function getMyself() {
+    return (await axios.get(serverUrl + '/users/me', {
+      headers: {
+        authorization: state.accessToken
+      }
+    })).data;
+  }
+
+  async function getUsersInAccount() {
+    return (await axios.get(serverUrl + '/accounts/users', {
+      headers: {
+        authorization: state.accessToken
+      }
+    })).data;
+  }
+
+  async function inviteUser(email) {
+    return (await axios.post(serverUrl + '/invitations', { email }, {
+      headers: {
+        authorization: state.accessToken
+      }
     })).data;
   }
 
@@ -179,19 +203,25 @@ module.exports = function ({ cryptoLib, serverUrl }) {
 
   async function userConnect(refreshToken) {
     state.refreshToken = refreshToken;
-    
-    const { accessToken } = await getAccessToken(refreshToken);
+    const accessToken = await getAccessToken(refreshToken);
+    state.accessToken = accessToken;
 
-    socket = io(serverUrl);
+    return new Promise(function(resolve, reject) {
+      state.socket = io(serverUrl);
 
-    socket.on('connect', function(){
-      socket.send('user-authentication', {
-        access_token: accessToken
+      state.socket.on('connect', function(){
+        state.socket.emit('user-authentication', { access_token: accessToken }, function(res) {
+          if(res.authenticated) {
+            resolve();
+          } else {
+            reject(new Error('Invalid JWT'));
+          }
+        });
       });
-    });
 
-    socket.on('disconnect', function(){
-      console.log('Socket disconnected');
+      state.socket.on('disconnect', function(){
+        console.log('Socket disconnected');
+      });
     });
   }
 
@@ -248,6 +278,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     enableTwoFactor,
     confirmEmail,
     userConnect,
-    request
+    getMyself,
+    request,
+    getUsersInAccount,
+    inviteUser
   };
 };

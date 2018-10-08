@@ -1,5 +1,5 @@
 {
-  "name": "gladys-gateway-js",
+  "name": "@gladysproject/gladys-gateway-js",
   "version": "0.1.0",
   "description": "Gladys Gateway JS client",
   "main": "index.js",
@@ -24,8 +24,11 @@
     "socket.io-client": "^2.1.1"
   },
   "devDependencies": {
+    "dotenv": "^6.0.0",
     "mocha": "^5.2.0",
+    "nock": "^10.0.0",
     "node-webcrypto-ossl": "^1.0.38",
-    "should": "^13.2.3"
+    "should": "^13.2.3",
+    "speakeasy": "^2.0.0"
   }
 }

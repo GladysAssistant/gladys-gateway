@@ -135,6 +135,48 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     };
   }
 
+  async function loginInstance(twoFactorToken, twoFactorCode) {
+    
+    const loginData = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: twoFactorCode }, {
+      headers: {
+        authorization: twoFactorToken
+      }
+    })).data;
+
+    state.accessToken = loginData.access_token;
+    state.refreshToken = loginData.refreshToken;
+
+    const gladysInstance = await getInstance(loginData.access_token);
+
+    return gladysInstance;
+  }
+
+  async function createInstance(name) {
+    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk } = await crypto.generateKeyPair();
+
+    var instance = {
+      name,
+      rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
+      ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk)
+    };
+    
+    const createdInstance = (await axios.post(serverUrl + '/instances', instance, {
+      headers: {
+        authorization: state.accessToken
+      }
+    })).data;
+
+    state.gladysInstance = createdInstance;
+    state.gladysInstanceRsaKeys = rsaKeys;
+    state.gladysInstanceEcdsaKeys = ecdsaKeys;
+
+    return {
+      instance: createdInstance,
+      rsaPrivateKeyJwk,
+      ecdsaPrivateKeyJwk
+    };
+  }
+
   async function configureTwoFactor(accessToken) {
     return (await axios.post(serverUrl + '/users/two-factor-configure', {}, {
       headers: {
@@ -281,6 +323,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getMyself,
     request,
     getUsersInAccount,
-    inviteUser
+    inviteUser,
+    loginInstance,
+    createInstance
   };
 };

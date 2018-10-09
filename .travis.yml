@@ -18,6 +18,7 @@ services:
 env:
   global:
     - POSTGRESQL_DATABASE=travis_ci_test
+    - POSTGRESQL_DATABASE_TEST=travis_ci_test
     - POSTGRESQL_USER=postgres
     - POSTGRESQL_HOST=localhost
     - POSTGRESQL_PASSWORD=

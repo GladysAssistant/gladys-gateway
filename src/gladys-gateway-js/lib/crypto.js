@@ -179,7 +179,7 @@ module.exports = function ({ cryptoLib }) {
         name: 'AES-GCM',
         iv: iv
       },
-      resultingKeyOptions, true, keyUsage
+      resultingKeyOptions, false, keyUsage
     );
 
     return decrypted;

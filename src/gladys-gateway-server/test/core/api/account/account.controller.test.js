@@ -12,8 +12,6 @@ describe('GET /accounts/users', function() {
       .then(response => {
         response.body.should.be.instanceOf(Array);
         response.body.forEach((user) => {
-          user.should.have.property('id');
-          user.should.have.property('name');
           user.should.have.property('email');
         });
       });

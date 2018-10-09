@@ -11,9 +11,18 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     var users = await db.t_user.find({
       account_id: userWithAccount.account_id,
       is_deleted: false
-    }, {fields: ['id', 'name', 'email']});
+    }, {fields: ['id', 'name', 'email', 'role', 'created_at']});
 
-    return users;
+    var usersNotAccepted = await db.t_invitation.find({
+      account_id: userWithAccount.account_id,
+      revoked: false,
+      is_deleted: false,
+      accepted: false
+    }, {field: ['id', 'email', 'account_id', 'created_at']});
+
+    var allUsers = users.concat(usersNotAccepted);
+
+    return allUsers;
   }
 
   async function subscribeMonthlyPlan(user, stripeCustomerId) {
@@ -47,6 +56,19 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
     return accountUpdated;
   }
+
+  /* async function stripeEvent(event) {
+    console.log(event);
+    switch(event.type) {
+      case 'charge.succeeded':
+        // save new date
+      break;
+
+      case 'customer.subscription.deleted':
+        // subscription is canceled, remove the client
+      break;
+    } 
+  }*/
 
   return {
     getUsers,

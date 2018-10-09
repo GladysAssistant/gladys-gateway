@@ -7,7 +7,9 @@
     "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
     "eslint": "eslint core test index.js",
     "start": "nodemon index.js",
-    "apidoc": "apidoc -i core/ -o apidoc/"
+    "apidoc": "apidoc -i core/ -o apidoc/",
+    "setup-db-dev": "db-migrate up -e dev",
+    "setup-db-test": "db-migrate up -e test"
   },
   "repository": {
     "type": "git",

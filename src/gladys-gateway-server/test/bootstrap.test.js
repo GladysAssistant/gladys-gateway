@@ -9,6 +9,7 @@ before(async function() {
   process.env.JWT_TWO_FACTOR_SECRET = 'twofactortesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.JWT_ACCESS_TOKEN_SECRET = 'accesstokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.JWT_REFRESH_TOKEN_SECRET = 'refreshtokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
+  process.env.POSTGRESQL_DATABASE = process.env.POSTGRESQL_DATABASE_TEST;
   
   const {app, db, redisClient} = await require('../core/index.js')();
   databaseTask = require('./tasks/database.js')(db);

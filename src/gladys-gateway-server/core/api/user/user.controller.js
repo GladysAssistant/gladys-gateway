@@ -302,6 +302,26 @@ module.exports = function(userModel, mailgunService) {
     res.json(currentUser);
   }
 
+  /**
+   * @api {get} /users/setup Get setup state
+   * @apiName Get Setup state
+   * @apiGroup User
+   *
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "billing_setup": false,
+   *   "gladys_instance_setup": false,
+   *   "user_gladys_acccount_linked": false
+   * }
+   */
+  async function getSetupState(req, res, next) {
+    const state = await userModel.getSetupState(req.user);
+    res.json(state);
+  }
+
   return {
     signup,
     updateUser,
@@ -315,6 +335,7 @@ module.exports = function(userModel, mailgunService) {
     getAccessToken,
     forgotPassword,
     resetPassword,
-    getMySelf
+    getMySelf,
+    getSetupState
   };
 };

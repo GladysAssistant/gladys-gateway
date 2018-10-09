@@ -39,6 +39,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   app.patch('/users/me', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.userController.updateUser));
   app.get('/users/me', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.userController.getMySelf));
+  app.get('/users/setup', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.userController.getSetupState));
 
   app.get('/users/access-token', asyncMiddleware(middlewares.refreshTokenAuth), asyncMiddleware(controllers.userController.getAccessToken));
 

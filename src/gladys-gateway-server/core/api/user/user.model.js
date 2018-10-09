@@ -494,6 +494,26 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       return newUser;
     });
   }
+
+  async function getSetupState(user){
+    var fullUser = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'account_id', 'gladys_user_id']});
+
+    var account = await db.t_account.findOne({
+      id: fullUser.account_id
+    });
+
+    var instances = await db.t_instance.find({
+      account_id: fullUser.account_id
+    });
+
+    return {
+      billing_setup: (account.stripe_customer_id !== null),
+      gladys_instance_setup: (instances.length > 0),
+      user_gladys_acccount_linked: (fullUser.gladys_user_id !== null)
+    };
+  }
   
   return {
     signup,
@@ -508,6 +528,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     getAccessToken,
     forgotPassword,
     resetPassword,
-    getMySelf
+    getMySelf,
+    getSetupState
   };
 };

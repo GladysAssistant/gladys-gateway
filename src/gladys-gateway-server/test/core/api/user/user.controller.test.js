@@ -555,3 +555,21 @@ describe('POST /users/reset-password', function() {
       });
   });
 });
+
+describe('GET /users/setup', function() {
+  it('should get setup state', function() {
+    return request(TEST_BACKEND_APP)
+      .get('/users/setup')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, { 
+          billing_setup: false,
+          gladys_instance_setup: true,
+          user_gladys_acccount_linked: false
+        });
+      });
+  });
+});

@@ -1,8 +1,24 @@
 const jwt = require('jsonwebtoken');
 
-module.exports = function SocketModel(logger, db, redisClient) {
+module.exports = function SocketModel(logger, db, redisClient, io) {
 
-  async function authenticateUser(accessToken){
+  // handle messages from different nodes
+  io.of('/').adapter.customHook = (data, cb) => {
+
+    // we look if we have the socket here
+    var socket = io.sockets.connected[data.socket_id];
+
+    // if no, we return null
+    if(!socket) {
+      return cb(null);
+    } else {
+
+      // else, we ask
+      socket.emit('message', data.message, cb);
+    }
+  };
+
+  async function authenticateUser(accessToken, socketId){
     
     // we decode the jwt and see if the access token is right
     var decoded = jwt.verify(accessToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
@@ -20,7 +36,7 @@ module.exports = function SocketModel(logger, db, redisClient) {
     }, {fields: ['id', 'account_id']});
 
     // we save in redis that the user is connected
-    await redisClient.setAsync('connected_user:' + user.id, JSON.stringify(user));
+    await redisClient.setAsync('connected_user:' + user.id, socketId);
 
     return user;
   }
@@ -29,7 +45,7 @@ module.exports = function SocketModel(logger, db, redisClient) {
     await redisClient.delAsync('connected_user:' + user.id);
   }
 
-  async function authenticateInstance(accessToken) {
+  async function authenticateInstance(accessToken, socketId) {
      
     // we decode the jwt and see if the access token is right
     var decoded = jwt.verify(accessToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
@@ -43,7 +59,7 @@ module.exports = function SocketModel(logger, db, redisClient) {
     }, {fields: ['id', 'account_id']});
 
     // we save in redis that the instance is connected
-    await redisClient.setAsync('connected_instance:' + instance.id, JSON.stringify(instance));
+    await redisClient.setAsync('connected_instance:' + instance.id, socketId);
 
     return instance;
   }
@@ -52,8 +68,34 @@ module.exports = function SocketModel(logger, db, redisClient) {
     await redisClient.delAsync('connected_instance:' + instance.id);
   }
 
-  async function handleNewMessageFromUser(user, message, fn) {
+  async function handleNewMessageFromUser(user, message, callback) {
+    logger.debug(`Received message from user ${user.id}`);
+    
+    // add sender_id to message
+    message.sender_id = user.id;
 
+    var socketId = await redisClient.getAsync('connected_instance:' + message.instance_id);
+
+    // if instance is not found
+    if(socketId === null) {
+      return callback(new Error('NO_INSTANCE_FOUND'));
+    }
+
+    io.of('/').adapter.customRequest({socket_id: socketId, message}, function(err, replies) {
+      
+      if(err) {
+        return callback(new Error('NO_INSTANCE_FOUND'));
+      }
+
+      // remove null response from other instances
+      replies = replies.filter(reply => reply !== null);
+
+      if(replies.length === 0) {
+        callback(new Error('NO_INSTANCE_FOUND'));
+      } else {
+        callback(replies[0]);
+      }
+    });
   }
 
   async function handleNewMessageFromInstance(instance, message, fn) {

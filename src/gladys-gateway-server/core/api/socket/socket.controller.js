@@ -1,6 +1,8 @@
-module.exports = function(logger, socketModel) {
+module.exports = function(logger, socketModel, io) {
 
   async function connection(socket) {
+
+    logger.debug(`New socket joined, socket_id = ${socket.id}`);
 
     var isClientAuthenticated = false;
 
@@ -16,14 +18,14 @@ module.exports = function(logger, socketModel) {
       
       try {
         // we first authenticate the user thanks to his access token
-        var user = await socketModel.authenticateUser(data.access_token);
+        var user = await socketModel.authenticateUser(data.access_token, socket.id);
         
         // then he can join two new rooms
         socket.join('user:' + user.id);
         socket.join('account:users:' + user.account_id);
 
         // on message (request to one instance)
-        socket.on('message', (message, callback) => socketModel.handleNewMessage(user, message, callback));
+        socket.on('message', (message, callback) => socketModel.handleNewMessageFromUser(user, message, callback));
         
         isClientAuthenticated = true;
 
@@ -49,7 +51,7 @@ module.exports = function(logger, socketModel) {
 
       try {
         // we first authenticate the instance thanks to his access token
-        var instance = await socketModel.authenticateInstance(data.access_token);
+        var instance = await socketModel.authenticateInstance(data.access_token, socket.id);
         
         // then he can join two new rooms
         socket.join('instance:' + instance.id);
@@ -66,7 +68,7 @@ module.exports = function(logger, socketModel) {
         fn({authenticated: true});
 
         socket.on('disconnect', function () {
-          socketModel.disconnectInstance(user);
+          socketModel.disconnectInstance(instance);
         });
 
       } catch(e) {

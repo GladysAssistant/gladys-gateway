@@ -59,9 +59,29 @@ module.exports = function(instanceModel) {
     res.json(token);
   }
 
+  /**
+   * @api {get} /instances/users get users
+   * @apiName get users
+   * @apiGroup Instance
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * [{
+   *    "id": "88abe47d-80fa-41e0-a7a5-381cb13786df",
+   *    "rsa_public_key: "",
+   *    "ecdsa_public_key": ""
+   * }]
+   */
+  async function getUsers(req, res, next) {
+    var users = await instanceModel.getUsers(req.instance);
+    res.json(users);
+  }
+
   return {
     createInstance,
     getInstances,
-    getAccessToken
+    getAccessToken,
+    getUsers
   };
 };

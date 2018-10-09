@@ -84,9 +84,24 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
     };
   }
 
+  async function getUsers(instance) {
+    
+    var users = await db.query(`
+      SELECT t_user.id, t_user.rsa_public_key, t_user.ecdsa_public_key
+      FROM t_user
+      JOIN t_instance ON t_instance.account_id = t_user.account_id
+      WHERE t_user.is_deleted = false
+      AND t_user.email_confirmed = true
+      AND t_instance.id = $1
+    `, [instance.id]);
+
+    return users;
+  }
+
   return {
     createInstance,
     getInstances,
-    getAccessToken
+    getAccessToken,
+    getUsers
   };
 };

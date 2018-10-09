@@ -58,3 +58,22 @@ describe('GET /instances/access-token', function() {
       });
   });
 });
+
+describe('GET /instances/users', function() {
+  it('should return list of users in instance with their public keys', function() {
+
+    return request(TEST_BACKEND_APP)
+      .get('/instances/users')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.forEach((user) => {
+          user.should.have.property('id');
+          user.should.have.property('rsa_public_key');
+          user.should.have.property('ecdsa_public_key');
+        });
+      });
+  });
+});

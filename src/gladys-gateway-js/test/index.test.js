@@ -27,11 +27,13 @@ describe('loginInstance', function () {
       secret: 'OROVAL3WOBEC6W3VGV5VI3KKKB4CQSCGLZ2TOSTLK46F4KSEGBOQ'
     });
 
+    console.log(twoFactorCode);
+
     var gladysInstance = await gladysGatewayClient.loginInstance(loginResult.two_factor_token, twoFactorCode);
 
     should.equal(gladysInstance, null);
 
-    var createdInstance = await gladysGatewayClient.createInstance('Gladys Instance');
+    //var createdInstance = await gladysGatewayClient.createInstance('Gladys Instance');
 
     createdInstance.should.have.property('instance');
     createdInstance.instance.should.have.property('refresh_token');

@@ -319,25 +319,43 @@ module.exports = function ({ cryptoLib }) {
     return jsonData;
   }
 
-  async function importKey(jwkKey, type) {
+  async function importKey(jwkKey, type, isPublic) {
 
     var keyOptions = null;
+    var usages = null;
 
     if(type === 'RSA-OEAP') {
       keyOptions = { 
         name: 'RSA-OAEP',
         hash: {name: 'SHA-256'},
       };  
+      
+      if(isPublic) {
+        usages = ['encrypt', 'wrapKey'];
+      } else {
+        usages = ['decrypt', 'unWrapKey'];
+      }
+    } else if (type === 'ECDSA') {
+      keyOptions = { 
+        name: 'ECDSA',
+        namedCurve: 'P-256'
+      };
+
+      if(isPublic) {
+        usages = ['verify'];
+      } else {
+        usages = ['sign'];
+      }
     } else {
       throw new Error('Unkown type ' + type);
     }
 
     return cryptoLib.subtle.importKey(
       'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
-      jwtKey,
+      jwkKey,
       keyOptions,
       false, //whether the key is extractable (i.e. can be used in exportKey)
-      ['encrypt', 'wrapKey']
+      usages
     );
   }
 

@@ -20,7 +20,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     rsaKeys: null,
     ecdsaKeys: null,
     gladysInstance: null,
-    gladysInstancePublicKey: null
+    gladysInstancePublicKey: null,
+    gladysInstanceEcdsaPublicKey: null
   };
 
   async function signup(rawName, rawEmail, rawPassword, rawLanguage) {
@@ -122,7 +123,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     state.gladysInstance = await getInstance(loginData.access_token);
 
     if(state.gladysInstance) {
-      state.gladysInstancePublicKey = await crypto.importKey(state.gladysInstance.rsa_public_key, 'RSA-OEAP');
+      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(state.gladysInstance.rsa_public_key), 'RSA-OEAP', true);
+      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(state.gladysInstance.ecdsa_public_key), 'ECDSA', true); 
     } 
 
     return {
@@ -205,6 +207,14 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     })).data.access_token;
   }
 
+  async function getAccessTokenInstance(refreshToken) {
+    return (await axios.get(serverUrl + '/instances/access-token', {
+      headers: {
+        authorization: refreshToken
+      }
+    })).data.access_token;
+  }
+
   async function getMyself() {
     return (await axios.get(serverUrl + '/users/me', {
       headers: {
@@ -243,6 +253,14 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return instances[0];
   }
 
+  async function getUsersInstance(){
+    return (await axios.get(serverUrl + '/instances/users', {
+      headers: {
+        authorization: state.accessToken
+      }
+    })).data;
+  }
+
   async function userConnect(refreshToken) {
     state.refreshToken = refreshToken;
     const accessToken = await getAccessToken(refreshToken);
@@ -267,9 +285,76 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     });
   }
 
+  async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
+    
+    state.refreshToken = refreshToken;
+
+    // We import the RSA private key
+    state.rsaKeys = {
+      private_key: await crypto.importKey(rsaPrivateKeyJwk, 'RSA-OEAP')
+    };
+
+    // We import the ECDSA private key
+    state.ecdsaKeys = {
+      private_key: await crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA')
+    };
+
+    const accessToken = await getAccessTokenInstance(refreshToken);
+    state.accessToken = accessToken;
+
+    return new Promise(function(resolve, reject) {
+      state.socket = io(serverUrl);
+
+      state.socket.on('connect', function(){
+        state.socket.emit('instance-authentication', { access_token: accessToken }, function(res) {
+          if(res.authenticated) {
+            resolve();
+          } else {
+            reject(new Error('Invalid JWT'));
+          }
+        });
+
+        state.socket.on('message', async function(data, fn) {
+          console.log('Message received');
+          
+          var users = await getUsersInstance();
+          
+          var ecdsaPublicKey = null;
+          var rsaPublicKey = null;
+          
+          users.forEach((user) => {
+            if(user.id == data.sender_id) {
+              ecdsaPublicKey = JSON.parse(user.ecdsa_public_key);
+              rsaPublicKey = JSON.parse(user.rsa_public_key);
+            }
+          });
+
+          if(ecdsaPublicKey == null || rsaPublicKey == null) {
+            throw new Error('User not found');
+          }
+
+          ecdsaPublicKey = await crypto.importKey(ecdsaPublicKey, 'ECDSA', true);
+          rsaPublicKey = await crypto.importKey(rsaPublicKey, 'RSA-OEAP', true);
+
+          var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, ecdsaPublicKey, data.encryptedMessage);
+          
+          callbackMessage(decryptedMessage, async function(response) {
+            var encryptedResponse = await crypto.encryptMessage(rsaPublicKey, state.ecdsaKeys.private_key, response);
+            fn(encryptedResponse);
+          });
+
+        });
+      });
+
+      state.socket.on('disconnect', function(){
+        console.log('Socket disconnected');
+      });
+    });
+  }
+
   async function sendMessageGladys(data) {
     
-    if(socket === null) {
+    if(state.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
@@ -277,13 +362,27 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       throw new Error('NO_INSTANCE_DETECTED');
     }
 
+    if(!state.gladysInstance || !state.gladysInstance.id) {
+      throw new Error('NO_INSTANCE_ID_DETECTED');
+    }
+
     if(!state.ecdsaKeys) {
       throw new Error('NO_ECDSA_PRIVATE_KEY');
     }
 
     const encryptedMessage = await crypto.encryptMessage(state.gladysInstancePublicKey, state.ecdsaKeys.private_key, data);
-
-    return socket.send('message', encryptedMessage);
+    
+    var payload = {
+      instance_id: state.gladysInstance.id,
+      encryptedMessage
+    };
+    
+    return new Promise(function(resolve, reject) {
+      state.socket.emit('message', payload, async function(response) {
+        const decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, response);
+        resolve(decryptedMessage);
+      });
+    });
   }
 
   async function sendRequest(method, path, body) {
@@ -325,6 +424,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getUsersInAccount,
     inviteUser,
     loginInstance,
-    createInstance
+    createInstance,
+    getAccessTokenInstance,
+    instanceConnect,
+    getUsersInstance
   };
 };

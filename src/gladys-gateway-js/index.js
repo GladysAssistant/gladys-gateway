@@ -233,7 +233,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
   }
 
   async function getInstance() {
-    let instances = requestApi.get(serverUrl + '/instances', state);
+    let instances = await requestApi.get(serverUrl + '/instances', state);
 
     if(instances.length === 0) {
       return null;

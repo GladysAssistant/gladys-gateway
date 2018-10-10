@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { NotFoundError } = require('../../common/error');
 
 module.exports = function SocketModel(logger, db, redisClient, io) {
 
@@ -78,20 +79,23 @@ module.exports = function SocketModel(logger, db, redisClient, io) {
 
     // if instance is not found
     if(socketId === null) {
-      return callback(new Error('NO_INSTANCE_FOUND'));
+      var notFound = new NotFoundError('NO_INSTANCE_FOUND');
+      return callback(notFound.jsonError());
     }
 
     io.of('/').adapter.customRequest({socket_id: socketId, message}, function(err, replies) {
       
       if(err) {
-        return callback(new Error('NO_INSTANCE_FOUND'));
+        var notFound = new NotFoundError('NO_INSTANCE_FOUND');
+        return callback(notFound.jsonError());
       }
 
       // remove null response from other instances
       replies = replies.filter(reply => reply !== null);
 
       if(replies.length === 0) {
-        callback(new Error('NO_INSTANCE_FOUND'));
+        var notFound = new NotFoundError('NO_INSTANCE_FOUND');
+        callback(notFound.jsonError());
       } else {
         callback(replies[0]);
       }

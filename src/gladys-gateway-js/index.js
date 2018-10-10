@@ -5,7 +5,7 @@ const encodeUtf8 = require('encode-utf8');
 const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
 const io = require('socket.io-client');
-
+const requestApi = require('./lib/request');
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
@@ -15,6 +15,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
   const crypto = require('./lib/crypto')({ cryptoLib });
 
   const state = {
+    serverUrl,
     socket: null,
     refreshToken: null,
     rsaKeys: null,
@@ -215,66 +216,61 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     })).data.access_token;
   }
 
+  /**
+   * Frontend API
+   */
+
   async function getMyself() {
-    return (await axios.get(serverUrl + '/users/me', {
-      headers: {
-        authorization: state.accessToken
-      }
-    })).data;
+    return requestApi.get(serverUrl + '/users/me', state);
   }
 
   async function getUsersInAccount() {
-    return (await axios.get(serverUrl + '/accounts/users', {
-      headers: {
-        authorization: state.accessToken
-      }
-    })).data;
+    return requestApi.get(serverUrl + '/accounts/users', state);
   }
 
   async function inviteUser(email) {
-    return (await axios.post(serverUrl + '/invitations', { email }, {
-      headers: {
-        authorization: state.accessToken
-      }
-    })).data;
+    return requestApi.post(serverUrl + '/invitations', { email },  state);
   }
 
-  async function getInstance(accessToken) {
-    let instances = (await axios.get(serverUrl + '/instances', {
-      headers: {
-        authorization: accessToken
-      }
-    })).data;
+  async function getInstance() {
+    let instances = requestApi.get(serverUrl + '/instances', state);
 
     if(instances.length === 0) {
       return null;
-    }    
+    }
     
     return instances[0];
   }
 
-  async function getUsersInstance(){
-    return (await axios.get(serverUrl + '/instances/users', {
-      headers: {
-        authorization: state.accessToken
-      }
-    })).data;
-  }
+  async function userConnect(refreshToken, rsaKeys, ecdsaKeys) {
 
-  async function userConnect(refreshToken) {
-    state.refreshToken = refreshToken;
+    state.isInstance = false;
     const accessToken = await getAccessToken(refreshToken);
+    
+    state.refreshToken = refreshToken;
+    state.rsaKeys = rsaKeys;
+    state.ecdsaKeys = ecdsaKeys;
     state.accessToken = accessToken;
+
+    const instance = await getInstance();
+
+    if(instance) {
+      state.gladysInstance = instance;
+
+      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
+      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
+    }
 
     return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
       state.socket.on('connect', function(){
-        state.socket.emit('user-authentication', { access_token: accessToken }, function(res) {
+        state.socket.emit('user-authentication', { access_token: accessToken }, async function(res) {
           if(res.authenticated) {
             resolve();
           } else {
-            reject(new Error('Invalid JWT'));
+            await userConnect(refreshToken, rsaKeys, ecdsaKeys);
+            resolve();
           }
         });
       });
@@ -285,9 +281,18 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     });
   }
 
+  /**
+   * Instance API
+   */
+
+  async function getUsersInstance(){
+    return requestApi.get(serverUrl + '/instances/users', state);
+  }
+
   async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
     
     state.refreshToken = refreshToken;
+    state.isInstance = true;
 
     // We import the RSA private key
     state.rsaKeys = {
@@ -306,11 +311,12 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       state.socket = io(serverUrl);
 
       state.socket.on('connect', function(){
-        state.socket.emit('instance-authentication', { access_token: accessToken }, function(res) {
+        state.socket.emit('instance-authentication', { access_token: accessToken }, async function(res) {
           if(res.authenticated) {
             resolve();
           } else {
-            reject(new Error('Invalid JWT'));
+            await instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage);
+            resolve();
           }
         });
 
@@ -422,6 +428,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getMyself,
     request,
     getUsersInAccount,
+    getInstance,
     inviteUser,
     loginInstance,
     createInstance,

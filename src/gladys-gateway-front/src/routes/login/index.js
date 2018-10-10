@@ -2,7 +2,6 @@ import { Component } from 'preact';
 import { route } from 'preact-router';
 import linkState from 'linkstate';
 import Auth from '../../api/Auth';
-import keyValStore from '../../api/keyValStore';
 import LoginForm from './LoginForm';
 
 class LoginPage extends Component {

@@ -18,7 +18,7 @@ const Header = ({ children, ...props }) => (
                   <small class="text-muted d-block mt-1">Administrator</small>
                 </span>
               </a>
-              <div class={'dropdown-menu dropdown-menu-right dropdown-menu-arrow' + (props.showDropDown && ' show') }>
+              <div class={'dropdown-menu dropdown-menu-right dropdown-menu-arrow' + (props.showDropDown && ' show')}>
                 <a class="dropdown-item" href="#">
                   <i class="dropdown-icon fe fe-user" /> Profile
                 </a>

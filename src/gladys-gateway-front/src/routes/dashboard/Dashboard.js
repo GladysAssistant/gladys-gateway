@@ -18,7 +18,7 @@ const Dashboard = ({ children, ...props }) => (
         </div>
       }
 
-      <DeviceList rooms={props.rooms} updateValue={props.updateValue} />
+      <DeviceList rooms={props.rooms} updateValue={props.updateValue} collapseRoom={props.collapseRoom} />
 
       { false && <EmptyState /> }
       

@@ -1,6 +1,7 @@
 import config from '../../config';
-import gladysGatewayClient from 'gladys-gateway-js';
+import gladysGatewayClient from '@gladysproject/gladys-gateway-js';
 import Cookies from 'js-cookie';
+import keyValStore from './keyValStore';
 
 let client = gladysGatewayClient({ serverUrl: config.serverUrl, cryptoLib: window.crypto });
 
@@ -12,9 +13,28 @@ export default {
   configureTwoFactor: accessToken => client.configureTwoFactor(accessToken),
   enableTwoFactor: (accessToken, twoFactorCode) => client.enableTwoFactor(accessToken, twoFactorCode),
   getAccessToken: () => Cookies.get(config.accessTokenCookieKey),
-  connectSocket: refreshToken => client.userConnect(refreshToken),
-  saveAccessToken: accessToken =>
-    Cookies.set(config.accessTokenCookieKey, accessToken, { expires: 1 }),
-  saveRefreshToken: refreshToken =>
-    Cookies.set(config.accessTokenCookieKey, refreshToken, { expires: 30 })
+  getRefreshToken: () => Cookies.get(config.refreshTokenCookieKey),
+  getMySelf: () => client.getMyself(),
+  getUsersInAccount: () => client.getUsersInAccount(),
+  inviteUser: email => client.inviteUser(email),
+  connectSocket: async () => {
+    let refreshToken = await keyValStore.get('refresh_token');
+    let rsaKeys = await keyValStore.get('rsa_keys');
+    let ecdsaKeys = await keyValStore.get('ecdsa_keys');
+
+    return client.userConnect(refreshToken, rsaKeys, ecdsaKeys);
+  },
+  getInstance: () => client.getInstance(),
+  request: client.request,
+  saveLoginInformations: (data) => {
+    keyValStore.set('refresh_token', data.refreshToken);
+    keyValStore.set('access_token', data.accessToken);
+
+    keyValStore.set('rsa_keys', data.rsaKeys);
+    keyValStore.set('ecdsa_keys', data.ecdsaKeys);
+  },
+  cache: {
+    get: keyValStore.get,
+    set: keyValStore.set
+  }
 };

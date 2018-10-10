@@ -2,6 +2,7 @@ import { Component } from 'preact';
 import { route } from 'preact-router';
 import linkState from 'linkstate';
 import Auth from '../../api/Auth';
+import keyValStore from '../../api/keyValStore';
 import LoginForm from './LoginForm';
 
 class LoginPage extends Component {
@@ -9,7 +10,8 @@ class LoginPage extends Component {
     email: '',
     password: '',
     displayTwoFactorInput: false,
-    twoFactorCode: ''
+    twoFactorCode: '',
+    loginErrored: false
   };
 
   login = event => {
@@ -25,7 +27,8 @@ class LoginPage extends Component {
         }
       })
       .catch(err => {
-        
+        console.log(err);
+        this.setState({ loginErrored: true });
       });
   };
 
@@ -34,14 +37,19 @@ class LoginPage extends Component {
 
     let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
 
+    // we login
     Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode)
-      .then((data) => {
-        Auth.saveRefreshToken(data.refreshToken);
-        Auth.saveAccessToken(data.accessToken);
-        return Auth.connectSocket(data.refreshToken);
-      })
+      
+      // we save the users info
+      .then((data) => Auth.saveLoginInformations(data))
+
+      // we redirect to the dashboard
+      .then(() => route('/dashboard'))
+
+      //return Auth.request.get('/devicetype/room', {data: 'test'});
       .catch((err) => {
         console.log(err);
+        this.setState({ loginErrored: true });
       });
   }
 

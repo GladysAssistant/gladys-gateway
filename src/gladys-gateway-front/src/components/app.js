@@ -7,6 +7,8 @@ import Login from '../routes/login';
 import ConfigureTwoFactor from '../routes/configure-two-factor';
 import Setup from '../routes/setup';
 import Dashboard from '../routes/dashboard';
+import DashboardUsers from '../routes/dashboard-users';
+import DashboardInstance from '../routes/dashboard-instance';
 import ConfirmEmail from '../routes/confirm-email';
 import ForgotPassword from '../routes/forgot-password';
 
@@ -22,7 +24,7 @@ export default class App extends Component {
 
   render() {
     return (
-      <div id="app">
+      <div id="app" style={{ display: 'block', height: '100%' }}>
         <Router onChange={this.handleRoute}>
           <Signup path="/signup" />
           <ConfirmEmail path="/confirm-email/:token" />
@@ -31,6 +33,8 @@ export default class App extends Component {
           <Setup path="/setup" />
           <ForgotPassword path="/forgot-password" />
           <Dashboard path="/dashboard" />
+          <DashboardUsers path="/dashboard/users" />
+          <DashboardInstance path="/dashboard/instance" />
         </Router>
       </div>
     );

@@ -1,6 +1,6 @@
 const LoginForm = ({ children, ...props }) => (
   <div class="page">
-    <div class="page-single" style={{ marginTop: '40px' }}>
+    <div class="page-single">
       <div class="container">
         <div class="row">
           <div class="col col-login mx-auto">

@@ -1,3 +1,5 @@
+import { Link } from 'preact-router/match';
+
 const Header = ({ children, ...props }) => (
   <div>
     <div class="header py-4">
@@ -50,14 +52,19 @@ const Header = ({ children, ...props }) => (
           <div class="col-lg order-lg-first">
             <ul class="nav nav-tabs border-0 flex-column flex-lg-row">
               <li class="nav-item">
-                <a href="/dashboard" class="nav-link active">
+                <Link activeClassName="active" href="/dashboard" class="nav-link">
                   <i class="fe fe-home" /> Home
-                </a>
+                </Link>
               </li>
               <li class="nav-item">
-                <a href="/dashboard/instances" class="nav-link">
-                  <i class="fe fe-server" /> My Instance
-                </a>
+                <Link  activeClassName="active" href="/dashboard/instance" class="nav-link">
+                  <i class="fe fe-server" /> Instance
+                </Link>
+              </li>
+              <li class="nav-item">
+                <Link  activeClassName="active" href="/dashboard/users" class="nav-link">
+                  <i class="fe fe-user" /> Users
+                </Link>
               </li>
             </ul>
           </div>

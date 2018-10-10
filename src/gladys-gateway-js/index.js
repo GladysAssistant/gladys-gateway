@@ -121,7 +121,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       )
     };
 
-    state.gladysInstance = await getInstance(loginData.access_token);
+    state.accessToken = loginData.access_token;
+    state.refreshToken = loginData.refresh_token;
+
+    state.gladysInstance = await getInstance();
 
     if(state.gladysInstance) {
       state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(state.gladysInstance.rsa_public_key), 'RSA-OEAP', true);
@@ -269,14 +272,14 @@ module.exports = function ({ cryptoLib, serverUrl }) {
           if(res.authenticated) {
             resolve();
           } else {
-            await userConnect(refreshToken, rsaKeys, ecdsaKeys);
-            resolve();
+            reject();
           }
         });
       });
 
-      state.socket.on('disconnect', function(){
+      state.socket.on('disconnect', async function(){
         console.log('Socket disconnected');
+        state.accessToken = await getAccessToken(refreshToken);
       });
     });
   }
@@ -315,8 +318,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
           if(res.authenticated) {
             resolve();
           } else {
-            await instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage);
-            resolve();
+            reject();
           }
         });
 
@@ -352,8 +354,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
         });
       });
 
-      state.socket.on('disconnect', function(){
+      state.socket.on('disconnect', async function(){
         console.log('Socket disconnected');
+        state.accessToken = await getAccessToken(refreshToken);
       });
     });
   }
@@ -385,8 +388,12 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     
     return new Promise(function(resolve, reject) {
       state.socket.emit('message', payload, async function(response) {
-        const decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, response);
-        resolve(decryptedMessage);
+        if(response && response.status && response.error_code) {
+          return reject(response);
+        } else {
+          const decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, response);
+          return resolve(decryptedMessage);
+        }
       });
     });
   }

@@ -35,7 +35,6 @@ function get (url, state) {
   })
   .then((data) => data.data)
   .catch(async (err) => {
-    console.log(err);
     if(err && err.response && err.response.status === 401) {
       await getAccessToken(state);
       return get(url, state);

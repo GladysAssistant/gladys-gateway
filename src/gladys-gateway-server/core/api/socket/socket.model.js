@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function SocketModel(logger, db, redisClient, io) {
+module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) {
 
   // handle messages from different nodes
   io.of('/').adapter.customHook = (data, cb) => {
@@ -57,7 +57,7 @@ module.exports = function SocketModel(logger, db, redisClient, io) {
     // we get the instance and his account_id
     var instance = await db.t_instance.findOne({
       id: decoded.instance_id
-    }, {fields: ['id', 'account_id']});
+    }, {fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key']});
 
     // we save in redis that the instance is connected
     await redisClient.setAsync('connected_instance:' + instance.id, socketId);
@@ -106,12 +106,24 @@ module.exports = function SocketModel(logger, db, redisClient, io) {
     
   }
 
+  async function hello(instance) {
+    var rsaFingerprint = fingerprint.generate(instance.rsa_public_key);
+    var ecdsaFingerprint = fingerprint.generate(instance.ecdsa_public_key);
+
+    io.to('account:users:' + instance.account_id).emit('hello', {
+      id: instance.id,
+      rsa_fingerprint: rsaFingerprint,
+      ecdsa_fingerprint: ecdsaFingerprint
+    });
+  }
+
   return {
     authenticateUser,
     disconnectUser,
     authenticateInstance,
     disconnectInstance,
     handleNewMessageFromUser,
-    handleNewMessageFromInstance
+    handleNewMessageFromInstance,
+    hello
   };
 };

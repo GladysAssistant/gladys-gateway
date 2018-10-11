@@ -26,7 +26,12 @@ module.exports = function(logger, socketModel, io) {
 
         // on message (request to one instance)
         socket.on('message', (message, callback) => socketModel.handleNewMessageFromUser(user, message, callback));
-        
+
+        // useful to calculate latency
+        socket.on('latency', function (startTime, cb) {
+          cb(startTime);
+        });
+    
         isClientAuthenticated = true;
 
         logger.debug(`User ${user.id} connected in websockets`);
@@ -60,12 +65,20 @@ module.exports = function(logger, socketModel, io) {
         // on message (message to user)
         socket.on('message', (message, callback) => socketModel.handleNewMessageFromInstance(instance, message, callback));
         
+        // useful to calculate latency
+        socket.on('latency', function (startTime, cb) {
+          cb(startTime);
+        });
+
         isClientAuthenticated = true;
 
         logger.debug(`Instance ${instance.id} connected in websockets`);
 
         // we answer the client that he is authenticated
         fn({authenticated: true});
+
+        // we send a message to all users saying the instance is connected
+        socketModel.hello(instance);
 
         socket.on('disconnect', function () {
           socketModel.disconnectInstance(instance);

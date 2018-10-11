@@ -1,8 +1,9 @@
+
 const local = {
-  serverUrl: 'http://localhost:3000',
+  serverUrl: process.env.SERVER_URL,
   accessTokenCookieKey: 'gladys-gateway-access-token',
   refreshTokenCookieKey: 'gladys-gateway-refresh-token',
-  stripeApiKey: ''
+  stripeApiKey: process.env.STRIPE_API_KEY
 };
 
 const prod = {

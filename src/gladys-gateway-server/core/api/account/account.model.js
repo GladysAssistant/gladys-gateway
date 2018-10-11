@@ -1,3 +1,5 @@
+const { AlreadyExistError } = require('../../common/error');
+
 module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
   async function getUsers(user) {
@@ -31,6 +33,16 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     var userWithAccount = await db.t_user.findOne({
       id: user.id
     }, {fields: ['id', 'email', 'account_id']});
+
+    // get the account to verify the user has not already subscribed
+    var account = await db.t_account.findOne({
+      id: userWithAccount.account_id
+    }, {fields: ['id', 'stripe_customer_id']});
+
+    // account with stripe_customer_id already exist, don't make him subscribe again!
+    if(account.stripe_customer_id) {
+      throw new AlreadyExistError('Customer', account.id);
+    }
 
     // create the customer on stripe side
     var customer = await stripeService.createCustomer(userWithAccount.email, sourceId);

@@ -2,7 +2,7 @@ import style from './style.css';
 
 const Step2ConnectGladys = ({ children, ...props }) => (
   <div class={'row ' + style.equal}>
-    <div class="col-md">
+    <div class="col-md-6">
       <div class="card p-3">
         <div class="d-flex align-items-center">
           <span class="stamp stamp-md bg-blue mr-3">
@@ -12,7 +12,7 @@ const Step2ConnectGladys = ({ children, ...props }) => (
             <h4 class="m-0">
               Connected <small>to Gladys Gateway</small>
             </h4>
-            <small class="text-muted">34ms ping</small>
+            <small class="text-muted">{props.latency}ms ping</small>
           </div>
         </div>
       </div>
@@ -30,16 +30,31 @@ const Step2ConnectGladys = ({ children, ...props }) => (
         </div>
       </div>
     </div>
-    <div class="col-md">
+    <div class="col-md-6">
       <div class="card" style={{ height: '100%' }}>
         <div class="card-header">
-          <h3 class="card-title">Waiting for your Gladys Instance...</h3>
+          <h3 class="card-title">
+            { !props.instanceFound && 'Waiting for your Gladys Instance...'}
+            { props.instanceFound && 'Your instance was found!'}
+          </h3>
         </div>
         <div class="card-body" style={{ height: '100%' }}>
-          <div class="dimmer active" style={{ height: '100%' }}>
-            <div class="loader" />
-            <div class="dimmer-content" />
-          </div>
+          {!props.instanceFound &&
+            <div class="dimmer active" style={{ height: '100%' }}>
+              <div class="loader" />
+              <div class="dimmer-content" />
+            </div>
+          }
+          {props.instanceFound &&
+            <div>
+              <p>Please verify that the public key fingerprints of your Gladys instance displayed below are the same as displayed on your Gladys instance. The goal is to avoid MITM (Man In The Middle) attack.</p>
+              <p><b>RSA-OAEP fingerprint</b>: {props.instance.rsa_fingerprint}</p>
+              <p><b>ECDSA fingerprint</b>: {props.instance.ecdsa_fingerprint}</p>
+              <button onClick={props.activateStep3} type="submit" class="btn btn-primary btn-block">
+                  Next
+              </button>
+            </div>
+          }
         </div>
       </div>
     </div>

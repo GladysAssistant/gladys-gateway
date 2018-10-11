@@ -17,11 +17,11 @@ class LoginPage extends Component {
     event.preventDefault();
 
     Auth.login(this.state)
-      .then(data => {
+      .then(async data => {
         if (data.two_factor_token) {
           this.setState({ displayTwoFactorInput: true, twoFactorToken: data.two_factor_token });
         } else {
-          Auth.saveAccessToken(data.access_token);
+          await Auth.saveTwoFactorAccessToken(data.access_token);
           route('/configure-two-factor');
         }
       })
@@ -42,8 +42,17 @@ class LoginPage extends Component {
       // we save the users info
       .then((data) => Auth.saveLoginInformations(data))
 
-      // we redirect to the dashboard
-      .then(() => route('/dashboard'))
+      // we test if the user needs to be sent to setup
+      .then(() => Auth.getSetupState())
+
+      .then((setupState) => {
+
+        if (setupState.billing_setup && setupState.gladys_instance_setup && setupState.user_gladys_acccount_linked) {
+          route('/dashboard');
+        } else {
+          route('/setup');
+        }
+      })
 
       //return Auth.request.get('/devicetype/room', {data: 'test'});
       .catch((err) => {

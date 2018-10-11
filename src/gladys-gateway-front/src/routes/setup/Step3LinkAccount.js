@@ -8,11 +8,11 @@ const Step3LinkGladys = ({ children, ...props }) => (
           <div class="media">
             <span
               class="avatar avatar-xxl mr-5"
-              style="background-image: url(/assets/icons/user-default.png)"
+              style={'background-image: url('+ props.user.profile_url + ')'}
             />
             <div class="media-body">
-              <h4 class="m-0">Tony Stark</h4>
-              <p class="text-muted mb-0">tony.stark@gladysproject.com</p>
+              <h4 class="m-0">{props.user.name}</h4>
+              <p class="text-muted mb-0">{props.user.email}</p>
               <p class="text mb-0" style={{ marginTop: '10px' }}>
                 Your icon comes from Gravatar. If you want to change your profile picture, change it
                 on <a href="https://gravatar.com/">Gravatar.com</a>.
@@ -30,12 +30,12 @@ const Step3LinkGladys = ({ children, ...props }) => (
         <div class="card-body">
           <div class="row">
             <div class="col-md">
-              <select class="form-control custom-select">
-                <option value="">1. Tony Stark</option>
+              <select class="form-control custom-select" onChange={props.updateGladysUserSelected} value={props.gladysUserSelected}>
+                {props.usersInGladys.map(gladysUser => (<option value={gladysUser.id}>{gladysUser.id}. {gladysUser.firstname}</option>))}
               </select>
             </div>
             <div class="col-md-4">
-              <button type="submit" class="btn btn-primary">
+              <button type="submit" class="btn btn-primary" onClick={props.saveUserInInGladys}>
                 Link account
               </button>
             </div>

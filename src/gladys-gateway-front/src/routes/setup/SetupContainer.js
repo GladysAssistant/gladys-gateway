@@ -40,10 +40,10 @@ const SetupContainer = ({ children, ...props }) => (
               </div>
               <div class="card-body p-6">
                 {props.step === 1 &&
-                  props.stripeLoaded && ( <Step1Billing saveBillingInformations={props.saveBillingInformations} /> )}
-                {props.step === 2 && <Step2ConnectGladys />}
-                {props.step === 3 && <Step3LinkAccount />}
-                {props.step === 4 && <Step4Success />}
+                  props.stripeLoaded && ( <Step1Billing paymentInProgress={props.paymentInProgress} savingBillingError={props.savingBillingError} userCardName={props.userCardName} updateUserCardName={props.updateUserCardName} saveBillingInformations={props.saveBillingInformations} /> )}
+                {props.step === 2 && <Step2ConnectGladys latency={props.latency} instanceFound={props.instanceFound} instance={props.instance} activateStep3={props.activateStep3} />}
+                {props.step === 3 && <Step3LinkAccount user={props.user} usersInGladys={props.usersInGladys} gladysUserSelected={props.gladysUserSelected} updateGladysUserSelected={props.updateGladysUserSelected} saveUserInInGladys={props.saveUserInInGladys} />}
+                {props.step === 4 && <Step4Success goToDashboard={props.goToDashboard} />}
               </div>
             </div>
           </div>

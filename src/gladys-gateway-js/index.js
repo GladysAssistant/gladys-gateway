@@ -227,12 +227,24 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return requestApi.get(serverUrl + '/users/me', state);
   }
 
+  async function updateMyself(data) {
+    return requestApi.patch(serverUrl + '/users/me', data, state);
+  }
+
   async function getUsersInAccount() {
     return requestApi.get(serverUrl + '/accounts/users', state);
   }
 
   async function inviteUser(email) {
     return requestApi.post(serverUrl + '/invitations', { email },  state);
+  }
+
+  async function getSetupState() {
+    return requestApi.get(serverUrl + '/users/setup', state);
+  }
+
+  async function subcribeMonthlyPlan(sourceId) {
+    return requestApi.post(serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, state);
   }
 
   async function getInstance() {
@@ -245,7 +257,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return instances[0];
   }
 
-  async function userConnect(refreshToken, rsaKeys, ecdsaKeys) {
+  async function userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {
 
     state.isInstance = false;
     const accessToken = await getAccessToken(refreshToken);
@@ -275,6 +287,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
             reject();
           }
         });
+      });
+
+      state.socket.on('hello', function(instance){
+        callback('hello', instance);
       });
 
       state.socket.on('disconnect', async function(){
@@ -361,6 +377,20 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     });
   }
 
+  async function calculateLatency() {
+    
+    if(state.socket === null) {
+      throw new Error('Not connected to socket, cannot send message');
+    }
+
+    return new Promise((resolve, reject) => {
+      state.socket.emit('latency', Date.now(), function(startTime) {
+        var latency = Date.now() - startTime;
+        resolve(latency);
+      });
+    });
+  }
+
   async function sendMessageGladys(data) {
     
     if(state.socket === null) {
@@ -433,6 +463,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     confirmEmail,
     userConnect,
     getMyself,
+    updateMyself,
+    getSetupState,
     request,
     getUsersInAccount,
     getInstance,
@@ -441,6 +473,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     createInstance,
     getAccessTokenInstance,
     instanceConnect,
-    getUsersInstance
+    getUsersInstance,
+    calculateLatency,
+    subcribeMonthlyPlan
   };
 };

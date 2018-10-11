@@ -23,7 +23,7 @@ const Step4Success = ({ children, ...props }) => (
             </p>
           </div>
           <div class="text-right align-items-end">
-            <button type="submit" class="btn btn-primary">
+            <button type="submit" class="btn btn-primary" onClick={props.goToDashboard}>
               Go to Dashboard
             </button>
           </div>

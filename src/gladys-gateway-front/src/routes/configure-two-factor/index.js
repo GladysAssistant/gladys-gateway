@@ -2,6 +2,7 @@ import { Component } from 'preact';
 import Auth from '../../api/Auth';
 import ConfigureTwoFactorForm from './ConfigureTwoFactorForm';
 import QRCode from 'qrcode';
+import { route } from 'preact-router';
 
 class ConfigureTwoFactorPage extends Component {
   state = {
@@ -11,12 +12,11 @@ class ConfigureTwoFactorPage extends Component {
     errored: false
   };
 
-  getOtpAuthUrl = () => {
-    const accessToken = Auth.getAccessToken();
-    Auth.configureTwoFactor(accessToken).then(data => {
-      QRCode.toDataURL(data.otpauth_url, (err, dataUrl) => {
-        this.setState({ dataUrl });
-      });
+  getOtpAuthUrl = async () => {
+    const accessToken = await Auth.getTwoFactorAccessToken();
+    const data = await Auth.configureTwoFactor(accessToken);
+    QRCode.toDataURL(data.otpauth_url, (err, dataUrl) => {
+      this.setState({ dataUrl });
     });
   };
 
@@ -39,18 +39,22 @@ class ConfigureTwoFactorPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
-  enableTwoFactor = (event) => {
+  enableTwoFactor = async (event) => {
     event.preventDefault();
-    const accessToken = Auth.getAccessToken();
+    const accessToken = await Auth.getTwoFactorAccessToken();
 
     let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
 
     Auth.enableTwoFactor(accessToken, twoFactorCode)
       .then((data) => {
-
+        route('/login');
       })
       .catch((err) => {
-        this.setState({ errored: true });
+        if (err && err.response && err.response.status === 401) {
+          route('/login');
+        } else {
+          this.setState({ errored: true });
+        }
       });
   };
 

@@ -27,6 +27,23 @@ function post (url, data, state) {
   })
 };
 
+function patch (url, data, state) {
+  return axios.patch(url, data, {
+    headers: {
+      authorization: state.accessToken
+    }
+  })
+  .then((data) => data.data)
+  .catch(async (err) => {
+    if(err && err.response && err.response.status === 401) {
+      await getAccessToken(state);
+      return patch(url, data, state);
+    } else {
+      return Promise.reject(err);
+    }
+  })
+};
+
 function get (url, state) {
   return axios.get(url, {
     headers: {
@@ -46,3 +63,4 @@ function get (url, state) {
 
 module.exports.post = post;
 module.exports.get = get;
+module.exports.patch = patch;

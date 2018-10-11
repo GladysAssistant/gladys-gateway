@@ -15,17 +15,23 @@ export default {
   getAccessToken: () => Cookies.get(config.accessTokenCookieKey),
   getRefreshToken: () => Cookies.get(config.refreshTokenCookieKey),
   getMySelf: () => client.getMyself(),
+  updateMyself: (data) => client.updateMyself(data),
   getUsersInAccount: () => client.getUsersInAccount(),
   inviteUser: email => client.inviteUser(email),
-  connectSocket: async () => {
+  calculateLatency: () => client.calculateLatency(),
+  connectSocket: async (callback) => {
     let refreshToken = await keyValStore.get('refresh_token');
     let rsaKeys = await keyValStore.get('rsa_keys');
     let ecdsaKeys = await keyValStore.get('ecdsa_keys');
 
-    return client.userConnect(refreshToken, rsaKeys, ecdsaKeys);
+    return client.userConnect(refreshToken, rsaKeys, ecdsaKeys, callback);
   },
   getInstance: () => client.getInstance(),
+  getSetupState: () => client.getSetupState(),
+  subcribeMonthlyPlan: (sourceId) => client.subcribeMonthlyPlan(sourceId),
   request: client.request,
+  saveTwoFactorAccessToken: (token) => keyValStore.set('two_factor_access_token', token),
+  getTwoFactorAccessToken: (token) => keyValStore.get('two_factor_access_token'),
   saveLoginInformations: (data) => {
     keyValStore.set('refresh_token', data.refreshToken);
     keyValStore.set('access_token', data.accessToken);

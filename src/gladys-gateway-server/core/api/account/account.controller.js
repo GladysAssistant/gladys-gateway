@@ -24,7 +24,7 @@ module.exports = function(accountModel) {
    * @apiName Subcribe plan
    * @apiGroup Account
    * 
-   * @apiParam {String} stripe_customer_id Stripe Customer id
+   * @apiParam {String} stripe_source_id Stripe source id
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
@@ -34,7 +34,7 @@ module.exports = function(accountModel) {
    * }
    */
   async function subscribeMonthlyPlan(req, res, next) {
-    var account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_customer_id);
+    var account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_source_id);
     res.json({ current_period_end: account.current_period_end });
   }
 

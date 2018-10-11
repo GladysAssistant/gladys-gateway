@@ -25,15 +25,18 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     return allUsers;
   }
 
-  async function subscribeMonthlyPlan(user, stripeCustomerId) {
+  async function subscribeMonthlyPlan(user, sourceId) {
     
     // get the account_id of the currently connected user
     var userWithAccount = await db.t_user.findOne({
       id: user.id
-    }, {fields: ['id', 'account_id']});
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // create the customer on stripe side
+    var customer = await stripeService.createCustomer(userWithAccount.email, sourceId);
 
     // contact stripe to save the subscription id
-    var subscription = await stripeService.subscribeToMonthlyPlan(stripeCustomerId);
+    var subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
 
     // it means stripe is disabled
     // so we add to the account 100 years of life
@@ -45,7 +48,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     }
 
     var toUpdate = {
-      stripe_customer_id: stripeCustomerId,
+      stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end)
     };

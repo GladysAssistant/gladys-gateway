@@ -23,7 +23,7 @@ describe('POST /accounts/subscribe', function() {
     return request(TEST_BACKEND_APP)
       .post('/accounts/subscribe')
       .send({
-        stripe_customer_id: 'stripe-customer-id-sample'
+        stripe_source_id: 'stripe-source-id-sample'
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)

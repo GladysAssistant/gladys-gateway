@@ -50,7 +50,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     var toUpdate = {
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
-      current_period_end: new Date(subscription.current_period_end)
+      current_period_end: new Date(subscription.current_period_end * 1000)
     };
 
     var accountUpdated = await db.t_account.update(userWithAccount.account_id, toUpdate, {
@@ -62,11 +62,33 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
   async function stripeEvent(body, signature) {
     var event = stripeService.verifyEvent(body, signature);
+
     console.log(event);
+
     switch(event.type) {
     
     case 'charge.succeeded':
-      // save new date
+
+      if(event.data && event.data.object && event.data.object.customer) {
+        
+        // we get the account linked to the customer
+        var account = await db.t_account.findOne({
+          stripe_customer_id: event.data.object.customer
+        });
+
+        // get currentPeriodEnd threw the API
+        var currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
+
+        // update current_period_end in DB
+        var updated = await db.t_account.update(account.id, {
+          current_period_end: new Date(currentPeriodEnd*1000)
+        }, {
+          fields: ['id', 'current_period_end']
+        });
+
+        console.log(updated);
+      }
+
       break;
 
     case 'customer.subscription.deleted':

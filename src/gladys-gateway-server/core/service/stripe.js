@@ -50,6 +50,19 @@ module.exports = function (logger) {
     return stripe.subscriptions.del(stripeSubscriptionId);
   }
 
+  async function getSubscriptionCurrentPeriodEnd(subscriptionId) {
+    
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      var fakeEndDate = new Date().getTime() + 100*365*24*60*60*1000;
+      return Promise.resolve(fakeEndDate);
+    }
+
+    var subscription = await stripe.subscriptions.retrieve(subscriptionId);
+
+    return subscription.current_period_end;
+  }
+
   function verifyEvent(body, signature) {
     
     if(stripe === null) {
@@ -64,6 +77,7 @@ module.exports = function (logger) {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
     createCustomer,
-    verifyEvent
+    verifyEvent,
+    getSubscriptionCurrentPeriodEnd
   };
 };

@@ -15,6 +15,6 @@ module.exports = function(error, req, res, next) {
   else {
     console.log(error);
     var serverError = new ServerError();
-    return res.status(serverError.getStatus()).json(error.json());
+    return res.status(serverError.getStatus()).json(serverError.jsonError());
   }
 };

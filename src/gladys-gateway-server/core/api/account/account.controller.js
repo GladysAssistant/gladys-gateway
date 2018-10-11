@@ -38,8 +38,26 @@ module.exports = function(accountModel) {
     res.json({ current_period_end: account.current_period_end });
   }
 
+  /**
+   * @api {post} /stripe/webhook Stripe Webhook
+   * @apiName Stripe Webhook
+   * @apiGroup Stripe
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function stripeEvent(req, res, next) {
+    await accountModel.stripeEvent(req.body,  req.headers['stripe-signature']);
+    res.json({ success: true });
+  }
+
   return {
     getUsers,
-    subscribeMonthlyPlan
+    subscribeMonthlyPlan,
+    stripeEvent
   };
 };

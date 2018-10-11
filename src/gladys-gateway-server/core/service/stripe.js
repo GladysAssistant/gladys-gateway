@@ -50,9 +50,20 @@ module.exports = function (logger) {
     return stripe.subscriptions.del(stripeSubscriptionId);
   }
 
+  function verifyEvent(body, signature) {
+    
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(body);
+    }
+
+    return stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_ENDPOINT_SECRET);
+  }
+
   return {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
-    createCustomer
+    createCustomer,
+    verifyEvent
   };
 };

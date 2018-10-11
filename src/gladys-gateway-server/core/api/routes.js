@@ -9,6 +9,9 @@ module.exports.load = function(app, io, controllers, middlewares) {
     extended: false
   }));
 
+  // don't parse body of stripe webhook
+  app.use('/stripe/webhook', bodyParser.raw({type: '*/*'}));
+
   // parse application/json
   app.use(bodyParser.json());
 
@@ -59,6 +62,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   // account
   app.get('/accounts/users', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getUsers));
   app.post('/accounts/subscribe', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.subscribeMonthlyPlan));
+  app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
   
   // socket
   io.on('connection', controllers.socketController.connection);

@@ -60,21 +60,24 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     return accountUpdated;
   }
 
-  /* async function stripeEvent(event) {
+  async function stripeEvent(body, signature) {
+    var event = stripeService.verifyEvent(body, signature);
     console.log(event);
     switch(event.type) {
-      case 'charge.succeeded':
-        // save new date
+    
+    case 'charge.succeeded':
+      // save new date
       break;
 
-      case 'customer.subscription.deleted':
-        // subscription is canceled, remove the client
+    case 'customer.subscription.deleted':
+      // subscription is canceled, remove the client
       break;
     } 
-  }*/
+  }
 
   return {
     getUsers,
-    subscribeMonthlyPlan
+    subscribeMonthlyPlan,
+    stripeEvent
   };
 };

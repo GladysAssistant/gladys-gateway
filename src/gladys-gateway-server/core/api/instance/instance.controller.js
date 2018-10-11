@@ -43,7 +43,7 @@ module.exports = function(instanceModel) {
     res.json(instances);
   }
 
-/**
+  /**
    * @api {get} /instances/:id get instance by id
    * @apiName get instance by id
    * @apiGroup Instance

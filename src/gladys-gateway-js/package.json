@@ -4,7 +4,8 @@
   "description": "Gladys Gateway JS client",
   "main": "index.js",
   "scripts": {
-    "test": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit"
+    "test": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit",
+    "eslint": "eslint lib test index.js"
   },
   "keywords": [
     "gladys",

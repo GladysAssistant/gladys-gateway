@@ -123,6 +123,24 @@ CREATE TABLE t_history (
 ALTER TABLE ONLY t_history ADD CONSTRAINT t_history_pkey PRIMARY KEY (id);
 ALTER TABLE t_history OWNER TO postgres;
 
+CREATE TABLE t_account_payment_activity (
+    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    stripe_event character varying(255) NOT NULL,
+    hosted_invoice_url character varying,
+    invoice_pdf character varying,
+    amount_paid integer,
+    closed boolean,
+    currency  character varying(255),
+    params jsonb DEFAULT '{}' NOT NULL,
+    account_id uuid NOT NULL,
+    created_at timestamptz NOT NULL default now(),
+    updated_at timestamptz NOT NULL default now(),
+    is_deleted boolean DEFAULT false NOT NULL
+);
+
+ALTER TABLE ONLY t_account_payment_activity ADD CONSTRAINT t_account_payment_activity_pkey PRIMARY KEY (id);
+ALTER TABLE t_account_payment_activity OWNER TO postgres;
+
 -------------------------
 -- CREATE FOREIGN KEYS --
 -------------------------
@@ -145,6 +163,9 @@ ALTER TABLE ONLY t_invitation
 ALTER TABLE ONLY t_history
     ADD CONSTRAINT fk_t_history__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user(id);
 
+ALTER TABLE ONLY t_account_payment_activity
+    ADD CONSTRAINT fk_t_account_payment_activity__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account(id);
+
 --------------------
 -- CREATE INDEXES --
 --------------------
@@ -155,6 +176,7 @@ CREATE INDEX ix_t_reset_password_user_id ON t_reset_password USING btree (user_i
 CREATE INDEX ix_t_instance_account_id ON t_instance USING btree (account_id);
 CREATE INDEX ix_t_invitation_account_id ON t_invitation USING btree (account_id);
 CREATE INDEX ix_t_history_user_id ON t_history USING btree (user_id);
+CREATE INDEX ix_t_account_payment_activity_account_id ON t_account_payment_activity USING btree (account_id);
 
 ---------------------------
 -- CREATE UNIQUE INDEXES --

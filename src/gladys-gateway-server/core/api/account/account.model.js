@@ -77,29 +77,70 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
     console.log(event);
 
+    var account;
+
+    if(event.data && event.data.object && event.data.object.customer) {
+      
+      // we get the account linked to the customer
+      account = await db.t_account.findOne({
+        stripe_customer_id: event.data.object.customer
+      });
+    } else {
+      return Promise.resolve();
+    }
+
+    if(!account) {
+      logger.warn(`Stripe Webhook : Account with stripe customer "${event.data.object.customer}" not found.`);
+      return Promise.resolve();
+    }
+
     switch(event.type) {
     
     case 'charge.succeeded':
 
-      if(event.data && event.data.object && event.data.object.customer) {
-        
-        // we get the account linked to the customer
-        var account = await db.t_account.findOne({
-          stripe_customer_id: event.data.object.customer
-        });
+      // get currentPeriodEnd threw the API
+      var currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
 
-        // get currentPeriodEnd threw the API
-        var currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
+      // update current_period_end in DB
+      await db.t_account.update(account.id, {
+        current_period_end: new Date(currentPeriodEnd*1000)
+      }, {
+        fields: ['id', 'current_period_end']
+      });
 
-        // update current_period_end in DB
-        var updated = await db.t_account.update(account.id, {
-          current_period_end: new Date(currentPeriodEnd*1000)
-        }, {
-          fields: ['id', 'current_period_end']
-        });
+      break;
 
-        console.log(updated);
-      }
+    case 'invoice.payment_succeeded':
+      
+      var activity = {
+        stripe_event: event.type,
+        account_id: account.id,
+        hosted_invoice_url: event.data.object.hosted_invoice_url,
+        invoice_pdf: event.data.object.invoice_pdf,
+        amount_paid: event.data.object.amount_paid,
+        closed: event.data.object.closed,
+        currency: event.data.object.currency,
+        params: event
+      };
+
+      await db.t_account_payment_activity.insert(activity);
+
+      break;
+
+    case 'invoice.payment_failed':
+      
+      var activity = {
+        stripe_event: event.type,
+        account_id: account.id,
+        hosted_invoice_url: event.data.object.hosted_invoice_url,
+        invoice_pdf: event.data.object.invoice_pdf,
+        amount_paid: event.data.object.amount_paid,
+        closed: event.data.object.closed,
+        currency: event.data.object.currency,
+        params: event
+      };
+
+      await db.t_account_payment_activity.insert(activity);
 
       break;
 

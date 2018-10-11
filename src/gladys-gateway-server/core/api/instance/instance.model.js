@@ -1,9 +1,9 @@
 const Joi = require('joi');
 const uuid = require('uuid');
 const crypto = require('crypto');
-const { ValidationError, ForbiddenError } = require('../../common/error');
+const { ValidationError, ForbiddenError, NotFoundError } = require('../../common/error');
 
-module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
+module.exports = function InstanceModel(logger, db, redisClient, jwtService, fingerprint) {
 
   const instanceSchema = Joi.object().keys({
     name: Joi.string().min(2).max(30).required(),
@@ -61,6 +61,30 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
     return instances;
   }
 
+  async function getInstanceById(user, instanceId) {
+
+    // get the account id of the user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, { fields: ['id', 'account_id']});
+
+    // get instance
+    var instance = await db.t_instance.findOne({
+      account_id: userWithAccount.account_id,
+      id: instanceId,
+      is_deleted: false
+    }, { fields: ['id', 'name', 'rsa_public_key', 'ecdsa_public_key']});
+
+    if(instance === null){
+      throw new NotFoundError('Instance not found');
+    }
+
+    instance.rsa_fingerprint = fingerprint.generate(instance.rsa_public_key);
+    instance.ecdsa_fingerprint = fingerprint.generate(instance.ecdsa_public_key);
+
+    return instance;
+  }
+
   async function getAccessToken(instance, refreshToken) {
     var refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
@@ -101,6 +125,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService) {
   return {
     createInstance,
     getInstances,
+    getInstanceById,
     getAccessToken,
     getUsers
   };

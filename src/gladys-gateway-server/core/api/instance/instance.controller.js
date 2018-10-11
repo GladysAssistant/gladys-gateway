@@ -34,12 +34,35 @@ module.exports = function(instanceModel) {
    * [{
    *   "id": "b55b9f2f-679d-4b79-93aa-d3325f1d9e62",
    *   "name": "Raspberry Pi",
-   *   "public_key": "PUB_KEY"
+   *   "rsa_public_key": "PUB_KEY",
+   *   "ecdsa_public_key": "PUB_KEY"
    * }]
    */
   async function getInstances(req, res, next) {
     var instances = await instanceModel.getInstances(req.user);
     res.json(instances);
+  }
+
+/**
+   * @api {get} /instances/:id get instance by id
+   * @apiName get instance by id
+   * @apiGroup Instance
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "id": "b55b9f2f-679d-4b79-93aa-d3325f1d9e62",
+   *   "name": "Raspberry Pi",
+   *   "rsa_public_key": "PUB_KEY",
+   *   "ecdsa_public_key": "PUB_KEY",
+   *   "rsa_fingerprint": "::::",
+   *   "ecdsa_fingerprint": "::::"
+   * }
+   */
+  async function getInstanceById(req, res, next) {
+    var instance = await instanceModel.getInstanceById(req.user, req.params.id);
+    res.json(instance);
   }
 
   /**
@@ -81,6 +104,7 @@ module.exports = function(instanceModel) {
   return {
     createInstance,
     getInstances,
+    getInstanceById,
     getAccessToken,
     getUsers
   };

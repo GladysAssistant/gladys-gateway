@@ -54,6 +54,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/instances', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.instanceController.createInstance));
   app.get('/instances/access-token', asyncMiddleware(middlewares.refreshTokenInstanceAuth), asyncMiddleware(controllers.instanceController.getAccessToken));
   app.get('/instances/users', asyncMiddleware(middlewares.accessTokenInstanceAuth), asyncMiddleware(controllers.instanceController.getUsers));
+  app.get('/instances/:id', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.instanceController.getInstanceById));
 
   // invitation
   app.post('/invitations', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.invitationController.inviteUser));

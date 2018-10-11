@@ -10,7 +10,7 @@
     "serve": "preact build && preact serve",
     "dev": "preact watch",
     "lint": "eslint src",
-    "test": "jest",
+    "test-old": "jest",
     "eslint": "eslint src tests",
     "prettier": "prettier --single-quote --write src/**/*.js src/routes/**/*.js"
   },

@@ -9,34 +9,35 @@ const ConfirmEmail = ({ children, ...props }) => (
             </div>
             <div class="card">
               <div class="card-body p-6">
-                { props.error &&
+                {props.error && (
                   <div>
                     <div class="alert alert-danger" role="alert">
                       We are unable to verify your email address.
                     </div>
                     <p>Are you sure you clicked/copied the link correctly?</p>
-                    <p>If it still not working, please contact us on <a href="">Twitter</a> or on <a href="">Gladys Community</a>.</p>
+                    <p>
+                      If it still not working, please contact us on <a href="">Twitter</a> or on{' '}
+                      <a href="">Gladys Community</a>.
+                    </p>
                   </div>
-                }
+                )}
 
-                { props.emailConfirmed &&
+                {props.emailConfirmed && (
                   <div>
                     <div class="card-title">Email Confirmed</div>
-                    
+
                     <div class="form-footer">
                       <a href={'/login?email=' + props.email} class="btn btn-primary btn-block">
                         Sign in
                       </a>
                     </div>
                   </div>
-                }
-                { (!props.emailConfirmed) && (!props.error) &&
+                )}
+                {/* prettier-ignore */ !props.emailConfirmed && !props.error && (
                   <div>
                     <div class="card-title">Confirmation in progress...</div>
-                    
-                    
                   </div>
-                }
+                )}
               </div>
             </div>
           </div>

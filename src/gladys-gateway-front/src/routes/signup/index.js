@@ -20,9 +20,9 @@ class SignupPage extends Component {
   };
 
   validateEmail = email => {
-    let re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/;
+    let re = /^(([^<>()\[\]\\.,;:\s@"]+(\.[^<>()\[\]\\.,;:\s@"]+)*)|(".+"))@((\[[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\])|(([a-zA-Z\-0-9]+\.)+[a-zA-Z]{2,}))$/; // eslint-disable-line
     return re.test(String(email).toLowerCase());
-  }
+  };
 
   validateData = data => {
     let fieldsErrored = [];
@@ -31,7 +31,7 @@ class SignupPage extends Component {
       fieldsErrored.push('name');
     }
 
-    if (!data.email || !(this.validateEmail(data.email)) ) {
+    if (!data.email || !this.validateEmail(data.email)) {
       fieldsErrored.push('email');
     }
 
@@ -72,7 +72,12 @@ class SignupPage extends Component {
     Auth.signup(newUser)
       .then(() => {
         setTimeout(() => {
-          this.setState({ fieldsErrored: [], currentStep: 2, accountAlreadyExist: false, signupCompleted: true });
+          this.setState({
+            fieldsErrored: [],
+            currentStep: 2,
+            accountAlreadyExist: false,
+            signupCompleted: true
+          });
         }, 1000);
       })
       .catch(error => {
@@ -91,7 +96,10 @@ class SignupPage extends Component {
       });
   };
 
-  render({}, { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted }) {
+  render(
+    {},
+    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted }
+  ) {
     return (
       <SignupBase currentStep={currentStep}>
         {currentStep === 1 && (

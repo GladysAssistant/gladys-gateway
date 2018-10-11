@@ -5,7 +5,6 @@ import Auth from '../api/Auth';
 import { route } from 'preact-router';
 
 class Layout extends Component {
-  
   state = {
     user: {},
     showDropDown: false,
@@ -23,13 +22,13 @@ class Layout extends Component {
   componentDidMount = () => {
     Auth.connectSocket()
       .then(() => Auth.getMySelf())
-      .then((user) => this.setState({ user }))
+      .then(user => this.setState({ user }))
       .then(() => {
         if (this.props.callback) {
           this.props.callback();
         }
       })
-      .catch((err) => {
+      .catch(err => {
         if (err && err.response && err.response.data && err.response.data.status === 401) {
           route('/login');
         } else {
@@ -41,14 +40,15 @@ class Layout extends Component {
   render(props, { showDropDown, showCollapsedMenu, user }) {
     return (
       <div class="page">
-        <div class="page-main" >
-          <Header user={user}
+        <div class="page-main">
+          <Header
+            user={user}
             showDropDown={showDropDown}
             toggleDropDown={this.toggleDropDown}
             showCollapsedMenu={showCollapsedMenu}
             toggleCollapsedMenu={this.toggleCollapsedMenu}
           />
-          <div class="my-3 my-md-5">{ props.children}</div>
+          <div class="my-3 my-md-5">{props.children}</div>
         </div>
         <Footer user={props.user} />
       </div>

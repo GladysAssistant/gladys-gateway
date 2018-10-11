@@ -30,15 +30,15 @@ const ConfigureTwoFactorForm = ({ children, ...props }) => (
 
             {props.step === 2 && (
               <div class="card">
-                <form onSubmit={props.enableTwoFactor} >
+                <form onSubmit={props.enableTwoFactor}>
                   <div class="card-body p-6">
                     <div class="card-title">Configure Two-Factor Authentication</div>
 
-                    { props.errored &&
+                    {props.errored && (
                       <div class="alert alert-danger" role="alert">
                         The 2FA code you provided is not valid.
                       </div>
-                    }
+                    )}
 
                     <p>
                       <ul>

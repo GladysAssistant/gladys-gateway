@@ -8,7 +8,7 @@ const Step3LinkGladys = ({ children, ...props }) => (
           <div class="media">
             <span
               class="avatar avatar-xxl mr-5"
-              style={'background-image: url('+ props.user.profile_url + ')'}
+              style={'background-image: url(' + props.user.profile_url + ')'}
             />
             <div class="media-body">
               <h4 class="m-0">{props.user.name}</h4>
@@ -30,8 +30,16 @@ const Step3LinkGladys = ({ children, ...props }) => (
         <div class="card-body">
           <div class="row">
             <div class="col-md">
-              <select class="form-control custom-select" onChange={props.updateGladysUserSelected} value={props.gladysUserSelected}>
-                {props.usersInGladys.map(gladysUser => (<option value={gladysUser.id}>{gladysUser.id}. {gladysUser.firstname}</option>))}
+              <select
+                class="form-control custom-select"
+                onChange={props.updateGladysUserSelected}
+                value={props.gladysUserSelected}
+              >
+                {props.usersInGladys.map(gladysUser => (
+                  <option value={gladysUser.id}>
+                    {gladysUser.id}. {gladysUser.firstname}
+                  </option>
+                ))}
               </select>
             </div>
             <div class="col-md-4">

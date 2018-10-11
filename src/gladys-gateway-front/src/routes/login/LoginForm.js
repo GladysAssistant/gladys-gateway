@@ -10,8 +10,8 @@ const LoginForm = ({ children, ...props }) => (
             <form onSubmit={props.login} class="card">
               <div class="card-body p-6">
                 <div class="card-title">Login to your account</div>
-                
-                { !props.displayTwoFactorInput &&
+
+                {!props.displayTwoFactorInput && (
                   <div class="form-group">
                     <label class="form-label">Email address</label>
                     <input
@@ -24,32 +24,30 @@ const LoginForm = ({ children, ...props }) => (
                       onInput={props.updateEmail}
                     />
                   </div>
-                }
+                )}
 
-                { !props.displayTwoFactorInput &&
-                <div class="form-group">
-                  <label class="form-label">
-                    Password
-                    <a href="./forgot-password.html" class="float-right small">
-                      I forgot password
-                    </a>
-                  </label>
-                  <input
-                    type="password"
-                    class="form-control"
-                    id="exampleInputPassword1"
-                    placeholder="Password"
-                    value={props.password}
-                    onInput={props.updatePassword}
-                  />
-                </div>
-                }
-
-                { props.displayTwoFactorInput &&
+                {!props.displayTwoFactorInput && (
                   <div class="form-group">
                     <label class="form-label">
-                      Two Factor Code
+                      Password
+                      <a href="./forgot-password.html" class="float-right small">
+                        I forgot password
+                      </a>
                     </label>
+                    <input
+                      type="password"
+                      class="form-control"
+                      id="exampleInputPassword1"
+                      placeholder="Password"
+                      value={props.password}
+                      onInput={props.updatePassword}
+                    />
+                  </div>
+                )}
+
+                {props.displayTwoFactorInput && (
+                  <div class="form-group">
+                    <label class="form-label">Two Factor Code</label>
                     <input
                       type="text"
                       class="form-control"
@@ -59,21 +57,20 @@ const LoginForm = ({ children, ...props }) => (
                       onInput={props.updateTwoFactorCode}
                     />
                   </div>
-                }
+                )}
 
                 <div class="form-footer">
-                  
-                  { !props.displayTwoFactorInput &&
+                  {!props.displayTwoFactorInput && (
                     <button type="submit" class="btn btn-primary btn-block">
                       Sign in
                     </button>
-                  }
+                  )}
 
-                  { props.displayTwoFactorInput &&
+                  {props.displayTwoFactorInput && (
                     <button onClick={props.loginTwoFactor} class="btn btn-primary btn-block">
                       Sign in
                     </button>
-                  }
+                  )}
                 </div>
               </div>
             </form>

@@ -13,11 +13,6 @@ import ConfirmEmail from '../routes/confirm-email';
 import ForgotPassword from '../routes/forgot-password';
 
 export default class App extends Component {
-  
-  /** Gets fired when the route changes.
-   *	@param {Object} event		"change" event from [preact-router](http://git.io/preact-router)
-   *	@param {string} event.url	The newly routed URL
-   */
   handleRoute = e => {
     this.currentUrl = e.url;
   };

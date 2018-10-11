@@ -6,19 +6,37 @@ const Header = ({ children, ...props }) => (
       <div class="container">
         <div class="d-flex">
           <a class="header-brand" href="./index.html">
-            {false && <img src="./demo/brand/tabler.svg" class="header-brand-img" alt="tabler logo" /> }
-            <span  class="header-brand-img">Gladys Gateway</span>
+            {false && (
+              <img src="./demo/brand/tabler.svg" class="header-brand-img" alt="tabler logo" />
+            )}
+            <span class="header-brand-img">Gladys Gateway</span>
           </a>
           <div class="d-flex order-lg-2 ml-auto">
             <div class={'dropdown' + (props.showDropDown && ' show')}>
-              <a onClick={props.toggleDropDown} class="nav-link pr-0 leading-none" data-toggle="dropdown">
-                <span class="avatar" style={'background-image: url(' + ( '/assets/images/undraw_profile_pic.svg' || props.user.profile_url) + ')'} />
+              <a
+                onClick={props.toggleDropDown}
+                class="nav-link pr-0 leading-none"
+                data-toggle="dropdown"
+              >
+                <span
+                  class="avatar"
+                  style={
+                    'background-image: url(' +
+                    ('/assets/images/undraw_profile_pic.svg' || props.user.profile_url) +
+                    ')'
+                  }
+                />
                 <span class="ml-2 d-none d-lg-block">
                   <span class="text-default">{props.user.name}</span>
                   <small class="text-muted d-block mt-1">Administrator</small>
                 </span>
               </a>
-              <div class={'dropdown-menu dropdown-menu-right dropdown-menu-arrow' + (props.showDropDown && ' show')}>
+              <div
+                class={
+                  'dropdown-menu dropdown-menu-right dropdown-menu-arrow' +
+                  (props.showDropDown && ' show')
+                }
+              >
                 <a class="dropdown-item" href="#">
                   <i class="dropdown-icon fe fe-user" /> Profile
                 </a>
@@ -46,7 +64,10 @@ const Header = ({ children, ...props }) => (
         </div>
       </div>
     </div>
-    <div class={'header collapse d-lg-flex p-0 ' + ( props.showCollapsedMenu && ' show')} id="headerMenuCollapse">
+    <div
+      class={'header collapse d-lg-flex p-0 ' + (props.showCollapsedMenu && ' show')}
+      id="headerMenuCollapse"
+    >
       <div class="container">
         <div class="row align-items-center">
           <div class="col-lg order-lg-first">
@@ -57,12 +78,12 @@ const Header = ({ children, ...props }) => (
                 </Link>
               </li>
               <li class="nav-item">
-                <Link  activeClassName="active" href="/dashboard/instance" class="nav-link">
+                <Link activeClassName="active" href="/dashboard/instance" class="nav-link">
                   <i class="fe fe-server" /> Instance
                 </Link>
               </li>
               <li class="nav-item">
-                <Link  activeClassName="active" href="/dashboard/users" class="nav-link">
+                <Link activeClassName="active" href="/dashboard/users" class="nav-link">
                   <i class="fe fe-user" /> Users
                 </Link>
               </li>

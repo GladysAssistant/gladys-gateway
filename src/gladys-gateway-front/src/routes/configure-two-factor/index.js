@@ -39,17 +39,17 @@ class ConfigureTwoFactorPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
-  enableTwoFactor = async (event) => {
+  enableTwoFactor = async event => {
     event.preventDefault();
     const accessToken = await Auth.getTwoFactorAccessToken();
 
-    let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
+    let twoFactorCode = this.state.twoFactorCode.replace(/\s/g, '');
 
     Auth.enableTwoFactor(accessToken, twoFactorCode)
-      .then((data) => {
+      .then(data => {
         route('/login');
       })
-      .catch((err) => {
+      .catch(err => {
         if (err && err.response && err.response.status === 401) {
           route('/login');
         } else {

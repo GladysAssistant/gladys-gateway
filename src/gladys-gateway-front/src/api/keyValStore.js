@@ -6,8 +6,12 @@ const dbPromise = idb.open('gladys-gateway-keyval-store', 1, upgradeDB => {
 
 const idbKeyval = {
   get(key) {
-    return dbPromise.then(db => db.transaction('keyval')
-      .objectStore('keyval').get(key));
+    return dbPromise.then(db =>
+      db
+        .transaction('keyval')
+        .objectStore('keyval')
+        .get(key)
+    );
   },
   set(key, val) {
     return dbPromise.then(db => {

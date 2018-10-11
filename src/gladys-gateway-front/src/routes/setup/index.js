@@ -23,18 +23,16 @@ class SetupPage extends Component {
   };
 
   saveBillingInformations = stripeToken => {
-    
     // if no stripe token is passed, error
     if (!stripeToken) {
       return this.setState({ savingBillingError: true, paymentInProgress: false });
     }
-    
+
     this.setState({ paymentInProgress: true, savingBillingError: false });
-    
+
     Auth.subcribeMonthlyPlan(stripeToken.id)
       .then(() => this.activateStep2())
-      .catch((err) => {
-
+      .catch(err => {
         // the users already have a plan registered, so it's fine
         if (err.response && err.response.status === 409) {
           this.activateStep2();
@@ -46,11 +44,10 @@ class SetupPage extends Component {
   };
 
   activateStep2 = () => {
-    Auth.getInstance()
-      .then((instance) => {
-        let instanceFound = (instance !== null);
-        this.setState({ step: 2, paymentInProgress: false, instance, instanceFound });
-      });
+    Auth.getInstance().then(instance => {
+      let instanceFound = instance !== null;
+      this.setState({ step: 2, paymentInProgress: false, instance, instanceFound });
+    });
   };
 
   activateStep3 = async () => {
@@ -73,7 +70,7 @@ class SetupPage extends Component {
     if (type === 'hello') {
       this.setState({ instance: data, instanceFound: true });
     }
-  }
+  };
 
   calculateLatency = async () => {
     let latency = await Auth.calculateLatency();
@@ -81,15 +78,14 @@ class SetupPage extends Component {
   };
 
   getCurrentSetupState = async () => {
-
     // we get the current setup state
     let setupState = await Auth.getSetupState();
-    
+
     if (setupState.billing_setup === false) {
       return this.setState({ step: 1 });
     }
 
-    if ( setupState.gladys_instance_setup === false) {
+    if (setupState.gladys_instance_setup === false) {
       return this.activateStep2();
     }
 
@@ -102,7 +98,6 @@ class SetupPage extends Component {
   };
 
   connect = async () => {
-
     // we connect in websocket to the gateway
     await Auth.connectSocket(this.handleNewEvent);
 
@@ -138,7 +133,22 @@ class SetupPage extends Component {
     }
   };
 
-  render({}, { stripeLoaded, step, latency, instanceFound, instance, user, userCardName, paymentInProgress, savingBillingError, usersInGladys, gladysUserSelected }) {
+  render(
+    {},
+    {
+      stripeLoaded,
+      step,
+      latency,
+      instanceFound,
+      instance,
+      user,
+      userCardName,
+      paymentInProgress,
+      savingBillingError,
+      usersInGladys,
+      gladysUserSelected
+    }
+  ) {
     return (
       <SetupContainer
         stripeLoaded={stripeLoaded}

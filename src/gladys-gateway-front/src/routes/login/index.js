@@ -34,20 +34,23 @@ class LoginPage extends Component {
   loginTwoFactor = event => {
     event.preventDefault();
 
-    let twoFactorCode =  this.state.twoFactorCode.replace(/\s/g, '');
+    let twoFactorCode = this.state.twoFactorCode.replace(/\s/g, '');
 
     // we login
     Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode)
-      
+
       // we save the users info
-      .then((data) => Auth.saveLoginInformations(data))
+      .then(data => Auth.saveLoginInformations(data))
 
       // we test if the user needs to be sent to setup
       .then(() => Auth.getSetupState())
 
-      .then((setupState) => {
-
-        if (setupState.billing_setup && setupState.gladys_instance_setup && setupState.user_gladys_acccount_linked) {
+      .then(setupState => {
+        if (
+          setupState.billing_setup &&
+          setupState.gladys_instance_setup &&
+          setupState.user_gladys_acccount_linked
+        ) {
           route('/dashboard');
         } else {
           route('/setup');
@@ -55,11 +58,11 @@ class LoginPage extends Component {
       })
 
       //return Auth.request.get('/devicetype/room', {data: 'test'});
-      .catch((err) => {
+      .catch(err => {
         console.log(err);
         this.setState({ loginErrored: true });
       });
-  }
+  };
 
   updateTwoFactorCode = event => {
     let newValue = event.target.value;

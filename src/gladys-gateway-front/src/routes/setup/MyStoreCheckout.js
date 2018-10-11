@@ -9,7 +9,6 @@ class MyStoreCheckout extends Component {
     // Within the context of `Elements`, this call to createToken knows which Element to
     // tokenize, since there's only one in this group.
     this.props.stripe.createToken({ name: this.props.userCardName }).then(({ token }) => {
-     
       this.props.saveBillingInformations(token);
     });
   };

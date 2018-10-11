@@ -2,11 +2,11 @@ const SignupForm = ({ children, ...props }) => (
   <form onSubmit={props.validateForm} className="card">
     <div className="card-body p-6">
       <div className="card-title">Create new account</div>
-      { props.accountAlreadyExist &&
+      {props.accountAlreadyExist && (
         <div class="alert alert-danger" role="alert">
-            An account with that email already exist
+          An account with that email already exist
         </div>
-      }
+      )}
       <div className="form-group">
         <label className="form-label">Name</label>
         <input
@@ -43,7 +43,9 @@ const SignupForm = ({ children, ...props }) => (
         <div class="invalid-feedback">Password should be 8 characters</div>
       </div>
       <div className="form-footer">
-        <button type="submit" className="btn btn-primary btn-block">Create new account</button>
+        <button type="submit" className="btn btn-primary btn-block">
+          Create new account
+        </button>
       </div>
     </div>
   </form>

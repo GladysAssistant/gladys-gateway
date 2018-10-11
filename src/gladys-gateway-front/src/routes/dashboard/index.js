@@ -6,7 +6,6 @@ import update from 'immutability-helper';
 const DEVICE_TYPE_CACHE_KEY = 'devicetype_rooms';
 
 class DashboardPage extends Component {
-  
   state = {
     rooms: [],
     noInstanceFoundError: false
@@ -14,18 +13,19 @@ class DashboardPage extends Component {
 
   lastRoomUpdate = null;
 
-  saveState = (rooms) => {
+  saveState = rooms => {
     Auth.cache.set(DEVICE_TYPE_CACHE_KEY, { rooms, lastUpdated: new Date() });
   };
 
   connected = () => {
-    Auth.request.get('/devicetype/room', {})
-      .then((rooms) => {
+    Auth.request
+      .get('/devicetype/room', {})
+      .then(rooms => {
         this.lastRoomUpdate = new Date();
         this.setState({ rooms });
         this.saveState(rooms);
       })
-      .catch((err) => {
+      .catch(err => {
         if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
           this.setState({ noInstanceFoundError: true });
         }
@@ -33,9 +33,9 @@ class DashboardPage extends Component {
   };
 
   updateValue = (deviceType, roomIndex, deviceTypeIndex, value) => {
-    Auth.request.post(`/devicetype/${deviceType.id}/exec`, { value })
-      .then((response) => {
-        
+    Auth.request
+      .post(`/devicetype/${deviceType.id}/exec`, { value })
+      .then(response => {
         // create a new immutable state
         const newState = update(this.state, {
           rooms: {

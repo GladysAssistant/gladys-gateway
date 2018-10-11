@@ -1,5 +1,3 @@
-
-
 const InstanceCard = ({ children, ...props }) => (
   <div class="row row-card">
     <div class="col-sm-6 col-lg-3">
@@ -66,17 +64,25 @@ const InstanceCard = ({ children, ...props }) => (
         <table class="table card-table">
           <tbody>
             <tr>
-              <td  class="w-1"><i class="fe fe-tag" /></td>
+              <td class="w-1">
+                <i class="fe fe-tag" />
+              </td>
               <td>Device Types</td>
               <td class="text-right">
-                <button class="btn btn-secondary disabled btn-sm" style={{cursor: 'default'}}>245 rows</button>
+                <button class="btn btn-secondary disabled btn-sm" style={{ cursor: 'default' }}>
+                  245 rows
+                </button>
               </td>
             </tr>
             <tr>
-              <td  class="w-1"><i class="fe fe-circle" /></td>
+              <td class="w-1">
+                <i class="fe fe-circle" />
+              </td>
               <td>Device States</td>
               <td class="text-right">
-                <button class="btn btn-secondary disabled btn-sm" style={{cursor: 'default'}}>400k rows</button>
+                <button class="btn btn-secondary disabled btn-sm" style={{ cursor: 'default' }}>
+                  400k rows
+                </button>
               </td>
             </tr>
           </tbody>
@@ -107,8 +113,6 @@ const InstanceCard = ({ children, ...props }) => (
         </table>
       </div>
     </div>
-
-
   </div>
 );
 

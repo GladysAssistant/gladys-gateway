@@ -5,9 +5,7 @@ const DashboardInstance = ({ children, ...props }) => (
   <Layout user={props.user}>
     <div class="container">
       <div class="page-header">
-        <h1 class="page-title">
-          Instance
-        </h1>
+        <h1 class="page-title">Instance</h1>
       </div>
       <InstanceCard />
     </div>

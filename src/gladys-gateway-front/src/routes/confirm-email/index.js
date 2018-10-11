@@ -3,7 +3,6 @@ import Auth from '../../api/Auth';
 import ConfirmEmail from './ConfirmEmail';
 
 class ConfirmEmailPage extends Component {
-  
   state = {
     emailConfirmed: false,
     error: false
@@ -24,12 +23,8 @@ class ConfirmEmailPage extends Component {
       });
   }
 
- 
   render({}, { emailConfirmed, email, error }) {
-    
-    return (
-      <ConfirmEmail emailConfirmed={emailConfirmed} email={email} error={error} />
-    );
+    return <ConfirmEmail emailConfirmed={emailConfirmed} email={email} error={error} />;
   }
 }
 

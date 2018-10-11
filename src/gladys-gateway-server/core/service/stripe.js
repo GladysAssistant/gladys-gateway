@@ -7,6 +7,21 @@ if(process.env.STRIPE_SECRET_KEY) {
 
 module.exports = function (logger) {
 
+  async function createCustomer(email, source) {
+    
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve({id: null});
+    }
+
+    const customer = await stripe.customers.create({
+      email,
+      source
+    });
+
+    return customer;
+  }
+
   async function subscribeToMonthlyPlan(stripeCustomerId) {
     
     if(stripe === null) {
@@ -26,11 +41,18 @@ module.exports = function (logger) {
   }
 
   async function cancelMonthlySubscription(stripeSubscriptionId) {
+    
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(null);
+    }
+
     return stripe.subscriptions.del(stripeSubscriptionId);
   }
 
   return {
     subscribeToMonthlyPlan,
-    cancelMonthlySubscription
+    cancelMonthlySubscription,
+    createCustomer
   };
 };

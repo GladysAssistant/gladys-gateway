@@ -8,7 +8,7 @@ const InstanceCard = ({ children, ...props }) => (
           </span>
           <div>
             <h4 class="m-0">Connected</h4>
-            <small class="text-muted">12ms ping</small>
+            <small class="text-muted">{props.latency}ms ping</small>
           </div>
         </div>
       </div>
@@ -22,7 +22,7 @@ const InstanceCard = ({ children, ...props }) => (
           </span>
           <div>
             <h4 class="m-0">CPU</h4>
-            <small class="text-muted">34%</small>
+            <small class="text-muted">{props.instanceInfos.cpuUsage}%</small>
           </div>
         </div>
       </div>
@@ -36,7 +36,7 @@ const InstanceCard = ({ children, ...props }) => (
           </span>
           <div>
             <h4 class="m-0">Uptime</h4>
-            <small class="text-muted">12 days</small>
+            <small class="text-muted">{props.instanceInfos.uptimeReadable}</small>
           </div>
         </div>
       </div>
@@ -50,7 +50,7 @@ const InstanceCard = ({ children, ...props }) => (
           </span>
           <div>
             <h4 class="m-0">Gladys Version</h4>
-            <small class="text-muted">v3.9.1</small>
+            <small class="text-muted">v{props.instanceInfos.gladysVersion}</small>
           </div>
         </div>
       </div>
@@ -70,7 +70,7 @@ const InstanceCard = ({ children, ...props }) => (
               <td>Device Types</td>
               <td class="text-right">
                 <button class="btn btn-secondary disabled btn-sm" style={{ cursor: 'default' }}>
-                  245 rows
+                  {props.instanceInfos.deviceTypeCountReadable} rows
                 </button>
               </td>
             </tr>
@@ -81,7 +81,7 @@ const InstanceCard = ({ children, ...props }) => (
               <td>Device States</td>
               <td class="text-right">
                 <button class="btn btn-secondary disabled btn-sm" style={{ cursor: 'default' }}>
-                  400k rows
+                  {props.instanceInfos.deviceStateCountReadable} rows
                 </button>
               </td>
             </tr>
@@ -98,15 +98,15 @@ const InstanceCard = ({ children, ...props }) => (
         <table class="table card-table">
           <tbody>
             <tr>
-              <td>Update Gladys Data</td>
+              <td>Train brain</td>
               <td class="text-right">
-                <button class="btn btn-success btn-sm">Update</button>
+                <button onClick={props.trainBrain} class="btn btn-success btn-sm">Train</button>
               </td>
             </tr>
             <tr>
               <td>Restart your Gladys instance</td>
               <td class="text-right">
-                <button class="btn btn-danger btn-sm">Restart</button>
+                <button onClick={props.restartGladys} class="btn btn-danger btn-sm">Restart</button>
               </td>
             </tr>
           </tbody>

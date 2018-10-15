@@ -181,7 +181,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return {
       instance: createdInstance,
       rsaPrivateKeyJwk,
-      ecdsaPrivateKeyJwk
+      ecdsaPrivateKeyJwk,
+      rsaPublicKeyJwk,
+      ecdsaPublicKeyJwk
     };
   }
 

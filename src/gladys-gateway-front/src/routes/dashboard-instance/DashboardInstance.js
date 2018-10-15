@@ -7,7 +7,12 @@ const DashboardInstance = ({ children, ...props }) => (
       <div class="page-header">
         <h1 class="page-title">Instance</h1>
       </div>
-      <InstanceCard instanceInfos={props.instanceInfos} latency={props.latency} restartGladys={props.restartGladys} trainBrain={props.trainBrain} />
+      {props.noInstanceFoundError && (
+        <div class="alert alert-warning" role="alert">
+          Warning: We were unable to connect to your Gladys instance.
+        </div>
+      )}
+      <InstanceCard instanceInfos={props.instanceInfos} latency={props.latency} restartGladys={props.restartGladys} trainBrain={props.trainBrain} noInstanceFoundError={props.noInstanceFoundError} />
     </div>
   </Layout>
 );

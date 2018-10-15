@@ -14,6 +14,7 @@ class DashboardInstancePage extends Component {
       gladysVersion: '- ',
       cpuUsage: '- '
     },
+    noInstanceFoundError: false,
     latency: '- '
   };
 
@@ -33,15 +34,22 @@ class DashboardInstancePage extends Component {
     
     this.calculateLatency();
 
-    let instanceInfos = await Auth.request.get('/system');
-   
-    // convert data to readable data
-    instanceInfos.cpuUsage = Math.round(instanceInfos.cpuUsage*100);
-    instanceInfos.uptimeReadable = this.convertSecondsToReadableTime(instanceInfos.uptime);
-    instanceInfos.deviceStateCountReadable = this.convertNumberToReadable(instanceInfos.deviceStateCount);
-    instanceInfos.deviceTypeCountReadable = this.convertNumberToReadable(instanceInfos.deviceTypeCount);
-    
-    this.setState({ instanceInfos });
+    try {
+
+      let instanceInfos = await Auth.request.get('/system');
+      
+      // convert data to readable data
+      instanceInfos.cpuUsage = Math.round(instanceInfos.cpuUsage*100);
+      instanceInfos.uptimeReadable = this.convertSecondsToReadableTime(instanceInfos.uptime);
+      instanceInfos.deviceStateCountReadable = this.convertNumberToReadable(instanceInfos.deviceStateCount);
+      instanceInfos.deviceTypeCountReadable = this.convertNumberToReadable(instanceInfos.deviceTypeCount);
+      
+      this.setState({ instanceInfos });
+    } catch (err) {
+      if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
+        this.setState({ noInstanceFoundError: true });
+      }
+    }
   };
 
   convertSecondsToReadableTime = (seconds) => {
@@ -103,8 +111,12 @@ class DashboardInstancePage extends Component {
     await Auth.request.post('/system/shutdown');
   }
 
-  render({}, { instanceInfos, latency }) {
-    return <DashboardInstance connected={this.connected} instanceInfos={instanceInfos} latency={latency} restartGladys={this.restartGladys} trainBrain={this.trainBrain} />;
+  componentWillUnmount = () => {
+    clearInterval(this.interval);
+  }
+
+  render({}, { instanceInfos, latency, noInstanceFoundError }) {
+    return <DashboardInstance connected={this.connected} instanceInfos={instanceInfos} latency={latency} restartGladys={this.restartGladys} trainBrain={this.trainBrain} noInstanceFoundError={noInstanceFoundError} />;
   }
 }
 

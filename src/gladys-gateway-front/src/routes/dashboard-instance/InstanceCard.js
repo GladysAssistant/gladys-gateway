@@ -7,8 +7,8 @@ const InstanceCard = ({ children, ...props }) => (
             <i class="fe fe-activity" />
           </span>
           <div>
-            <h4 class="m-0">Connected</h4>
-            <small class="text-muted">{props.latency}ms ping</small>
+            <h4 class="m-0">{ !props.noInstanceFoundError ? 'Connected' : 'Not connected' }</h4>
+            <small class="text-muted">{ !props.noInstanceFoundError ? props.latency : '-' } ms ping</small>
           </div>
         </div>
       </div>

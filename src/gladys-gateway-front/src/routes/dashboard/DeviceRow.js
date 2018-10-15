@@ -3,6 +3,11 @@ import SensorDeviceType from './device-types/SensorDeviceType';
 import MultilevelDeviceType from './device-types/MultiLevelDeviceType';
 
 const DeviceRow = ({ children, ...props }) => {
+  
+  if (props.deviceType.display === 0) {
+    return (null);
+  }
+  
   // if device is a sensor, we display the sensor deviceType
   if (props.deviceType.sensor) {
     return <SensorDeviceType deviceType={props.deviceType} />;

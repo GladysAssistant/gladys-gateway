@@ -1,7 +1,7 @@
 import RoomCard from './RoomCard';
 
 const DeviceList = ({ children, ...props }) => (
-  <div class="row row-cards">
+  <div class="card-columns">
     {props.rooms.map((room, index) => (
       <RoomCard
         room={room}

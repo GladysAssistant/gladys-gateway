@@ -47,7 +47,7 @@ const Header = ({ children, ...props }) => (
                 <a class="dropdown-item" href="#">
                   <i class="dropdown-icon fe fe-help-circle" /> Need help?
                 </a>
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="" onClick={props.logout}>
                   <i class="dropdown-icon fe fe-log-out" /> Sign out
                 </a>
               </div>

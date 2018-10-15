@@ -19,6 +19,12 @@ class Layout extends Component {
     this.setState({ showCollapsedMenu: !this.state.showCollapsedMenu });
   };
 
+  logout = (e) => {
+    e.preventDefault();
+    Auth.cleanLocalState();
+    route('/login');
+  };
+
   componentDidMount = () => {
     Auth.connectSocket()
       .then(() => Auth.getMySelf())
@@ -47,6 +53,7 @@ class Layout extends Component {
             toggleDropDown={this.toggleDropDown}
             showCollapsedMenu={showCollapsedMenu}
             toggleCollapsedMenu={this.toggleCollapsedMenu}
+            logout={this.logout}
           />
           <div class="my-3 my-md-5">{props.children}</div>
         </div>

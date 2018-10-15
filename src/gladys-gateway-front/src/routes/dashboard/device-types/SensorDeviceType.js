@@ -4,7 +4,7 @@ const SensorDeviceType = ({ children, ...props }) => (
   <tr>
     <td>
       { props.deviceType.category === 'temperature-sensor' && <i class="fe fe-thermometer" /> }
-      { props.deviceType.category === 'humidity-sensor' && <i class="fe fe-percent" /> }
+      { props.deviceType.category === 'humidity-sensor' && <i class="fe fe-droplet" /> }
       { props.deviceType.category === 'light-sensor' && <i class="fe fe-sun" /> }
       { props.deviceType.category === 'battery-sensor' && <i class="fe fe-percent" /> }
       { OPEN_CLOSE_SENSORS.indexOf(props.deviceType.category) !== -1 && <i class="fe fe-home" /> }

@@ -98,6 +98,7 @@ CREATE TABLE t_invitation (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     email character varying(255) NOT NULL,
     token_hash character varying,
+    role user_role DEFAULT 'user' NOT NULL,
     revoked boolean DEFAULT false NOT NULL,
     accepted boolean DEFAULT false NOT NULL,
     account_id uuid NOT NULL,

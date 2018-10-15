@@ -20,6 +20,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
 
       // clean email
       var email = value.email.trim().toLowerCase();
+      var role = value.role; 
 
       // first we get the user to see if he is allowed to do that
       var userWithAccount = await tx.t_user.findOne({
@@ -50,6 +51,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
 
       var insertedInvitation = await tx.t_invitation.insert({
         email,
+        role,
         token_hash: tokenHash,
         account_id: userWithAccount.account_id
       });
@@ -94,6 +96,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       value.email_confirmed = true;
       value.account_id = invitation.account_id;
       value.email_confirmation_token_hash = invitation.token_hash;
+      value.role = invitation.role;
 
       // set gravatar image for the user
       var emailHash = crypto.createHash('md5').update(value.email).digest('hex');

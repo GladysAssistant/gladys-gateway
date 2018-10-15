@@ -19,7 +19,9 @@ module.exports = function(invitationModel) {
   async function inviteUser(req, res, next) {
     var invitation = await invitationModel.inviteUser(req.user, req.body);
     res.json({
+      id: invitation.id,
       email: invitation.email,
+      role: invitation.role,
       account_id: invitation.account_id
     });
   }

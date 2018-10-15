@@ -14,7 +14,8 @@ const signupSchema = Joi.object().keys({
 });
 
 const invitationSchema = Joi.object().keys({
-  email: Joi.string().email()
+  email: Joi.string().email(),
+  role:  Joi.string()
 });
 
 const resetPasswordSchema = Joi.object().keys({

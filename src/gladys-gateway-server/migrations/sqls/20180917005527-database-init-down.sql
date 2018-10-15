@@ -1,5 +1,6 @@
 /* Replace with your SQL commands */
 
+DROP TABLE t_account_payment_activity;
 DROP TABLE t_history;
 DROP TABLE t_reset_password;
 DROP TABLE t_device;

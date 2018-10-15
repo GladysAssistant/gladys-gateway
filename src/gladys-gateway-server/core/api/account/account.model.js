@@ -20,7 +20,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
       revoked: false,
       is_deleted: false,
       accepted: false
-    }, {field: ['id', 'email', 'account_id', 'created_at']});
+    }, {field: ['id', 'email', 'account_id', 'role', 'created_at']});
 
     var allUsers = users.concat(usersNotAccepted);
 

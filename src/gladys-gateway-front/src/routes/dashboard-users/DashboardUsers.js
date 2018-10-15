@@ -12,6 +12,8 @@ const DashboardUsers = ({ children, ...props }) => (
         inviteUser={props.inviteUser}
         email={props.email}
         updateEmail={props.updateEmail}
+        updateRole={props.updateRole}
+        role={props.role}
       />
     </div>
   </Layout>

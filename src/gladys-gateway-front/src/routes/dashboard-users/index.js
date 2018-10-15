@@ -5,7 +5,8 @@ import linkState from 'linkstate';
 
 class DashboardUsersPage extends Component {
   state = {
-    users: []
+    users: [],
+    role: 'user'
   };
 
   getUsers = () => {
@@ -15,19 +16,21 @@ class DashboardUsersPage extends Component {
   };
 
   inviteUser = () => {
-    Auth.inviteUser(this.state.email).then(invitedUser => {
+    Auth.inviteUser(this.state.email, this.state.role).then(invitedUser => {
       this.setState({ users: this.state.users.concat([invitedUser]) });
     });
   };
 
-  render({}, { users, email }) {
+  render({}, { users, email, role }) {
     return (
       <DashboardUsers
         users={users}
         getUsers={this.getUsers}
         inviteUser={this.inviteUser}
         email={email}
+        role={role}
         updateEmail={linkState(this, 'email')}
+        updateRole={linkState(this, 'role')}
       />
     );
   }

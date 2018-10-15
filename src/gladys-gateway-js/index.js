@@ -237,8 +237,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return requestApi.get(serverUrl + '/accounts/users', state);
   }
 
-  async function inviteUser(email) {
-    return requestApi.post(serverUrl + '/invitations', { email },  state);
+  async function inviteUser(email, role) {
+    return requestApi.post(serverUrl + '/invitations', { email, role },  state);
   }
 
   async function getSetupState() {

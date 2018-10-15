@@ -32,7 +32,7 @@ const Auth = {
   getMySelf: () => client.getMyself(),
   updateMyself: data => client.updateMyself(data),
   getUsersInAccount: () => client.getUsersInAccount(),
-  inviteUser: email => client.inviteUser(email),
+  inviteUser: client.inviteUser,
   calculateLatency: () => client.calculateLatency(),
   connectSocket: async callback => {
     let refreshToken = await keyValStore.get('refresh_token');

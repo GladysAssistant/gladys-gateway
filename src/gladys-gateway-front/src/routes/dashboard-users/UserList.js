@@ -37,16 +37,16 @@ const UserList = ({ children, ...props }) => (
             <tr>
               <td />
               <td>
-                <input type="email" class="form-control" placeholder="Email" />
+                <input onChange={props.updateEmail} value={props.email} type="email" class="form-control" placeholder="Email" />
               </td>
               <td>
-                <select class="form-control custom-select selectized">
-                  <option>Administrator</option>
-                  <option>User</option>
+                <select class="form-control custom-select selectized" onChange={props.updateRole} value={props.role}>
+                  <option value="admin">Administrator</option>
+                  <option value="user">User</option>
                 </select>
               </td>
               <td>
-                <button class="btn btn-primary ml-auto">Invite User</button>
+                <button onClick={props.inviteUser} class="btn btn-primary ml-auto">Invite User</button>
               </td>
               <td />
             </tr>

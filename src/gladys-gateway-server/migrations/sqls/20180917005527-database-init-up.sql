@@ -81,6 +81,7 @@ ALTER TABLE t_account OWNER TO postgres;
 CREATE TABLE t_instance (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     name character varying(255) NOT NULL,
+    primary_instance boolean NOT NULL DEFAULT true,
     rsa_public_key character varying,
     ecdsa_public_key character varying,
     refresh_token_hash character varying,
@@ -184,3 +185,4 @@ CREATE INDEX ix_t_account_payment_activity_account_id ON t_account_payment_activ
 
 -- We don't want to have duplicate emails in database
 CREATE UNIQUE INDEX idx_unique_email on t_user(LOWER(email))  WHERE (is_deleted = false AND email_confirmed = true);
+CREATE UNIQUE INDEX idx_unique_primary_instance on t_instance(primary_instance, account_id)  WHERE (primary_instance = true AND is_deleted = false);

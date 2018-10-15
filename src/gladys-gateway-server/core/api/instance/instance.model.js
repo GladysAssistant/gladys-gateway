@@ -34,6 +34,14 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     var refreshToken = jwtService.generateRefreshTokenInstance(value);
     var accessToken = jwtService.generateAccessTokenInstance(value);
     value.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    value.primary_instance = true;
+
+    // set all other instances in account as secondary instance
+    await db.t_instance.update({
+      account_id: userWithAccount.account_id
+    }, {
+      primary_instance: false
+    });
 
     var insertedInstance = await db.t_instance.insert(value);
     
@@ -56,7 +64,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     var instances = await db.t_instance.find({
       account_id: userWithAccount.account_id,
       is_deleted: false
-    }, { fields: ['id', 'name', 'rsa_public_key', 'ecdsa_public_key']});
+    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key']});
 
     return instances;
   }
@@ -73,7 +81,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       account_id: userWithAccount.account_id,
       id: instanceId,
       is_deleted: false
-    }, { fields: ['id', 'name', 'rsa_public_key', 'ecdsa_public_key']});
+    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key']});
 
     if(instance === null){
       throw new NotFoundError('Instance not found');

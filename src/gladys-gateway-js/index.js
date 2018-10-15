@@ -153,8 +153,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     state.refreshToken = loginData.refreshToken;
 
     return {
-      accessToken,
-      refreshToken
+      accessToken: state.accessToken,
+      refreshToken: state.refreshToken
     };
   }
 

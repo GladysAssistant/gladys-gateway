@@ -22,7 +22,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     ecdsaKeys: null,
     gladysInstance: null,
     gladysInstancePublicKey: null,
-    gladysInstanceEcdsaPublicKey: null
+    gladysInstanceEcdsaPublicKey: null,
+    keysDictionnary: {}
   };
 
   async function signup(rawName, rawEmail, rawPassword, rawLanguage) {
@@ -346,19 +347,34 @@ module.exports = function ({ cryptoLib, serverUrl }) {
         });
 
         state.socket.on('message', async function(data, fn) {
-          console.log('Message received');
-          
-          var users = await getUsersInstance();
-          
+
           var ecdsaPublicKey = null;
           var rsaPublicKey = null;
           
-          users.forEach((user) => {
-            if(user.id == data.sender_id) {
-              ecdsaPublicKey = JSON.parse(user.ecdsa_public_key);
-              rsaPublicKey = JSON.parse(user.rsa_public_key);
-            }
-          });
+          // we test if keys exist in RAM
+          if (state.keysDictionnary[data.sender_id]) {
+            ecdsaPublicKey = state.keysDictionnary[data.sender_id].ecdsaPublicKey;
+            rsaPublicKey = state.keysDictionnary[data.sender_id].rsaPublicKey;
+          } 
+          
+          // else, we get them
+          else {
+            var users = await getUsersInstance();
+          
+            users.forEach((user) => {
+              
+              // we cache the keys for later use
+              state.keysDictionnary[user.id] = {
+                ecdsaPublicKey: JSON.parse(user.ecdsa_public_key),
+                rsaPublicKey: JSON.parse(user.rsa_public_key)
+              };
+
+              if(user.id == data.sender_id) {
+                ecdsaPublicKey = state.keysDictionnary[user.id].ecdsaPublicKey;
+                rsaPublicKey = state.keysDictionnary[user.id].rsaPublicKey;
+              }
+            });
+          }
 
           if(ecdsaPublicKey == null || rsaPublicKey == null) {
             throw new Error('User not found');

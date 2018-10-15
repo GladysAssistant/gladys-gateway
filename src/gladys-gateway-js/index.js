@@ -251,11 +251,17 @@ module.exports = function ({ cryptoLib, serverUrl }) {
   async function getInstance() {
     let instances = await requestApi.get(serverUrl + '/instances', state);
 
-    if(instances.length === 0) {
-      return null;
+    let instance = null;
+    let i = 0;
+
+    while(i < instances.length && instance === null) {
+      if (instances[i].primary_instance === true) {
+        instance = instances[i];
+      }
+      i++;
     }
     
-    return instances[0];
+    return instance;
   }
 
   async function userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {

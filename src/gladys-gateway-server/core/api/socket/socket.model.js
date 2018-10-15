@@ -102,8 +102,19 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     });
   }
 
-  async function handleNewMessageFromInstance(instance, message, fn) {
+  async function handleNewMessageFromInstance(instance, message) {
+    logger.debug(`New message from instance ${instance.id}`);
     
+    // adding sending instance_id
+    message.instance_id = instance.id;
+
+    var socketId = await redisClient.getAsync('connected_user:' + message.user_id);
+
+    if(socketId === null) {
+      logger.debug(`User is not connected, not sending message`);
+    } else {
+      io.to(socketId).emit('message', message);
+    }
   }
 
   async function hello(instance) {

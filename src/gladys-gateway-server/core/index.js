@@ -57,7 +57,8 @@ module.exports = async () => {
     refreshTokenAuth: require('./middleware/refreshTokenAuth')(logger),
     refreshTokenInstanceAuth: require('./middleware/refreshTokenInstanceAuth')(logger),
     accessTokenInstanceAuth: require('./middleware/accessTokenInstanceAuth')(logger),
-    errorMiddleware: require('./middleware/errorMiddleware.js')
+    errorMiddleware: require('./middleware/errorMiddleware.js'),
+    rateLimiter: require('./middleware/rateLimiter')(redisClient)
   };
   
 

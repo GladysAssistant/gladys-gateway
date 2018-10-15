@@ -4,6 +4,9 @@ const { NotFoundError } = require('../common/error.js');
 
 module.exports.load = function(app, io, controllers, middlewares) {
 
+  // the gateway is behing a proxy
+  app.enable('trust proxy');
+
   // parse application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({
     extended: false
@@ -30,11 +33,11 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.get('/ping', asyncMiddleware(controllers.pingController.ping));
 
   // user
-  app.post('/users/signup', asyncMiddleware(controllers.userController.signup));
-  app.post('/users/verify', asyncMiddleware(controllers.userController.confirmEmail));
-  app.post('/users/login-salt', asyncMiddleware(controllers.userController.loginGetSalt));
-  app.post('/users/login-generate-ephemeral', asyncMiddleware(controllers.userController.loginGenerateEphemeralValuePair));
-  app.post('/users/login-finalize', asyncMiddleware(controllers.userController.loginDeriveSession));
+  app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
+  app.post('/users/verify', middlewares.rateLimiter, asyncMiddleware(controllers.userController.confirmEmail));
+  app.post('/users/login-salt', middlewares.rateLimiter, asyncMiddleware(controllers.userController.loginGetSalt));
+  app.post('/users/login-generate-ephemeral', middlewares.rateLimiter, asyncMiddleware(controllers.userController.loginGenerateEphemeralValuePair));
+  app.post('/users/login-finalize', middlewares.rateLimiter, asyncMiddleware(controllers.userController.loginDeriveSession));
   app.post('/users/login-two-factor', asyncMiddleware(middlewares.twoFactorTokenAuth), asyncMiddleware(controllers.userController.loginTwoFactor));
   
   app.post('/users/two-factor-configure', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.configureTwoFactor));
@@ -58,7 +61,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   // invitation
   app.post('/invitations', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.invitationController.inviteUser));
-  app.post('/invitations/accept', asyncMiddleware(controllers.invitationController.accept));
+  app.post('/invitations/accept', middlewares.rateLimiter, asyncMiddleware(controllers.invitationController.accept));
 
   // account
   app.get('/accounts/users', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getUsers));

@@ -127,6 +127,18 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       AND t_instance.id = $1
     `, [instance.id]);
 
+    var redisMultiRequest = redisClient.multi();
+    
+    users.forEach((user) => {
+      redisMultiRequest.getAsync('connected_user:' + user.id);
+    });
+
+    var connectedUsers = await redisMultiRequest.execAsync();
+
+    users.forEach((user, index) => {
+      user.connected = ( connectedUsers[index] !== null );
+    });
+
     return users;
   }
 

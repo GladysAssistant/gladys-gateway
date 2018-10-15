@@ -19,7 +19,7 @@ class DashboardPage extends Component {
 
   connected = () => {
     Auth.request
-      .get('/devicetype/room', {})
+      .get('/devicetype/room', { displayed_only: true })
       .then(rooms => {
         this.lastRoomUpdate = new Date();
         this.setState({ rooms });

@@ -152,9 +152,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     state.accessToken = loginData.access_token;
     state.refreshToken = loginData.refreshToken;
 
-    const gladysInstance = await getInstance(loginData.access_token);
-
-    return gladysInstance;
+    return {
+      accessToken,
+      refreshToken
+    };
   }
 
   async function createInstance(name) {

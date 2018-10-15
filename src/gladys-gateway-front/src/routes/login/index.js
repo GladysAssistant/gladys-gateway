@@ -80,6 +80,10 @@ class LoginPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
+  componentDidMount = () => {
+    Auth.cleanLocalState();
+  };
+
   render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible }) {
     return (
       <LoginForm

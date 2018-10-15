@@ -1,5 +1,5 @@
 import { h, Component } from 'preact';
-import { Router } from 'preact-router';
+import { Router, route } from 'preact-router';
 
 // Code-splitting is automated for routes
 import Signup from '../routes/signup';
@@ -11,10 +11,20 @@ import DashboardUsers from '../routes/dashboard-users';
 import DashboardInstance from '../routes/dashboard-instance';
 import ConfirmEmail from '../routes/confirm-email';
 import ForgotPassword from '../routes/forgot-password';
+import Auth from '../api/Auth';
 
 export default class App extends Component {
-  handleRoute = e => {
-    this.currentUrl = e.url;
+  handleRoute = async e => {
+    if (e.url.startsWith('/dashboard')) {
+      let connected = await Auth.isConnected();
+      if (connected) {
+        this.currentUrl = e.url;
+      } else {
+        route('/login');
+      }
+    } else {
+      this.currentUrl = e.url;
+    }
   };
 
   render() {

@@ -26,7 +26,7 @@ class Layout extends Component {
   };
 
   componentDidMount = () => {
-    Auth.connectSocket()
+    Auth.connectSocket(this.props.newInstanceEvent)
       .then(() => Auth.getMySelf())
       .then(user => this.setState({ user }))
       .then(() => {

@@ -3,7 +3,7 @@ import EmptyState from './EmptyState';
 import DeviceList from './DeviceList';
 
 const Dashboard = ({ children, ...props }) => (
-  <Layout user={props.user} callback={props.connected}>
+  <Layout user={props.user} callback={props.connected} newInstanceEvent={props.newInstanceEvent}>
     <div class="container">
       <div class="page-header">
         <h1 class="page-title">Dashboard</h1>

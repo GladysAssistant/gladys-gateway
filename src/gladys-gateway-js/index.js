@@ -301,8 +301,17 @@ module.exports = function ({ cryptoLib, serverUrl }) {
         });
       });
 
-      state.socket.on('hello', function(instance){
-        callback('hello', instance);
+      state.socket.on('hello', (instance) => {
+        if(callback) { 
+          callback('hello', instance);
+        }
+      });
+
+      state.socket.on('message', async (message) => {
+        var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, message.encryptedMessage);
+        if(callback) {
+          callback('message', decryptedMessage);
+        }
       });
 
       state.socket.on('disconnect', async function(){

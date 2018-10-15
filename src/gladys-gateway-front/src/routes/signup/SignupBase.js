@@ -8,6 +8,7 @@ const SignupBase = ({ children, ...props }) => (
               <h2 className="h-6">Gladys Gateway</h2>
             </div>
             {children}
+
             {props.currentStep === 1 && (
               <div className="text-center text-muted">
                 Already have account?

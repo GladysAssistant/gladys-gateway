@@ -7,6 +7,11 @@ const SignupForm = ({ children, ...props }) => (
           An account with that email already exist
         </div>
       )}
+      {props.browserCompatible === false &&
+      <div class="alert alert-danger" role="alert">
+          Sorry, your browser is not compatible with the Gladys Gateway. Your browser should support the WebCrypto API as well as IndexedDB database.
+      </div>
+      }
       <div className="form-group">
         <label className="form-label">Name</label>
         <input

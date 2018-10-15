@@ -41,6 +41,19 @@ export default {
     keyValStore.set('rsa_keys', data.rsaKeys);
     keyValStore.set('ecdsa_keys', data.ecdsaKeys);
   },
+  testBrowserCompatibility: () => {
+    let browserCompatible = true;
+
+    if (!window.crypto || !window.crypto.subtle) {
+      browserCompatible = false;
+    }
+
+    if (!window.indexedDB) {
+      browserCompatible = false;
+    }
+
+    return browserCompatible;
+  },
   cache: {
     get: keyValStore.get,
     set: keyValStore.set

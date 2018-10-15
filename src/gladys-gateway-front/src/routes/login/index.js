@@ -10,7 +10,8 @@ class LoginPage extends Component {
     password: '',
     displayTwoFactorInput: false,
     twoFactorCode: '',
-    loginErrored: false
+    loginErrored: false,
+    browserCompatible: Auth.testBrowserCompatibility()
   };
 
   login = event => {
@@ -79,7 +80,7 @@ class LoginPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
-  render({}, { email, password, displayTwoFactorInput, twoFactorCode }) {
+  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible }) {
     return (
       <LoginForm
         email={email}
@@ -91,6 +92,7 @@ class LoginPage extends Component {
         twoFactorCode={twoFactorCode}
         loginTwoFactor={this.loginTwoFactor}
         updateTwoFactorCode={this.updateTwoFactorCode}
+        browserCompatible={browserCompatible}
       />
     );
   }

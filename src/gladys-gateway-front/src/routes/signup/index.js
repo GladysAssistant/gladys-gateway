@@ -16,7 +16,8 @@ class SignupPage extends Component {
     fieldsErrored: [],
     currentStep: 1,
     accountAlreadyExist: false,
-    signupCompleted: false
+    signupCompleted: false,
+    browserCompatible: Auth.testBrowserCompatibility()
   };
 
   validateEmail = email => {
@@ -98,10 +99,10 @@ class SignupPage extends Component {
 
   render(
     {},
-    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted }
+    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible }
   ) {
     return (
-      <SignupBase currentStep={currentStep}>
+      <SignupBase currentStep={currentStep} >
         {currentStep === 1 && (
           <SignupForm
             name={name}
@@ -114,6 +115,7 @@ class SignupPage extends Component {
             updatePassword={linkState(this, 'password')}
             validateForm={this.validateForm}
             signupCompleted={signupCompleted}
+            browserCompatible={browserCompatible}
           />
         )}
         {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} />}

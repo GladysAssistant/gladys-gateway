@@ -7,9 +7,16 @@ const LoginForm = ({ children, ...props }) => (
             <div class="text-center mb-6">
               <h2>Gladys Gateway</h2>
             </div>
+
             <form onSubmit={props.login} class="card">
               <div class="card-body p-6">
                 <div class="card-title">Login to your account</div>
+
+                { props.browserCompatible === false &&
+                  <div class="alert alert-danger" role="alert">
+                    Sorry, your browser is not compatible with the Gladys Gateway. Your browser should support the WebCrypto API as well as IndexedDB database.
+                  </div>
+                }
 
                 {!props.displayTwoFactorInput && (
                   <div class="form-group">

@@ -3,6 +3,7 @@ import DashboardInstance from './DashboardInstance';
 import Auth from '../../api/Auth';
 
 const REFRESH_INTERVAL = 5000;
+const INSTANCE_INFOS_CACHE_KEY = 'instances_infos';
 
 class DashboardInstancePage extends Component {
   
@@ -19,6 +20,7 @@ class DashboardInstancePage extends Component {
   };
 
   interval = null;
+  lastUpdated = null;
 
   connected = async () => {
     this.refreshStats();
@@ -45,6 +47,9 @@ class DashboardInstancePage extends Component {
       instanceInfos.deviceTypeCountReadable = this.convertNumberToReadable(instanceInfos.deviceTypeCount);
       
       this.setState({ instanceInfos });
+      this.lastUpdated = new Date();
+
+      Auth.cache.set(INSTANCE_INFOS_CACHE_KEY, { instanceInfos, lastUpdated: new Date() });
     } catch (err) {
       if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
         this.setState({ noInstanceFoundError: true });
@@ -109,6 +114,14 @@ class DashboardInstancePage extends Component {
 
   restartGladys = async () => {
     await Auth.request.post('/system/shutdown');
+  }
+
+  componentDidMount = async () => {
+    const { instanceInfos } = await Auth.cache.get(INSTANCE_INFOS_CACHE_KEY);
+    
+    if (this.lastUpdated === null) {
+      this.setState({ instanceInfos });
+    }
   }
 
   componentWillUnmount = () => {

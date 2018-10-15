@@ -267,6 +267,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
 
   async function userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {
 
+    if(state.socket) {
+      return Promise.resolve({ authenticated: true });
+    }
+
     state.isInstance = false;
     const accessToken = await getAccessToken(refreshToken);
     
@@ -312,8 +316,34 @@ module.exports = function ({ cryptoLib, serverUrl }) {
    * Instance API
    */
 
-  async function getUsersInstance(){
+  async function getUsersInstance() {
     return requestApi.get(serverUrl + '/instances/users', state);
+  }
+
+  async function refreshUsersList() {
+
+    // first, we get all users in instance
+    var users = await getUsersInstance();
+  
+    users.forEach(async (user) => {
+
+      // if the user is not in cache
+      if(!state.keysDictionnary[user.id]) {
+        
+        // we cache the keys for later use
+        state.keysDictionnary[user.id] = {
+          id: user.id,
+          connected: user.connected,
+          ecdsaPublicKey: await crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
+          rsaPublicKey: await crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true)
+        };
+      } 
+      
+      // if the user is already in cache, we just save his connected status
+      else {
+        state.keysDictionnary[user.id].connected = user.connected;
+      }
+    });
   }
 
   async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
@@ -334,6 +364,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     const accessToken = await getAccessTokenInstance(refreshToken);
     state.accessToken = accessToken;
 
+    // refresh user list
+    await refreshUsersList();
+
     return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
@@ -351,37 +384,19 @@ module.exports = function ({ cryptoLib, serverUrl }) {
           var ecdsaPublicKey = null;
           var rsaPublicKey = null;
           
-          // we test if keys exist in RAM
+          // if we don't have the key in RAM, we refresh the user list
+          if (!state.keysDictionnary[data.sender_id]) {
+            await refreshUsersList();
+          }
+
           if (state.keysDictionnary[data.sender_id]) {
             ecdsaPublicKey = state.keysDictionnary[data.sender_id].ecdsaPublicKey;
             rsaPublicKey = state.keysDictionnary[data.sender_id].rsaPublicKey;
-          } 
-          
-          // else, we get them
-          else {
-            var users = await getUsersInstance();
-          
-            users.forEach((user) => {
-              
-              // we cache the keys for later use
-              state.keysDictionnary[user.id] = {
-                ecdsaPublicKey: JSON.parse(user.ecdsa_public_key),
-                rsaPublicKey: JSON.parse(user.rsa_public_key)
-              };
-
-              if(user.id == data.sender_id) {
-                ecdsaPublicKey = state.keysDictionnary[user.id].ecdsaPublicKey;
-                rsaPublicKey = state.keysDictionnary[user.id].rsaPublicKey;
-              }
-            });
           }
 
           if(ecdsaPublicKey == null || rsaPublicKey == null) {
             throw new Error('User not found');
           }
-
-          ecdsaPublicKey = await crypto.importKey(ecdsaPublicKey, 'ECDSA', true);
-          rsaPublicKey = await crypto.importKey(rsaPublicKey, 'RSA-OEAP', true);
 
           var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, ecdsaPublicKey, data.encryptedMessage);
           
@@ -397,6 +412,39 @@ module.exports = function ({ cryptoLib, serverUrl }) {
         console.log('Socket disconnected');
         state.accessToken = await getAccessToken(refreshToken);
       });
+    });
+  }
+
+  async function sendMessageAllUsers(data) {
+    
+    if(state.socket === null) {
+      throw new Error('Not connected to socket, cannot send message');
+    }
+
+    await refreshUsersList();
+
+    for(var userId in state.keysDictionnary) {
+      
+      // we send the message only if the user is connected
+      if(state.keysDictionnary[userId].connected) {
+        const encryptedMessage = await crypto.encryptMessage(state.keysDictionnary[userId].rsaPublicKey,  state.ecdsaKeys.private_key, data);
+        
+        let payload = {
+          user_id: userId,
+          encryptedMessage
+        };
+
+        state.socket.emit('message', payload);
+      }
+    }
+  }
+
+  async function newEventInstance(event, data) {
+    return sendMessageAllUsers({
+      version: '1.0',
+      type: 'gladys-event',
+      event, 
+      data
     });
   }
 
@@ -498,6 +546,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     instanceConnect,
     getUsersInstance,
     calculateLatency,
-    subcribeMonthlyPlan
+    subcribeMonthlyPlan,
+    sendMessageAllUsers,
+    newEventInstance
   };
 };

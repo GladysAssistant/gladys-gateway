@@ -49,8 +49,9 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   app.get('/users/access-token', asyncMiddleware(middlewares.refreshTokenAuth), asyncMiddleware(controllers.userController.getAccessToken));
 
-  app.post('/users/forgot-password', asyncMiddleware(controllers.userController.forgotPassword));
-  app.post('/users/reset-password', asyncMiddleware(controllers.userController.resetPassword));
+  app.post('/users/forgot-password', middlewares.rateLimiter, asyncMiddleware(controllers.userController.forgotPassword));
+  app.post('/users/reset-password', middlewares.rateLimiter, asyncMiddleware(controllers.userController.resetPassword));
+  app.get('/users/reset-password/:token', middlewares.rateLimiter, asyncMiddleware(controllers.userController.getEmailResetPassword));
 
   // devices
   app.get('/users/me/devices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.deviceController.getDevices));

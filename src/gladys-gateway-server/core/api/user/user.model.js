@@ -11,7 +11,7 @@ const schema = require('../../common/schema');
 const redisLoginSessionExpiryInSecond = 60;
 const resetPasswordTokenExpiryInMilliSeconds = 2*60*60*1000;
 
-module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
+module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService, socketModel) {
 
   /**
    * Create a new user with his email and language
@@ -420,6 +420,27 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     return resetPassword;
   }
 
+  async function getEmailResetPassword(forgotPasswordToken) {
+
+    var tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
+    
+    var resetPasswordRequest = await db.t_reset_password.findOne({
+      token_hash: tokenHash,
+      used: false,
+      is_deleted: false
+    });
+
+    if(resetPasswordRequest === null) {
+      throw new NotFoundError();
+    }
+
+    var userWithEmail = await db.t_user.findOne({
+      id: resetPasswordRequest.user_id
+    }, {fields: ['id', 'email', 'two_factor_enabled']});
+
+    return userWithEmail;
+  }
+
   async function resetPassword(forgotPasswordToken, data) {
     
     // first, we validate the data sent
@@ -453,7 +474,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
 
     var userWithSecret = await db.t_user.findOne({
       id: resetPasswordRequest.user_id
-    }, {fields: ['id', 'two_factor_secret', 'two_factor_enabled']});
+    }, {fields: ['id', 'two_factor_secret', 'two_factor_enabled', 'account_id']});
 
     // user need its two factor token to reset password if enabled
     if(userWithSecret.two_factor_enabled === true) {
@@ -494,6 +515,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
         used: true
       });
 
+      // ask all instances in this account to clear their key cache
+      await socketModel.askInstanceToClearKeyCache(userWithSecret.account_id);
+
       logger.info(`Reset password: Successfully invalidated ${sessionsInvalidated.length} sessions.`);
 
       return newUser;
@@ -533,6 +557,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     getAccessToken,
     forgotPassword,
     resetPassword,
+    getEmailResetPassword,
     getMySelf,
     getSetupState
   };

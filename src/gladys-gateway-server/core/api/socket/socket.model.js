@@ -128,6 +128,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     });
   }
 
+  async function askInstanceToClearKeyCache(accountId) {
+    io.to('account:instances:' + accountId).emit('clear-key-cache');
+  }
+
   return {
     authenticateUser,
     disconnectUser,
@@ -135,6 +139,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     disconnectInstance,
     handleNewMessageFromUser,
     handleNewMessageFromInstance,
-    hello
+    hello,
+    askInstanceToClearKeyCache
   };
 };

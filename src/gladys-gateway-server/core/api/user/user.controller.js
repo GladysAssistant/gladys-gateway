@@ -322,6 +322,23 @@ module.exports = function(userModel, mailgunService) {
     res.json(state);
   }
 
+  /**
+   * @api {get} /users/reset-password/:token Get reset password user
+   * @apiName Get reset password user
+   * @apiGroup User
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function getEmailResetPassword(req, res, next) {
+    const user = await userModel.getEmailResetPassword(req.params.token);
+    res.json(user);
+  }
+
   return {
     signup,
     updateUser,
@@ -336,6 +353,7 @@ module.exports = function(userModel, mailgunService) {
     forgotPassword,
     resetPassword,
     getMySelf,
-    getSetupState
+    getSetupState,
+    getEmailResetPassword
   };
 };

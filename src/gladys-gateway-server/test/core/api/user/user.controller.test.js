@@ -556,6 +556,27 @@ describe('POST /users/reset-password', function() {
   });
 });
 
+
+describe('GET /users/reset-password/:token', function() {
+  var token = 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07';
+  
+  it('should return email of the user', function() {
+    return request(TEST_BACKEND_APP)
+      .get('/users/reset-password/' + token)
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, {
+          id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+          email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+          two_factor_enabled: true
+        });
+      });
+  });
+
+});
+
 describe('GET /users/setup', function() {
   it('should get setup state', function() {
     return request(TEST_BACKEND_APP)

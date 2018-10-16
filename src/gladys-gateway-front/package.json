@@ -34,7 +34,6 @@
     "idb": "^2.1.3",
     "immutability-helper": "^2.8.1",
     "jquery": "^3.3.1",
-    "js-cookie": "^2.2.0",
     "linkstate": "^1.1.1",
     "popper.js": "^1.14.4",
     "preact": "^8.2.6",

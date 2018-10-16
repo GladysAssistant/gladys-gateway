@@ -1,6 +1,5 @@
 import config from '../../config';
 import gladysGatewayClient from '@gladysproject/gladys-gateway-js';
-import Cookies from 'js-cookie';
 import keyValStore from './keyValStore';
 import { route } from 'preact-router';
 

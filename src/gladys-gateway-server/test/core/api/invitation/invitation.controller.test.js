@@ -122,8 +122,8 @@ describe('GET /invitations/:id', function() {
       .expect(200)
       .then(response => {
         should.deepEqual(response.body, { 
-          email: "oneuserinvited@gladysproject.com",
-          id: "b141f826-5e43-4aa6-807e-a37d4e9177de"
+          email: 'oneuserinvited@gladysproject.com',
+          id: 'b141f826-5e43-4aa6-807e-a37d4e9177de'
         });
       });
   });

@@ -110,3 +110,21 @@ describe('POST /invitations/accept', function() {
       });
   });
 });
+
+
+describe('GET /invitations/:id', function() {
+  it('should get invitation', function() {
+    return request(TEST_BACKEND_APP)
+      .get('/invitations/' + 'b429430dfc4c1765ae97b15a76bd41fcef8f58ddf6c1bd19bce034cadc45b88f0a5f45f2f00fe0809aa5dcb8947bd8eb86a177609785d8d73e498b444b534413')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, { 
+          email: "oneuserinvited@gladysproject.com",
+          id: "b141f826-5e43-4aa6-807e-a37d4e9177de"
+        });
+      });
+  });
+});

@@ -57,8 +57,29 @@ module.exports = function(invitationModel) {
     });
   }
 
+  /**
+   * @api {get} /invitations/:id Get invitation
+   * @apiName Get invitation
+   * @apiGroup Invitation
+   *
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 201 CREATED
+   * 
+   * {
+   *   "id": "61243769-6b09-496d-85f6-2189bd54662e",
+   *   "email": "tony.stark@gladysproject.com"
+   * }
+   */
+  async function getInvitation(req, res, next) {
+    var invitation = await invitationModel.getInvitation(req.params.id);
+    
+    res.json(invitation);
+  }
+
   return {
     inviteUser,
-    accept
+    accept,
+    getInvitation
   };
 };

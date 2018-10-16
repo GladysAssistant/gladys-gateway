@@ -57,7 +57,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       });
 
       await mailgunService.send(userWithAccount, 'invitation', {
-        invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/invitation-link/' + encodeURI(token),
+        invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token),
         nameOfAdminInviting: userWithAccount.name
       });
 
@@ -123,8 +123,27 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
     });
   }
 
+  async function getInvitation(token){
+    var tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // we look if for the token hash in the db
+    var invitation = await db.t_invitation.findOne({
+      token_hash: tokenHash,
+      revoked: false,
+      accepted: false,
+      is_deleted: false
+    }, { fields: ['id', 'email'] });
+
+    if(invitation === null) {
+      throw new NotFoundError();
+    }
+
+    return invitation;
+  }
+
   return {
     inviteUser,
-    accept
+    accept,
+    getInvitation
   };
 };

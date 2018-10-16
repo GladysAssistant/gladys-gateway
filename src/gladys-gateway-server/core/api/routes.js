@@ -66,6 +66,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   // invitation
   app.post('/invitations', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.invitationController.inviteUser));
   app.post('/invitations/accept', middlewares.rateLimiter, asyncMiddleware(controllers.invitationController.accept));
+  app.get('/invitations/:id', middlewares.rateLimiter, asyncMiddleware(controllers.invitationController.getInvitation));
 
   // account
   app.get('/accounts/users', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getUsers));

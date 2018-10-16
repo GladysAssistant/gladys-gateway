@@ -43,6 +43,7 @@ CREATE TABLE t_device (
     refresh_token_hash character varying,
     revoked boolean DEFAULT false NOT NULL,
     user_id uuid NOT NULL,
+    last_seen timestamptz NOT NULL default now(),
     created_at timestamptz NOT NULL default now(),
     updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL

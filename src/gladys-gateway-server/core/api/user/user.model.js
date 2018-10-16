@@ -382,6 +382,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     var scope =  ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
     var accessToken = jwtService.generateAccessToken(user, scope);
 
+    // set the last seen to now
+    await db.t_device.update(device.id, {
+      last_seen: new Date()
+    });
+
     return {
       access_token: accessToken
     };

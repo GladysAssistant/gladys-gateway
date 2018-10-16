@@ -5,7 +5,7 @@ const Geolocation = ({ children, ...props }) => (
       <h3 class="card-title">Geolocation</h3>
     </div>
     <div class="card-body">
-      
+      Coming soon...
     </div>
   </div>
 );

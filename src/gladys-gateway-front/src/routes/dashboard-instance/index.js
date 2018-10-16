@@ -117,10 +117,10 @@ class DashboardInstancePage extends Component {
   }
 
   componentDidMount = async () => {
-    const { instanceInfos } = await Auth.cache.get(INSTANCE_INFOS_CACHE_KEY);
+    let result = await Auth.cache.get(INSTANCE_INFOS_CACHE_KEY);
     
-    if (this.lastUpdated === null) {
-      this.setState({ instanceInfos });
+    if (result && result.instanceInfos && this.lastUpdated === null) {
+      this.setState({ instanceInfos: result.instanceInfos });
     }
   }
 

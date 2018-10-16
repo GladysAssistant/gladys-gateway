@@ -12,7 +12,7 @@ const DashboardProfile = ({ children, ...props }) => (
             <div class="card-header" style="background-image: url(demo/photos/eberhard-grossgasteiger-311213-500.jpg);" />
             { props.user &&
               <div class="card-body text-center">
-                <img class="card-profile-img" src={'/assets/images/undraw_profile_pic.svg' || props.user.profile_url} />
+                <img class="card-profile-img" src={'/assets/images/undraw_profile_pic.svg' || props.user.profile_url} />
                 <h3 class="mb-3">{props.user.name}</h3>
                 <p class="mb-4">
                   {props.user.role}

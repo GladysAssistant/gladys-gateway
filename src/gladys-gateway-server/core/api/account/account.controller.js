@@ -55,9 +55,89 @@ module.exports = function(accountModel) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {patch} /accounts/source Update card
+   * @apiName Update card
+   * @apiGroup Account
+   * 
+   * @apiParam {String} stripe_source_id Stripe source id
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function updateCard(req, res, next) {
+    await accountModel.updateCard(req.user, req.body.stripe_source_id);
+    res.json({ success: true });
+  }
+
+  /**
+   * @api {get} /accounts/source Get card
+   * @apiName Get card
+   * @apiGroup Account
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "brand": "VISA",
+   *   "country": "US",
+   *   "exp_month": 10,
+   *   "exp_year": 2020,
+   *   "last4": 4242
+   * }
+   */
+  async function getCard(req, res, next) {
+    let card = await accountModel.getCard(req.user);
+    res.json(card);
+  }
+
+  /**
+   * @api {post} /accounts/cancel Cancel plan
+   * @apiName Cancel plan
+   * @apiGroup Account
+   * 
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function cancelMonthlySubscription(req, res, next) {
+    await accountModel.cancelMonthlySubscription(req.user);
+    res.json({ success: true});
+  }
+
+  /**
+   * @api {post} /accounts/resubscribe Resubscribe to plan
+   * @apiName Resubscribe plan
+   * @apiGroup Account
+   * 
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "current_period_end": 1537841579580,
+   * }
+   */
+  async function subscribeAgainToMonthlySubscription(req, res, next) {
+    var account = await accountModel.subscribeAgainToMonthlySubscription(req.user);
+    res.json({ current_period_end: account.current_period_end });
+  }
+
   return {
     getUsers,
     subscribeMonthlyPlan,
+    subscribeAgainToMonthlySubscription,
+    updateCard,
+    getCard,
+    cancelMonthlySubscription,
     stripeEvent
   };
 };

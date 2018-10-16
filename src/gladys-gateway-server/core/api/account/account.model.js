@@ -1,4 +1,5 @@
 const { AlreadyExistError } = require('../../common/error');
+const Promise = require('bluebird');
 
 module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
@@ -61,6 +62,108 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
     var toUpdate = {
       stripe_customer_id: customer.id,
+      stripe_subscription_id: subscription.id,
+      current_period_end: new Date(subscription.current_period_end * 1000)
+    };
+
+    var accountUpdated = await db.t_account.update(userWithAccount.account_id, toUpdate, {
+      fields: ['id', 'current_period_end']
+    });
+
+    return accountUpdated;
+  }
+
+  async function updateCard(user, sourceId) {
+    
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // get the account
+    var account = await db.t_account.findOne({
+      id: userWithAccount.account_id
+    }, {fields: ['id', 'stripe_customer_id']});
+
+    // update the customer on stripe side
+    var customer = await stripeService.updateCard(account.stripe_customer_id, sourceId);
+
+    return customer;
+  }
+
+  async function getCard(user) {
+     
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // get the account
+    var account = await db.t_account.findOne({
+      id: userWithAccount.account_id
+    }, {fields: ['id', 'stripe_customer_id', 'stripe_subscription_id']});
+
+    // get card
+    var results = await Promise.all([
+      stripeService.getCard(account.stripe_customer_id),
+      stripeService.getSubscription(account.stripe_subscription_id)
+    ]);
+
+    var card = results[0];
+    
+    // we add subscription cancellation 
+    if (results[1]) {
+      if(results[1].canceled_at) {
+        card.canceled_at = new Date(results[1].canceled_at * 1000);
+      } else {
+        card.canceled_at = null;
+      }
+      card.current_period_end = new Date(results[1].current_period_end * 1000);
+    }
+
+    return card;
+  }
+
+  async function cancelMonthlySubscription(user) {
+    
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // get the account
+    var account = await db.t_account.findOne({
+      id: userWithAccount.account_id
+    }, {fields: ['id', 'stripe_customer_id', 'stripe_subscription_id']});
+
+    return stripeService.cancelMonthlySubscription(account.stripe_subscription_id);
+  }
+
+  async function subscribeAgainToMonthlySubscription(user) {
+    
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // get the account
+    var account = await db.t_account.findOne({
+      id: userWithAccount.account_id
+    }, {fields: ['id', 'stripe_customer_id']});
+
+    // contact stripe to save the subscription id
+    var subscription = await stripeService.subscribeToMonthlyPlan(account.stripe_customer_id);
+
+    // it means stripe is disabled
+    // so we add to the account 100 years of life
+    if(subscription === null) {
+      subscription = {
+        id: 'stripe-subcription-sample',
+        current_period_end: new Date().getTime() + 100*365*24*60*60*1000
+      };
+    }
+
+    var toUpdate = {
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000)
     };
@@ -152,7 +255,11 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
   return {
     getUsers,
+    updateCard,
     subscribeMonthlyPlan,
-    stripeEvent
+    cancelMonthlySubscription,
+    subscribeAgainToMonthlySubscription,
+    stripeEvent,
+    getCard
   };
 };

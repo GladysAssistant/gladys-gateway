@@ -70,6 +70,10 @@ module.exports.load = function(app, io, controllers, middlewares) {
   // account
   app.get('/accounts/users', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getUsers));
   app.post('/accounts/subscribe', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.subscribeMonthlyPlan));
+  app.post('/accounts/resubscribe', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.subscribeAgainToMonthlySubscription));
+  app.patch('/accounts/source', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.updateCard));
+  app.get('/accounts/source', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getCard));
+  app.post('/accounts/cancel', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.cancelMonthlySubscription));
   app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
   
   // socket

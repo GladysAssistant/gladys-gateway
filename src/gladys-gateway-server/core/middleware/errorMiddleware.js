@@ -11,6 +11,11 @@ module.exports = function(error, req, res, next) {
     var error = new PaymentRequiredError(error.message);
     return res.status(error.getStatus()).json(error.jsonError());
   } 
+
+  else if(error && error.statusCode && error.statusCode === 404) {
+    var error = new NotFoundError();
+    return res.status(error.getStatus()).json(error.jsonError());
+  }
   
   else {
     console.log(error);

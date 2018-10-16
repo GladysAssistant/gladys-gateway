@@ -40,6 +40,48 @@ module.exports = function (logger) {
     return result;
   }
 
+  async function updateCard(stripeCustomerId, sourceId) {
+     
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(null);
+    }
+
+    var result = await stripe.customers.update(stripeCustomerId, {
+      source: sourceId
+    });
+
+    return result;
+  }
+
+  async function getCard(stripeCustomerId) {
+    
+    if(stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(null);
+    }
+
+    var customer = await stripe.customers.retrieve(stripeCustomerId);
+
+    if(customer && customer.sources && customer.sources.data && customer.sources.data.length > 0) {
+      var card = customer.sources.data[0];
+
+      return {
+        brand: card.brand,
+        country: card.country,
+        exp_month: card.exp_month,
+        exp_year: card.exp_year,
+        last4: card.last4 
+      };
+    } else {
+      return null;
+    }
+  }
+
+  async function getSubscription(stripeSubscriptionId) {
+    return stripe.subscriptions.retrieve(stripeSubscriptionId);
+  }
+
   async function cancelMonthlySubscription(stripeSubscriptionId) {
     
     if(stripe === null) {
@@ -77,7 +119,10 @@ module.exports = function (logger) {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
     createCustomer,
+    getCard,
+    updateCard,
     verifyEvent,
-    getSubscriptionCurrentPeriodEnd
+    getSubscriptionCurrentPeriodEnd,
+    getSubscription
   };
 };

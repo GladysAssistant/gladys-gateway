@@ -26,7 +26,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     keysDictionnary: {}
   };
 
-  async function signup(rawName, rawEmail, rawPassword, rawLanguage) {
+  async function signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
     var name = rawName.trim();
     var email = rawEmail.trim().toLowerCase();
     var password = rawPassword.trim();
@@ -57,8 +57,13 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
       ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey)
     };
-    
-    return axios.post(serverUrl + '/users/signup', newUser);
+
+    if(invitationToken) {
+      newUser.token = invitationToken;
+      return axios.post(serverUrl + '/invitations/accept', newUser);
+    } else {
+      return axios.post(serverUrl + '/users/signup', newUser);
+    }
   }
 
   async function login(rawEmail, rawPassword) {
@@ -288,6 +293,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
 
   async function inviteUser(email, role) {
     return requestApi.post(serverUrl + '/invitations', { email, role },  state);
+  }
+
+  async function getInvitation(token) {
+    return requestApi.get(serverUrl + '/invitations/' + token, state);
   }
 
   async function getSetupState() {
@@ -617,6 +626,7 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getUsersInAccount,
     getInstance,
     inviteUser,
+    getInvitation,
     loginInstance,
     createInstance,
     getAccessTokenInstance,

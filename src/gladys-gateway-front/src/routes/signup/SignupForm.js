@@ -12,6 +12,11 @@ const SignupForm = ({ children, ...props }) => (
           Sorry, your browser is not compatible with the Gladys Gateway. Your browser should support the WebCrypto API as well as IndexedDB database.
       </div>
       }
+      {props.invitationError &&
+       <div class="alert alert-danger" role="alert">
+       We cannot retrieve your invitation. Maybe it was already used or has expired!
+       </div>
+      }
       <div className="form-group">
         <label className="form-label">Name</label>
         <input
@@ -30,6 +35,7 @@ const SignupForm = ({ children, ...props }) => (
           className={'form-control ' + (props.fieldsErrored.includes('email') ? 'is-invalid' : '')}
           placeholder="Enter email"
           value={props.email}
+          disabled={props.token && 'disabled'}
           onInput={props.updateEmail}
         />
         <div class="invalid-feedback">Email is not valid</div>

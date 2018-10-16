@@ -70,7 +70,7 @@ class SignupPage extends Component {
       return;
     }
 
-    Auth.signup(newUser)
+    Auth.signup(newUser.name, newUser.email, newUser.password, newUser.language, this.props.token)
       .then(() => {
         setTimeout(() => {
           this.setState({
@@ -97,9 +97,17 @@ class SignupPage extends Component {
       });
   };
 
+  componentDidMount = () => {
+    if (this.props.token) {
+      Auth.getInvitation(this.props.token)
+        .then((invitation) => this.setState({ email: invitation.email }))
+        .catch(() => this.setState({ invitationError: true }));
+    }
+  };
+
   render(
     {},
-    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible }
+    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError }
   ) {
     return (
       <SignupBase currentStep={currentStep} >
@@ -116,9 +124,11 @@ class SignupPage extends Component {
             validateForm={this.validateForm}
             signupCompleted={signupCompleted}
             browserCompatible={browserCompatible}
+            token={this.props.token}
+            invitationError={invitationError}
           />
         )}
-        {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} />}
+        {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} token={this.props.token} />}
       </SignupBase>
     );
   }

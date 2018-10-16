@@ -52,9 +52,18 @@ class SetupPage extends Component {
 
   activateStep3 = async () => {
     let user = await Auth.getMySelf();
-    let usersInGladys = await Auth.request.get('/user');
-    let gladysUserSelected = usersInGladys.length ? usersInGladys[0].id : null;
-    this.setState({ step: 3, user, usersInGladys, gladysUserSelected });
+    
+    try {
+      let usersInGladys = await Auth.request.get('/user');
+      let gladysUserSelected = usersInGladys.length ? usersInGladys[0].id : null;
+      this.setState({ step: 3, user, usersInGladys, gladysUserSelected });
+    } catch (err) {
+      
+      // in case we can't find the instance
+      if (err && err.status === 404) {
+        this.setState({ step: 2 });
+      }
+    }
   };
 
   saveUserInInGladys = async () => {

@@ -5,7 +5,10 @@ const SignupGeneratingKeys = ({ children, ...props }) => (
     <div className="card-body p-6">
       <div className="card-title" style={{ textAlign: 'center' }}>
         {!props.signupCompleted && 'Generating your public/private keys...'}
-        {props.signupCompleted && 'Done! Please check your emails.'}
+        {props.signupCompleted && !props.token && 'Done! Please check your emails.'}
+        {props.signupCompleted && props.token &&
+          <p>Done! You can now login <a href="/login" style="color: blue">here</a>.</p>
+        }
       </div>
       {!props.signupCompleted && <div class={style.spWave + ' ' + style.sp} />}
 

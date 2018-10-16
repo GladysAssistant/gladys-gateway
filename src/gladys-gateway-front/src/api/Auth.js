@@ -21,7 +21,7 @@ function redirectWrapper(func) {
 const Auth = {
   login: data => client.login(data.email, data.password),
   loginTwoFactor: client.loginTwoFactor,
-  signup: data => client.signup(data.name, data.email, data.password, data.language),
+  signup: client.signup,
   confirmEmail: token => client.confirmEmail(token),
   configureTwoFactor: accessToken => client.configureTwoFactor(accessToken),
   enableTwoFactor: (accessToken, twoFactorCode) =>
@@ -45,6 +45,7 @@ const Auth = {
   },
   getUsersInAccount: () => client.getUsersInAccount(),
   inviteUser: client.inviteUser,
+  getInvitation: client.getInvitation,
   calculateLatency: () => client.calculateLatency(),
   connectSocket: async callback => {
     let refreshToken = await keyValStore.get('refresh_token');

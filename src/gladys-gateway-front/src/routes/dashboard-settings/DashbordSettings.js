@@ -38,7 +38,19 @@ const DashboardSettings = ({ children, ...props }) => (
           {props.currentTab === 'sessions' && <Sessions devices={props.devices} revokeDevice={props.revokeDevice} /> }
           {props.currentTab === 'geolocation' && <Geolocation /> }
           {props.currentTab === 'accounts' && <Accounts /> }
-          {props.currentTab === 'billing' && <Billing /> }
+          {props.currentTab === 'billing' &&
+            <Billing
+              stripeLoaded={props.stripeLoaded}
+              saveBillingInformations={props.saveBillingInformations}
+              userCardName={props.userCardName}
+              updateUserCardName={props.updateUserCardName}
+              card={props.card} cancelMonthlySubscription={props.cancelMonthlySubscription}
+              cancelMonthlySubscriptionError={props.cancelMonthlySubscriptionError}
+              cancelMonthlySubscriptionSuccess={props.cancelMonthlySubscriptionSuccess}
+              reSubcribeMonthlyPlan={props.reSubcribeMonthlyPlan}
+              reSubscribeMonthlyPlanError={props.reSubscribeMonthlyPlanError}
+            />
+          }
         </div>
       
       </div>

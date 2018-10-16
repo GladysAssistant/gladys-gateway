@@ -56,6 +56,10 @@ const Auth = {
   getInstance: () => client.getInstance(),
   getSetupState: () => client.getSetupState(),
   subcribeMonthlyPlan: sourceId => client.subcribeMonthlyPlan(sourceId),
+  reSubcribeMonthlyPlan: client.reSubcribeMonthlyPlan,
+  getCard: client.getCard,
+  cancelMonthlyPlan: client.cancelMonthlyPlan,
+  updateCard: client.updateCard,
   request: {
     get: redirectWrapper(client.request.get),
     post: redirectWrapper(client.request.post),

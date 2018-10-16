@@ -298,6 +298,22 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return requestApi.post(serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, state);
   }
 
+  async function reSubcribeMonthlyPlan() {
+    return requestApi.post(serverUrl + '/accounts/resubscribe', {}, state);
+  }
+
+  async function updateCard(sourceId) {
+    return requestApi.patch(serverUrl + '/accounts/source', { stripe_source_id: sourceId }, state);
+  }
+
+  async function getCard() {
+    return requestApi.get(serverUrl + '/accounts/source', state);
+  }
+
+  async function cancelMonthlyPlan() {
+    return requestApi.post(serverUrl + '/accounts/cancel', {}, state);
+  }
+
   async function getInstance() {
     let instances = await requestApi.get(serverUrl + '/instances', state);
 
@@ -608,6 +624,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getUsersInstance,
     calculateLatency,
     subcribeMonthlyPlan,
+    reSubcribeMonthlyPlan,
+    updateCard,
+    getCard,
+    cancelMonthlyPlan,
     sendMessageAllUsers,
     newEventInstance
   };

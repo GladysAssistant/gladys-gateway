@@ -39,7 +39,8 @@ module.exports = async () => {
     socketModel: require('./api/socket/socket.model')(logger, db, redisClient, io, services.fingerprint),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
-    accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService)
+    accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService),
+    deviceModel: require('./api/device/device.model')(logger, db, redisClient)
   };
 
   const controllers = {
@@ -48,7 +49,8 @@ module.exports = async () => {
     socketController: require('./api/socket/socket.controller')(logger, models.socketModel, io),
     instanceController: require('./api/instance/instance.controller')(models.instanceModel),
     invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),
-    accountController: require('./api/account/account.controller')(models.accountModel)
+    accountController: require('./api/account/account.controller')(models.accountModel),
+    deviceController: require('./api/device/device.controller')(models.deviceModel),
   };
 
   const middlewares = {

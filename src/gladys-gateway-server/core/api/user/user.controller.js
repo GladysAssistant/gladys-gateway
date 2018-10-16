@@ -322,25 +322,6 @@ module.exports = function(userModel, mailgunService) {
     res.json(state);
   }
 
-  /**
-   * @api {get} /users/me/devices Get connected devices
-   * @apiName Get connected devices
-   * @apiGroup User
-   *
-   * 
-   * @apiSuccessExample {json} Success-Response:
-   * HTTP/1.1 200 OK
-   * 
-   * [{
-   *   "id": "272eff3c-2069-4734-84f3-8e42086475f5",
-   *   "name": "Firefox Tony Stark"
-   * }]
-   */
-  async function getDevices(req, res, next) {
-    const devices = await userModel.getDevices(req.user);
-    res.json(devices);
-  }
-
   return {
     signup,
     updateUser,
@@ -355,7 +336,6 @@ module.exports = function(userModel, mailgunService) {
     forgotPassword,
     resetPassword,
     getMySelf,
-    getSetupState,
-    getDevices
+    getSetupState
   };
 };

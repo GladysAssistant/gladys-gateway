@@ -52,7 +52,9 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/users/forgot-password', asyncMiddleware(controllers.userController.forgotPassword));
   app.post('/users/reset-password', asyncMiddleware(controllers.userController.resetPassword));
 
-  app.get('/users/me/devices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.userController.getDevices));
+  // devices
+  app.get('/users/me/devices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.deviceController.getDevices));
+  app.post('/devices/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.deviceController.revokeDevice));
 
   // instance
   app.get('/instances', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.instanceController.getInstances));

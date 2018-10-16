@@ -1,14 +1,17 @@
-import Layout from '../../components/Layout';
+import { Component } from 'preact';
+import DashboardHelp from './DashboardHelp';
 
-const DashboardHelp = ({ children, ...props }) => (
-  <Layout user={props.user} callback={props.callback}>
-    <div class="container">
-      <div class="page-header">
-        <h1 class="page-title">Help</h1>
-      </div>
-      
-    </div>
-  </Layout>
-);
+class DashboarHelpPage extends Component {
+  
+  state = {
 
-export default DashboardHelp;
+  };
+
+  render({}, { user, newUser, errors, userSavedSuccess }) {
+    return (
+      <DashboardHelp />
+    );
+  }
+}
+
+export default DashboarHelpPage;

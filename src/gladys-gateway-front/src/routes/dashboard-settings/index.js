@@ -1,14 +1,25 @@
-import Layout from '../../components/Layout';
+import { Component } from 'preact';
+import DashbordSettings from './DashbordSettings';
 
-const DashboardSettings = ({ children, ...props }) => (
-  <Layout user={props.user} callback={props.callback}>
-    <div class="container">
-      <div class="page-header">
-        <h1 class="page-title">Settings</h1>
-      </div>
-      
-    </div>
-  </Layout>
-);
+class DashboarSettingsPage extends Component {
+  
+  state = {
+    currentTab: 'sessions'
+  };
 
-export default DashboardSettings;
+  changeTab = (e) => {
+    e.preventDefault();
+    this.setState({ currentTab: e.target.getAttribute('data-target') });
+  };
+
+  render({}, { currentTab }) {
+    return (
+      <DashbordSettings
+        currentTab={currentTab}
+        changeTab={this.changeTab}
+      />
+    );
+  }
+}
+
+export default DashboarSettingsPage;

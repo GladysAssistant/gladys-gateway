@@ -514,6 +514,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       user_gladys_acccount_linked: (fullUser.gladys_user_id !== null)
     };
   }
+
+  async function getDevices(user) {
+    var devices = await db.t_device.find({
+      user_id: user.id,
+      is_deleted: false,
+      revoked: false
+    }, { fields: ['id', 'name', 'created_at']});
+
+    return devices;
+  }
   
   return {
     signup,
@@ -529,6 +539,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     forgotPassword,
     resetPassword,
     getMySelf,
-    getSetupState
+    getSetupState,
+    getDevices
   };
 };

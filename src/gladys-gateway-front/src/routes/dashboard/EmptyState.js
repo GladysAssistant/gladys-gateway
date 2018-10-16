@@ -20,7 +20,7 @@ const EmptyState = ({ children, ...props }) => (
     />
     <p>
       Looks you don't have any devices in your house!
-      <br /> Read more <a href="">here</a> how to configure your house.
+      <br /> Define your rooms in Gladys, and add devices!
     </p>
   </div>
 );

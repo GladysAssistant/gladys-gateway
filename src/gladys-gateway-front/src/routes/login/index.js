@@ -38,20 +38,16 @@ class LoginPage extends Component {
     let twoFactorCode = this.state.twoFactorCode.replace(/\s/g, '');
 
     // we login
-    Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode)
+    Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode, window.navigator.userAgent)
 
       // we save the users info
       .then(data => Auth.saveLoginInformations(data))
 
       // we test if the user needs to be sent to setup
-      .then(() => Auth.getSetupState())
+      .then(() => Auth.isAccoutSetup())
 
-      .then(setupState => {
-        if (
-          setupState.billing_setup &&
-          setupState.gladys_instance_setup &&
-          setupState.user_gladys_acccount_linked
-        ) {
+      .then(isAccounSetup => {
+        if (isAccounSetup) {
           route('/dashboard');
         } else {
           route('/setup');

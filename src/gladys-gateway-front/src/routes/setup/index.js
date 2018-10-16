@@ -58,7 +58,7 @@ class SetupPage extends Component {
   };
 
   saveUserInInGladys = async () => {
-    await Auth.updateMyself({ gladys_user_id: this.state.gladysUserSelected });
+    await Auth.updateUserIdInGladys(this.state.gladysUserSelected);
     this.setState({ step: 4 });
   };
 

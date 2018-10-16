@@ -20,8 +20,7 @@ function redirectWrapper(func) {
 
 const Auth = {
   login: data => client.login(data.email, data.password),
-  loginTwoFactor: (accessToken, password, twoFactorCode) =>
-    client.loginTwoFactor(accessToken, password, twoFactorCode),
+  loginTwoFactor: client.loginTwoFactor,
   signup: data => client.signup(data.name, data.email, data.password, data.language),
   confirmEmail: token => client.confirmEmail(token),
   configureTwoFactor: accessToken => client.configureTwoFactor(accessToken),
@@ -29,6 +28,21 @@ const Auth = {
     client.enableTwoFactor(accessToken, twoFactorCode),
   getMySelf: redirectWrapper(client.getMyself),
   updateMyself: client.updateMyself,
+  updateUserIdInGladys: client.updateUserIdInGladys,
+  getDevices: client.getDevices,
+  revokeDevice: client.revokeDevice,
+  revokeCurrentDevice: async () => {
+    let deviceId = await keyValStore.get('device_id');
+    await client.revokeDevice(deviceId);
+  },
+  isAccoutSetup: async () => {
+    const setupState = await client.getSetupState();
+    return (
+      setupState.billing_setup &&
+      setupState.gladys_instance_setup &&
+      setupState.user_gladys_acccount_linked
+    );
+  },
   getUsersInAccount: () => client.getUsersInAccount(),
   inviteUser: client.inviteUser,
   calculateLatency: () => client.calculateLatency(),
@@ -52,6 +66,7 @@ const Auth = {
   saveLoginInformations: data => {
     keyValStore.set('refresh_token', data.refreshToken);
     keyValStore.set('access_token', data.accessToken);
+    keyValStore.set('device_id', data.deviceId);
 
     keyValStore.set('rsa_keys', data.rsaKeys);
     keyValStore.set('ecdsa_keys', data.ecdsaKeys);

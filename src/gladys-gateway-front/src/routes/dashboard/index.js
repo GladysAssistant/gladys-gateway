@@ -7,7 +7,7 @@ const DEVICE_TYPE_CACHE_KEY = 'devicetype_rooms';
 
 class DashboardPage extends Component {
   state = {
-    rooms: [],
+    rooms: null,
     noInstanceFoundError: false
   };
 

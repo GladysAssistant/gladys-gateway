@@ -15,13 +15,15 @@ const Dashboard = ({ children, ...props }) => (
         </div>
       )}
 
+      { props.rooms &&
       <DeviceList
         rooms={props.rooms}
         updateValue={props.updateValue}
         collapseRoom={props.collapseRoom}
       />
+      }
 
-      {false && <EmptyState />}
+      {props.rooms && props.rooms.length === 0 && <EmptyState />}
     </div>
   </Layout>
 );

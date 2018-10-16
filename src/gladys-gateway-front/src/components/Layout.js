@@ -19,8 +19,15 @@ class Layout extends Component {
     this.setState({ showCollapsedMenu: !this.state.showCollapsedMenu });
   };
 
-  logout = (e) => {
+  logout = async (e) => {
     e.preventDefault();
+    
+    try {
+      await Auth.revokeCurrentDevice();
+    } catch (e) {
+      console.log(e);
+    }
+
     Auth.cleanLocalState();
     route('/login');
   };
@@ -29,6 +36,12 @@ class Layout extends Component {
     Auth.connectSocket(this.props.newInstanceEvent)
       .then(() => Auth.getMySelf())
       .then(user => this.setState({ user }))
+      .then(() => Auth.isAccoutSetup())
+      .then((isAccountSetup) => {
+        if (!isAccountSetup) {
+          route('/setup');
+        }
+      })
       .then(() => {
         if (this.props.callback) {
           this.props.callback();

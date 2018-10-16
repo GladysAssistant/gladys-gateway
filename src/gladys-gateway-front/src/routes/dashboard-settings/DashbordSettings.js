@@ -5,11 +5,11 @@ import Geolocation from './Geolocation';
 import Sessions from './Sessions';
 
 const DashboardSettings = ({ children, ...props }) => (
-  <Layout user={props.user} callback={props.callback}>
+  <Layout user={props.user} callback={props.connected}>
     <div class="container">
       
       <div class="row">
-        <div class="col-md-3">
+        <div class="col-lg-3">
           <h3 class="page-title mb-5">Settings</h3>
           <div>
             <div class="list-group list-group-transparent mb-0">
@@ -34,8 +34,8 @@ const DashboardSettings = ({ children, ...props }) => (
           </div>
         </div>
 
-        <div class="col-md-9">
-          {props.currentTab === 'sessions' && <Sessions /> }
+        <div class="col-lg-9">
+          {props.currentTab === 'sessions' && <Sessions devices={props.devices} revokeDevice={props.revokeDevice} /> }
           {props.currentTab === 'geolocation' && <Geolocation /> }
           {props.currentTab === 'accounts' && <Accounts /> }
           {props.currentTab === 'billing' && <Billing /> }

@@ -87,9 +87,11 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return serverFinalLoginResult;
   }
 
-  async function loginTwoFactor(accessToken, password, code) {
+  async function loginTwoFactor(accessToken, password, code, deviceName) {
 
-    const result = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: code }, {
+    deviceName = deviceName || 'Unknown';
+
+    const result = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: code, device_name: deviceName }, {
       headers: {
         authorization: accessToken
       }
@@ -138,7 +140,8 @@ module.exports = function ({ cryptoLib, serverUrl }) {
       rsaKeys: state.rsaKeys,
       ecdsaKeys: state.ecdsaKeys,
       refreshToken: loginData.refresh_token,
-      accessToken: loginData.access_token
+      accessToken: loginData.access_token,
+      deviceId: loginData.device_id
     };
   }
 
@@ -265,8 +268,22 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return requestApi.patch(serverUrl + '/users/me', newUser, state);
   }
 
+  async function updateUserIdInGladys(userIdInGladys) {
+    return requestApi.patch(serverUrl + '/users/me', {
+      gladys_user_id: userIdInGladys
+    }, state);
+  }
+
   async function getUsersInAccount() {
     return requestApi.get(serverUrl + '/accounts/users', state);
+  }
+
+  async function getDevices() {
+    return requestApi.get(serverUrl + '/users/me/devices', state);
+  }
+
+  async function revokeDevice(deviceId) {
+    return requestApi.post(serverUrl + '/devices/' + deviceId + '/revoke', {}, state);
   }
 
   async function inviteUser(email, role) {
@@ -575,7 +592,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     confirmEmail,
     userConnect,
     getMyself,
+    getDevices,
+    revokeDevice,
     updateMyself,
+    updateUserIdInGladys,
     getSetupState,
     request,
     getUsersInAccount,

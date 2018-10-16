@@ -37,14 +37,14 @@ const Header = ({ children, ...props }) => (
                   (props.showDropDown && ' show')
                 }
               >
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="/dashboard/profile">
                   <i class="dropdown-icon fe fe-user" /> Profile
                 </a>
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="/dashboard/settings">
                   <i class="dropdown-icon fe fe-settings" /> Settings
                 </a>
                 <div class="dropdown-divider" />
-                <a class="dropdown-item" href="#">
+                <a class="dropdown-item" href="/dashboard/help">
                   <i class="dropdown-icon fe fe-help-circle" /> Need help?
                 </a>
                 <a class="dropdown-item" href="" onClick={props.logout}>

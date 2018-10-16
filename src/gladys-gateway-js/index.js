@@ -231,8 +231,38 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     return requestApi.get(serverUrl + '/users/me', state);
   }
 
-  async function updateMyself(data) {
-    return requestApi.patch(serverUrl + '/users/me', data, state);
+  async function updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
+    
+    var email = rawEmail.trim().toLowerCase();
+    var name = rawName.trim();
+    var language = rawLanguage.trim().substr(0, 2).toLowerCase();
+
+    var newUser = {
+      name,
+      email,
+      language
+    };
+
+    // if a password is provided
+    if(rawPassword) {
+      var password = rawPassword.trim();
+
+      // generate srp salt, privateKey and verifier
+      const srpSalt = srpClient.generateSalt();
+      const srpPrivateKey = arrayBufferToHex(await pbkdf2(encodeUtf8(`${email}:${password}`), hexToArrayBuffer(srpSalt), PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_HASH));
+      const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
+
+      // re-encrypte private keys
+      const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, state.rsaKeys.private_key);
+      const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, state.ecdsaKeys.private_key);
+
+      newUser.srp_salt = srpSalt;
+      newUser.srp_verifier = srpVerifier;
+      newUser.rsa_encrypted_private_key = JSON.stringify(rsaEncryptedPrivateKey);
+      newUser.ecdsa_encrypted_private_key = JSON.stringify(ecdsaEncryptedPrivateKey);
+    }
+
+    return requestApi.patch(serverUrl + '/users/me', newUser, state);
   }
 
   async function getUsersInAccount() {

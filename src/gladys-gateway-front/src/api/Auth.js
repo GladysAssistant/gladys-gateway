@@ -27,10 +27,8 @@ const Auth = {
   configureTwoFactor: accessToken => client.configureTwoFactor(accessToken),
   enableTwoFactor: (accessToken, twoFactorCode) =>
     client.enableTwoFactor(accessToken, twoFactorCode),
-  getAccessToken: () => Cookies.get(config.accessTokenCookieKey),
-  getRefreshToken: () => Cookies.get(config.refreshTokenCookieKey),
-  getMySelf: () => client.getMyself(),
-  updateMyself: data => client.updateMyself(data),
+  getMySelf: redirectWrapper(client.getMyself),
+  updateMyself: client.updateMyself,
   getUsersInAccount: () => client.getUsersInAccount(),
   inviteUser: client.inviteUser,
   calculateLatency: () => client.calculateLatency(),

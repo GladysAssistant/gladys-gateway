@@ -9,6 +9,9 @@ import Setup from '../routes/setup';
 import Dashboard from '../routes/dashboard';
 import DashboardUsers from '../routes/dashboard-users';
 import DashboardInstance from '../routes/dashboard-instance';
+import DashboardProfile from '../routes/dashboard-profile';
+import DashboardSettings from '../routes/dashboard-settings';
+import DashboardHelp from '../routes/dashboard-help';
 import ConfirmEmail from '../routes/confirm-email';
 import ForgotPassword from '../routes/forgot-password';
 import Auth from '../api/Auth';
@@ -40,6 +43,9 @@ export default class App extends Component {
           <Dashboard path="/dashboard" />
           <DashboardUsers path="/dashboard/users" />
           <DashboardInstance path="/dashboard/instance" />
+          <DashboardProfile path="/dashboard/profile" />
+          <DashboardSettings path="/dashboard/settings" />
+          <DashboardHelp path="/dashboard/help" />
         </Router>
       </div>
     );

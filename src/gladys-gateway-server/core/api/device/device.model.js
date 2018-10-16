@@ -7,7 +7,7 @@ module.exports = function DeviceModel(logger, db, redisClient) {
       user_id: user.id,
       is_deleted: false,
       revoked: false
-    }, { fields: ['id', 'name', 'created_at']});
+    }, { fields: ['id', 'name', 'created_at', 'last_seen']});
 
     return devices;
   }

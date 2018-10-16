@@ -5,7 +5,7 @@ const Header = ({ children, ...props }) => (
     <div class="header py-4">
       <div class="container">
         <div class="d-flex">
-          <a class="header-brand" href="./index.html">
+          <a class="header-brand" href="/dashboard">
             {false && (
               <img src="./demo/brand/tabler.svg" class="header-brand-img" alt="tabler logo" />
             )}

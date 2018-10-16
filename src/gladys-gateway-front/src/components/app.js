@@ -18,6 +18,11 @@ import Auth from '../api/Auth';
 
 export default class App extends Component {
   handleRoute = async e => {
+    
+    if (e.url === '/') {
+      route('/dashboard');
+    }
+    
     if (e.url.startsWith('/dashboard')) {
       let connected = await Auth.isConnected();
       if (connected) {

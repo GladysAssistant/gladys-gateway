@@ -6,13 +6,13 @@ module.exports = function(logger, socketModel, io) {
 
     var isClientAuthenticated = false;
 
-    // the client has 5 seconds to authenticate
+    // the client has 10 seconds to authenticate
     // if not, he is disconnected
     setTimeout(() => {
       if(isClientAuthenticated === false) {
         socket.disconnect();
       }
-    }, 5000);
+    }, 10000);
 
     socket.on('user-authentication', async function(data, fn) {
       
@@ -34,13 +34,13 @@ module.exports = function(logger, socketModel, io) {
     
         isClientAuthenticated = true;
 
-        logger.debug(`User ${user.id} connected in websockets`);
+        logger.info(`User ${user.id} connected in websockets`);
 
         // we answer the client that he is authenticated
         fn({authenticated: true});
 
         socket.on('disconnect', function () {
-          socketModel.disconnectUser(user);
+          // socket disconnected
         });
       } catch(e) {
         logger.warn(e);
@@ -72,7 +72,7 @@ module.exports = function(logger, socketModel, io) {
 
         isClientAuthenticated = true;
 
-        logger.debug(`Instance ${instance.id} connected in websockets`);
+        logger.info(`Instance ${instance.id} connected in websockets`);
 
         // we answer the client that he is authenticated
         fn({authenticated: true});
@@ -81,7 +81,7 @@ module.exports = function(logger, socketModel, io) {
         socketModel.hello(instance);
 
         socket.on('disconnect', function () {
-          socketModel.disconnectInstance(instance);
+          // socket disconnected
         });
 
       } catch(e) {

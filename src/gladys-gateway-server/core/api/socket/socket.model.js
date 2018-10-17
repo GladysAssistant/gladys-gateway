@@ -25,6 +25,48 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     }
   };
 
+  function getInstanceSocketId(instanceId) {
+    return new Promise(function(resolve, reject){
+      var roomName = 'instance:' + instanceId;
+
+      io.in(roomName).clients((err, clients) => {
+        if(err || clients.length === 0) {
+          reject();
+        } else {
+          resolve(clients[0]);
+        }
+      });
+    });
+  }
+
+  async function getUserSocketId(userId) {
+    return new Promise(function(resolve, reject){
+      var roomName = 'user:' + userId;
+
+      io.in(roomName).clients((err, clients) => {
+        if(err || clients.length === 0) {
+          reject();
+        } else {
+          resolve(clients[0]);
+        }
+      });
+    });
+  }
+
+  async function isUserConnected(userId) {
+    return new Promise(function(resolve, reject){
+      var roomName = 'user:' + userId;
+
+      io.in(roomName).clients((err, clients) => {
+        if(err || clients.length === 0) {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    });
+  }
+
   async function authenticateUser(accessToken, socketId){
     
     // we decode the jwt and see if the access token is right
@@ -42,14 +84,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
       id: decoded.user_id
     }, {fields: ['id', 'account_id']});
 
-    // we save in redis that the user is connected
-    await redisClient.setAsync('connected_user:' + user.id, socketId);
-
     return user;
-  }
-
-  async function disconnectUser(user) {
-    await redisClient.delAsync('connected_user:' + user.id);
   }
 
   async function authenticateInstance(accessToken, socketId) {
@@ -65,14 +100,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
       id: decoded.instance_id
     }, {fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key']});
 
-    // we save in redis that the instance is connected
-    await redisClient.setAsync('connected_instance:' + instance.id, socketId);
-
     return instance;
-  }
-
-  async function disconnectInstance(instance) {
-    await redisClient.delAsync('connected_instance:' + instance.id);
   }
 
   async function handleNewMessageFromUser(user, message, callback) {
@@ -80,32 +108,30 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     
     // add sender_id to message
     message.sender_id = user.id;
-
-    var socketId = await redisClient.getAsync('connected_instance:' + message.instance_id);
-
-    // if instance is not found
-    if(socketId === null) {
+    try {
+      var socketId = await getInstanceSocketId(message.instance_id);
+      
+      io.of('/').adapter.customRequest({socket_id: socketId, message}, function(err, replies) {
+      
+        if(err) {
+          var notFound = new NotFoundError('NO_INSTANCE_FOUND');
+          return callback(notFound.jsonError());
+        }
+  
+        // remove null response from other instances
+        replies = replies.filter(reply => reply !== null);
+  
+        if(replies.length === 0) {
+          var notFound = new NotFoundError('NO_INSTANCE_FOUND');
+          callback(notFound.jsonError());
+        } else {
+          callback(replies[0]);
+        }
+      });
+    } catch (e) {
       var notFound = new NotFoundError('NO_INSTANCE_FOUND');
       return callback(notFound.jsonError());
     }
-
-    io.of('/').adapter.customRequest({socket_id: socketId, message}, function(err, replies) {
-      
-      if(err) {
-        var notFound = new NotFoundError('NO_INSTANCE_FOUND');
-        return callback(notFound.jsonError());
-      }
-
-      // remove null response from other instances
-      replies = replies.filter(reply => reply !== null);
-
-      if(replies.length === 0) {
-        var notFound = new NotFoundError('NO_INSTANCE_FOUND');
-        callback(notFound.jsonError());
-      } else {
-        callback(replies[0]);
-      }
-    });
   }
 
   async function handleNewMessageFromInstance(instance, message) {
@@ -114,13 +140,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     // adding sending instance_id
     message.instance_id = instance.id;
 
-    var socketId = await redisClient.getAsync('connected_user:' + message.user_id);
+    var roomName = 'connected_user:' + message.user_id;
 
-    if(socketId === null) {
-      logger.debug(`User is not connected, not sending message`);
-    } else {
-      io.to(socketId).emit('message', message);
-    }
+    io.to(roomName).emit('message', message);
   }
 
   async function hello(instance) {
@@ -140,23 +162,27 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
 
   async function disconnectUser(userId) {
 
-    var socketId = await redisClient.getAsync('connected_user:' + userId);
+    try {
+      let socketId = await getUserSocketId(userId);
 
-    io.of('/').adapter.customRequest({socket_id: socketId, disconnect: true }, function(err, replies) {
-      if(err) {
-        logger.warn('socketModel.disconnectUser : error while trying to disconnect user ' + userId);
-      }
-    });
+      io.of('/').adapter.customRequest({socket_id: socketId, disconnect: true }, function(err, replies) {
+        if(err) {
+          logger.warn('socketModel.disconnectUser : error while trying to disconnect user ' + userId);
+        }
+      });
+    } catch(e) {
+      // user not connected
+    }
   } 
 
   return {
     authenticateUser,
-    disconnectUser,
     authenticateInstance,
-    disconnectInstance,
+    disconnectUser,
     handleNewMessageFromUser,
     handleNewMessageFromInstance,
     hello,
-    askInstanceToClearKeyCache
+    askInstanceToClearKeyCache,
+    isUserConnected
   };
 };

@@ -97,6 +97,7 @@ describe('GET /instances/users', function() {
           user.should.have.property('id');
           user.should.have.property('rsa_public_key');
           user.should.have.property('ecdsa_public_key');
+          user.should.have.property('connected');
         });
       });
   });

@@ -1,4 +1,6 @@
-module.exports = function(instanceModel) {
+const Promise = require('bluebird');
+
+module.exports = function(instanceModel, socketModel) {
 
   /**
    * @api {post} /instances create new instance
@@ -93,11 +95,18 @@ module.exports = function(instanceModel) {
    * [{
    *    "id": "88abe47d-80fa-41e0-a7a5-381cb13786df",
    *    "rsa_public_key: "",
-   *    "ecdsa_public_key": ""
+   *    "ecdsa_public_key": "",
+   *    "connected": true
    * }]
    */
   async function getUsers(req, res, next) {
     var users = await instanceModel.getUsers(req.instance);
+
+    var users = await Promise.map(users, (async (user) => {
+      user.connected = await socketModel.isUserConnected(user.id);
+      return user;
+    }));
+
     res.json(users);
   }
 

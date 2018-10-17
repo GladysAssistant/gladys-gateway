@@ -9,14 +9,19 @@ describe('POST /invitations', function() {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .send({
-        email: 'pepper.potts@starkindustries.com'
+        email: 'pepper.potts@starkindustries.com',
+        role: 'user'
       })
       .expect('Content-Type', /json/)
       .expect(200)
       .then(response => {
         should.deepEqual(response.body, { 
+          id: response.body.id,
           email: 'pepper.potts@starkindustries.com',
-          account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def' 
+          role: 'user',
+          account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+          is_invitation: true,
+          created_at: response.body.created_at
         });
       });
   });

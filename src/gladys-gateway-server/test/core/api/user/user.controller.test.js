@@ -464,8 +464,7 @@ describe('POST /users/reset-password', function() {
   const speakeasy = require('speakeasy');
 
   var twoFactorCode = speakeasy.totp({
-    secret: twoFactorSecret,
-    encoding: 'base32'
+    secret: twoFactorSecret
   });
 
   it('should return success', function() {

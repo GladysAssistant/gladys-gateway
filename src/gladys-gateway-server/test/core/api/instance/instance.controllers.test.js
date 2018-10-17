@@ -15,6 +15,7 @@ describe('GET /instances', function() {
         should.deepEqual(response.body, [{
           id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
           name: 'Raspberry Pi 1',
+          primary_instance: true,
           rsa_public_key: 'public-key',
           ecdsa_public_key: 'public-key'
         }]);
@@ -36,6 +37,7 @@ describe('GET /instances/:id', function() {
           id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
           name: 'Raspberry Pi 1',
           rsa_public_key: 'public-key',
+          primary_instance: true,
           ecdsa_public_key: 'public-key',
           rsa_fingerprint: '43:a4:6f:1d:08:1d:27:01:30:e2:21:0a:1d:e5:9f:97:15:de:03:33:07:d0:68:ed:c6:5a:33:5b:27:e9:5d:3d',
           ecdsa_fingerprint: '43:a4:6f:1d:08:1d:27:01:30:e2:21:0a:1d:e5:9f:97:15:de:03:33:07:d0:68:ed:c6:5a:33:5b:27:e9:5d:3d'

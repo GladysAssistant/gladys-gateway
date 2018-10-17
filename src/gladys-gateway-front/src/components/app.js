@@ -14,6 +14,7 @@ import DashboardSettings from '../routes/dashboard-settings';
 import DashboardHelp from '../routes/dashboard-help';
 import ConfirmEmail from '../routes/confirm-email';
 import ForgotPassword from '../routes/forgot-password';
+import ResetPassword from '../routes/reset-password';
 import Auth from '../api/Auth';
 
 export default class App extends Component {
@@ -22,7 +23,7 @@ export default class App extends Component {
     if (e.url === '/') {
       route('/dashboard');
     }
-    
+
     if (e.url.startsWith('/dashboard')) {
       let connected = await Auth.isConnected();
       if (connected) {
@@ -45,6 +46,7 @@ export default class App extends Component {
           <ConfigureTwoFactor path="/configure-two-factor" />
           <Setup path="/setup" />
           <ForgotPassword path="/forgot-password" />
+          <ResetPassword path="/reset-password/:token" />
           <Dashboard path="/dashboard" />
           <DashboardUsers path="/dashboard/users" />
           <DashboardInstance path="/dashboard/instance" />

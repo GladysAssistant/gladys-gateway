@@ -10,9 +10,18 @@ const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
 
-module.exports = function ({ cryptoLib, serverUrl }) {
+module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
   const crypto = require('./lib/crypto')({ cryptoLib });
+
+  if(!logger) {
+    logger = {
+      debug: console.log,
+      info: console.log,
+      warn: console.log,
+      error: console.log
+    };
+  }
 
   const state = {
     serverUrl,
@@ -26,11 +35,10 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     keysDictionnary: {}
   };
 
-  async function signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
-    var name = rawName.trim();
+  async function generateSrpAndKeys(rawEmail, rawPassword) {
+    
     var email = rawEmail.trim().toLowerCase();
     var password = rawPassword.trim();
-    var language = rawLanguage.trim().substr(0, 2).toLowerCase();
 
     // generate srp salt, privateKey and verifier
     const srpSalt = srpClient.generateSalt();
@@ -42,6 +50,41 @@ module.exports = function ({ cryptoLib, serverUrl }) {
 
     const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, rsaKeys.privateKey);
     const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, ecdsaKeys.privateKey);
+
+    return {
+      srpSalt,
+      srpPrivateKey,
+      srpVerifier,
+      rsaKeys, 
+      ecdsaKeys, 
+      rsaPublicKeyJwk, 
+      ecdsaPublicKeyJwk,
+      rsaEncryptedPrivateKey,
+      ecdsaEncryptedPrivateKey,
+      email,
+      password
+    };
+  }
+
+  async function signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
+    
+    // first, we clean email and language
+    var name = rawName.trim();
+    var language = rawLanguage.trim().substr(0, 2).toLowerCase();
+
+    // we generate the srp verifier and keys
+    const {
+      srpSalt,
+      srpVerifier,
+      rsaKeys, 
+      ecdsaKeys, 
+      rsaPublicKeyJwk, 
+      ecdsaPublicKeyJwk,
+      rsaEncryptedPrivateKey,
+      ecdsaEncryptedPrivateKey,
+      email
+    } = await generateSrpAndKeys(rawEmail, rawPassword);
+
   
     state.rsaKeys = rsaKeys;
     state.ecdsaKeys = ecdsaKeys;
@@ -279,6 +322,40 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     }, state);
   }
 
+  async function forgotPassword(email) {
+    return requestApi.post(serverUrl + '/users/forgot-password', { email }, state);
+  }
+
+  async function getResetPasswordEmail(resetToken){
+    return requestApi.get(serverUrl + '/users/reset-password/' + resetToken, state);
+  }
+ 
+  async function resetPassword(rawEmail, rawPassword, resetToken, twoFactorCode) {
+    
+    // we generate a new srp verifier and new keys
+    const {
+      srpSalt,
+      srpVerifier,
+      rsaPublicKeyJwk, 
+      ecdsaPublicKeyJwk,
+      rsaEncryptedPrivateKey,
+      ecdsaEncryptedPrivateKey
+    } = await generateSrpAndKeys(rawEmail, rawPassword);
+
+    var data = {
+      token: resetToken,
+      two_factor_code: twoFactorCode,
+      srp_salt: srpSalt,
+      srp_verifier: srpVerifier,
+      rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
+      rsa_encrypted_private_key: JSON.stringify(rsaEncryptedPrivateKey),
+      ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
+      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey)
+    };
+
+    return requestApi.post(serverUrl + '/users/reset-password', data, state);
+  }
+
   async function getUsersInAccount() {
     return requestApi.get(serverUrl + '/accounts/users', state);
   }
@@ -491,6 +568,13 @@ module.exports = function ({ cryptoLib, serverUrl }) {
         });
       });
 
+      // it means one user has updated his keys, so clearing key cache
+      state.socket.on('clear-key-cache', async function(){
+        logger.info('gladys-gateway-js: Clearing key cache');
+        state.keysDictionnary = {};
+        await refreshUsersList();
+      });
+
       state.socket.on('disconnect', async function(){
         console.log('Socket disconnected');
         state.accessToken = await getAccessToken(refreshToken);
@@ -624,6 +708,9 @@ module.exports = function ({ cryptoLib, serverUrl }) {
     getSetupState,
     request,
     getUsersInAccount,
+    forgotPassword,
+    resetPassword,
+    getResetPasswordEmail,
     getInstance,
     inviteUser,
     getInvitation,

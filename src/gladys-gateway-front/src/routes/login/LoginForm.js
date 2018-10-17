@@ -37,7 +37,7 @@ const LoginForm = ({ children, ...props }) => (
                   <div class="form-group">
                     <label class="form-label">
                       Password
-                      <a href="./forgot-password.html" class="float-right small">
+                      <a href="/forgot-password" class="float-right small">
                         I forgot password
                       </a>
                     </label>

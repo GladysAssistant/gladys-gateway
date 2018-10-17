@@ -360,6 +360,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.get(serverUrl + '/accounts/users', state);
   }
 
+  async function getInvoices() {
+    return requestApi.get(serverUrl + '/accounts/invoices', state);
+  }
+
   async function getDevices() {
     return requestApi.get(serverUrl + '/users/me/devices', state);
   }
@@ -431,28 +435,32 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     }
 
     state.isInstance = false;
-    const accessToken = await getAccessToken(refreshToken);
     
     state.refreshToken = refreshToken;
     state.rsaKeys = rsaKeys;
     state.ecdsaKeys = ecdsaKeys;
-    state.accessToken = accessToken;
-
-    const instance = await getInstance();
-
-    if(instance) {
-      state.gladysInstance = instance;
-
-      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
-      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
-    }
 
     return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
-      state.socket.on('connect', function(){
-        state.socket.emit('user-authentication', { access_token: accessToken }, async function(res) {
+      state.socket.on('connect', async () => {
+
+        // we are connected, so we get a new access token
+        state.accessToken = await getAccessToken(refreshToken);
+
+        // we get the instance
+        const instance = await getInstance();
+
+        if(instance) {
+          state.gladysInstance = instance;
+
+          state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
+          state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
+        }
+
+        state.socket.emit('user-authentication', { access_token: state.accessToken }, async function(res) {
           if(res.authenticated) {
+            logger.info('Gladys Gateway, connected in websocket');
             resolve();
           } else {
             reject();
@@ -474,8 +482,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       });
 
       state.socket.on('disconnect', async function(){
-        console.log('Socket disconnected');
-        state.accessToken = await getAccessToken(refreshToken);
+        console.log('Socket disconnected, trying to reconnect....');
       });
     });
   }
@@ -515,6 +522,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
   }
 
   async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
+
+    if(state.socket) {
+      return Promise.resolve({ authenticated: true });
+    }
     
     state.refreshToken = refreshToken;
     state.isInstance = true;
@@ -529,18 +540,20 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       private_key: await crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA')
     };
 
-    const accessToken = await getAccessTokenInstance(refreshToken);
-    state.accessToken = accessToken;
-
-    // refresh user list
-    await refreshUsersList();
-
     return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
-      state.socket.on('connect', function(){
-        state.socket.emit('instance-authentication', { access_token: accessToken }, async function(res) {
+      state.socket.on('connect', async () => {
+        
+        // we are connected, we get an access token
+        state.accessToken = await getAccessTokenInstance(state.refreshToken);
+        
+        // refresh user list
+        await refreshUsersList();
+
+        state.socket.emit('instance-authentication', { access_token: state.accessToken }, async function(res) {
           if(res.authenticated) {
+            logger.info('Gladys Gateway: connected in websockets');
             resolve();
           } else {
             reject();
@@ -584,8 +597,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       });
 
       state.socket.on('disconnect', async function(){
-        console.log('Socket disconnected');
-        state.accessToken = await getAccessToken(refreshToken);
+        logger.warn('Socket disconnected. Trying to reconnect....');
       });
     });
   }
@@ -716,6 +728,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     getSetupState,
     request,
     getUsersInAccount,
+    getInvoices,
     forgotPassword,
     resetPassword,
     getResetPasswordEmail,

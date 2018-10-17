@@ -47,7 +47,8 @@ const Auth = {
       setupState.user_gladys_acccount_linked
     );
   },
-  getUsersInAccount: () => client.getUsersInAccount(),
+  getUsersInAccount: client.getUsersInAccount,
+  getInvoices: client.getInvoices,
   inviteUser: client.inviteUser,
   getInvitation: client.getInvitation,
   calculateLatency: () => client.calculateLatency(),

@@ -3,6 +3,7 @@ import Accounts from './Accounts';
 import Billing from './Billing';
 import Geolocation from './Geolocation';
 import Sessions from './Sessions';
+import Invoices from './Invoices';
 
 const DashboardSettings = ({ children, ...props }) => (
   <Layout user={props.user} callback={props.connected}>
@@ -24,6 +25,10 @@ const DashboardSettings = ({ children, ...props }) => (
 
               <a href="" data-target="accounts" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'accounts' && 'active')}>
                 <span class="icon mr-3"><i class="fe fe-refresh-cw" /></span>Connected accounts
+              </a>
+
+              <a  href="" data-target="invoices" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'invoices' && 'active')}>
+                <span class="icon mr-3"><i class="fe fe-file" /></span>Invoices
               </a>
               
               <a  href="" data-target="billing" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'billing' && 'active')}>
@@ -51,6 +56,7 @@ const DashboardSettings = ({ children, ...props }) => (
               reSubscribeMonthlyPlanError={props.reSubscribeMonthlyPlanError}
             />
           }
+          {props.currentTab === 'invoices' && <Invoices invoices={props.invoices} />}
         </div>
       
       </div>

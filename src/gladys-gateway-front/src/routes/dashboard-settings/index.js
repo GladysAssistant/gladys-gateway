@@ -23,6 +23,9 @@ class DashboarSettingsPage extends Component {
     Auth.getDevices()
       .then((devices) => this.setState({ devices }));
     
+    Auth.getInvoices()
+      .then((invoices) => this.setState({ invoices }));
+    
     this.refreshCard();
   };
 
@@ -87,7 +90,7 @@ class DashboarSettingsPage extends Component {
       .catch(() =>  this.setState({ reSubscribeMonthlyPlanError: true }));
   };
 
-  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError, cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError }) {
+  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError, cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError, invoices }) {
     return (
       <DashbordSettings
         connected={this.connected}
@@ -104,6 +107,7 @@ class DashboarSettingsPage extends Component {
         cancelMonthlySubscriptionSuccess={cancelMonthlySubscriptionSuccess}
         reSubcribeMonthlyPlan={this.reSubcribeMonthlyPlan}
         reSubscribeMonthlyPlanError={reSubscribeMonthlyPlanError}
+        invoices={invoices}
         card={card}
       />
     );

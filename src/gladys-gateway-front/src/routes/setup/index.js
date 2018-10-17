@@ -58,10 +58,10 @@ class SetupPage extends Component {
       let gladysUserSelected = usersInGladys.length ? usersInGladys[0].id : null;
       this.setState({ step: 3, user, usersInGladys, gladysUserSelected });
     } catch (err) {
-      
+
       // in case we can't find the instance
       if (err && err.status === 404) {
-        this.setState({ step: 2 });
+        this.setState({ step: 2, instanceFound: false });
       }
     }
   };

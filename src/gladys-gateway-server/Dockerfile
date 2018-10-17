@@ -10,7 +10,7 @@ WORKDIR /src
 ADD . /src
 
 RUN apk add --no-cache --virtual .build-deps make gcc g++ python git && \
-    npm install --production && apk del .build-deps
+    npm install && apk del .build-deps
 
 # Export listening port
 EXPOSE 3000

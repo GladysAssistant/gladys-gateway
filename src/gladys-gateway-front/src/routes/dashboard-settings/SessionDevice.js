@@ -23,7 +23,7 @@ const SessionDevice = ({ children, ...props }) => {
         <div>{lastSeen}</div>
       </td>
       <td >
-        <a href="" onClick={revokeDevice}><i class="fe fe-trash-2" /></a>
+        <i style={{ cursor: 'pointer' }} onClick={revokeDevice} class="fe fe-trash-2" />
       </td>
     </tr>
   );

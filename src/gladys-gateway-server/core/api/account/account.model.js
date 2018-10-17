@@ -14,7 +14,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     var users = await db.t_user.find({
       account_id: userWithAccount.account_id,
       is_deleted: false
-    }, {fields: ['id', 'name', 'email', 'role', 'created_at']});
+    }, {fields: ['id', 'name', 'profile_url', 'email', 'role', 'created_at']});
 
     var usersNotAccepted = await db.t_invitation.find({
       account_id: userWithAccount.account_id,

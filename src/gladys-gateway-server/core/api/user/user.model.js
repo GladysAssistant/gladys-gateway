@@ -424,9 +424,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       user_id: user.id
     });
 
-    // we pass the two_factor_enabled variable in parameters so the frontend knows he have to ask for the 2FA code 
     await mailgunService.send(user, 'password_reset', {
-      resetPasswordUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/reset-password/' + encodeURI(resetPasswordToken) + `?two_factor_enabled=${user.two_factor_enabled}`
+      resetPasswordUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/reset-password/' + encodeURI(resetPasswordToken)
     });
 
     return resetPassword;

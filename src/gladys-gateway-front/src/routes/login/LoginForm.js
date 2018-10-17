@@ -18,6 +18,18 @@ const LoginForm = ({ children, ...props }) => (
                   </div>
                 }
 
+                {props.loginErrored &&
+                  <div class="alert alert-danger" role="alert">
+                  Invalid Email/Password.
+                  </div>
+                }
+
+                {props.loginTwoFactorErrored &&
+                  <div class="alert alert-danger" role="alert">
+                  Invalid two factor code.
+                  </div>
+                }
+
                 {!props.displayTwoFactorInput && (
                   <div class="form-group">
                     <label class="form-label">Email address</label>

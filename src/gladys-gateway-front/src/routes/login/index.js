@@ -11,6 +11,7 @@ class LoginPage extends Component {
     displayTwoFactorInput: false,
     twoFactorCode: '',
     loginErrored: false,
+    loginTwoFactorErrored: false,
     browserCompatible: Auth.testBrowserCompatibility()
   };
 
@@ -57,7 +58,7 @@ class LoginPage extends Component {
       //return Auth.request.get('/devicetype/room', {data: 'test'});
       .catch(err => {
         console.log(err);
-        this.setState({ loginErrored: true });
+        this.setState({ loginTwoFactorErrored: true });
       });
   };
 
@@ -80,7 +81,7 @@ class LoginPage extends Component {
     Auth.cleanLocalState();
   };
 
-  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible }) {
+  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored }) {
     return (
       <LoginForm
         email={email}
@@ -93,6 +94,8 @@ class LoginPage extends Component {
         loginTwoFactor={this.loginTwoFactor}
         updateTwoFactorCode={this.updateTwoFactorCode}
         browserCompatible={browserCompatible}
+        loginErrored={loginErrored}
+        loginTwoFactorErrored={loginTwoFactorErrored}
       />
     );
   }

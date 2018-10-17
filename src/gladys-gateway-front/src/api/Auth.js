@@ -3,7 +3,7 @@ import gladysGatewayClient from '@gladysproject/gladys-gateway-js';
 import keyValStore from './keyValStore';
 import { route } from 'preact-router';
 
-let client = gladysGatewayClient({ serverUrl: config.serverUrl, cryptoLib: window.crypto });
+const client = gladysGatewayClient({ serverUrl: config.serverUrl, cryptoLib: window.crypto });
 
 function redirectWrapper(func) {
   return function(url, params) {

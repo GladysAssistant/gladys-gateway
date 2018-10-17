@@ -8,7 +8,8 @@ class Layout extends Component {
   state = {
     user: {},
     showDropDown: false,
-    showCollapsedMenu: false
+    showCollapsedMenu: false,
+    connected: false
   };
 
   toggleDropDown = () => {
@@ -33,6 +34,7 @@ class Layout extends Component {
   };
 
   componentDidMount = () => {
+
     Auth.connectSocket(this.props.newInstanceEvent)
       .then(() => Auth.getUser())
       .then(user => this.setState({ user }))
@@ -43,6 +45,7 @@ class Layout extends Component {
         }
       })
       .then(() => {
+        this.setState({ connected: true });
         if (this.props.callback) {
           this.props.callback();
         }
@@ -53,12 +56,13 @@ class Layout extends Component {
         } else if (err && err.response && err.response.data && err.response.data.status === 403) {
           route('/login');
         } else {
-          console.log(err);
+          route('/login');
         }
       });
   };
 
-  render(props, { showDropDown, showCollapsedMenu, user }) {
+  render(props, { showDropDown, showCollapsedMenu, user, connected }) {
+
     return (
       <div class="page">
         <div class="page-main">

@@ -304,6 +304,23 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     return deletedUser;
   } 
 
+  async function getInvoices(user) {
+      
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'email', 'account_id']});
+
+    // get the invoices
+    var invoices = await db.t_account_payment_activity.find({
+      account_id: userWithAccount.account_id,
+      stripe_event: 'invoice.payment_succeeded',
+      closed: true
+    }, {fields: ['id', 'hosted_invoice_url', 'invoice_pdf', 'amount_paid', 'created_at']});
+
+    return invoices;
+  }
+
   return {
     getUsers,
     updateCard,
@@ -312,6 +329,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     cancelMonthlySubscription,
     subscribeAgainToMonthlySubscription,
     stripeEvent,
-    getCard
+    getCard,
+    getInvoices
   };
 };

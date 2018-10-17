@@ -150,6 +150,28 @@ module.exports = function(accountModel, socketModel) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {get} /accounts/invoices Get Invoices
+   * @apiName Get invoices
+   * @apiGroup Account
+   * 
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * [{
+   *   "id": "69b39956-77e7-4b4d-b0ae-259ea7e017a2",
+   *   "hosted_invoice_url": "",
+   *   "invoice_pdf": "",
+   *   "amount_paid": 999
+   *   "created_at": ""
+   * }]
+   */
+  async function getInvoices(req, res, next) {
+    var invoices = await accountModel.getInvoices(req.user);
+    res.json(invoices);
+  }
+
   return {
     getUsers,
     subscribeMonthlyPlan,
@@ -158,6 +180,7 @@ module.exports = function(accountModel, socketModel) {
     revokeUser,
     getCard,
     cancelMonthlySubscription,
-    stripeEvent
+    stripeEvent,
+    getInvoices
   };
 };

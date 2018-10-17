@@ -4,6 +4,7 @@ module.exports = function(db) {
 
   function clean() {
     var tablesToClean = [
+      't_account_payment_activity',
       't_history',
       't_reset_password',
       't_device',
@@ -26,7 +27,8 @@ module.exports = function(db) {
       't_invitation',
       't_device',
       't_reset_password',
-      't_history'
+      't_history',
+      't_account_payment_activity'
     ];
 
     return Promise.each(toFillInOrder, function(tableName){

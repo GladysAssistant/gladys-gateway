@@ -78,6 +78,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.get('/accounts/source', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getCard));
   app.post('/accounts/cancel', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.cancelMonthlySubscription));
   app.post('/accounts/users/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.revokeUser));
+  app.get('/accounts/invoices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getInvoices));
   app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
   
   // socket

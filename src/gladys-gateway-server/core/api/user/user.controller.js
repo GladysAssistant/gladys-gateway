@@ -1,4 +1,4 @@
-module.exports = function(userModel, mailgunService) {
+module.exports = function(userModel, mailgunService, socketModel) {
 
   /**
    * @api {post} /users/signup Create a new user
@@ -274,7 +274,11 @@ module.exports = function(userModel, mailgunService) {
    * }
    */
   async function resetPassword(req, res, next) {
-    await userModel.resetPassword(req.body.token, req.body);
+    let newUser = await userModel.resetPassword(req.body.token, req.body);
+
+    // ask all instances in this account to clear their key cache
+    await socketModel.askInstanceToClearKeyCache(newUser.account_id);
+
     res.json({ success: true });
   }
 

@@ -11,7 +11,7 @@ const schema = require('../../common/schema');
 const redisLoginSessionExpiryInSecond = 60;
 const resetPasswordTokenExpiryInMilliSeconds = 2*60*60*1000;
 
-module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService, socketModel) {
+module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
 
   /**
    * Create a new user with his email and language
@@ -480,7 +480,6 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     if(userWithSecret.two_factor_enabled === true) {
       var tokenValidates = speakeasy.totp.verify({
         secret: userWithSecret.two_factor_secret,
-        encoding: 'base32',
         token: data.two_factor_code,
         window: 2
       });
@@ -501,7 +500,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
         rsa_encrypted_private_key: data.rsa_encrypted_private_key,
         ecdsa_public_key: data.ecdsa_public_key,
         ecdsa_encrypted_private_key: data.ecdsa_encrypted_private_key
-      }, {fields: ['id', 'email']});
+      }, {fields: ['id', 'email', 'account_id']});
 
       // invalidate all current sessions
       var sessionsInvalidated = await tx.t_device.update({
@@ -514,9 +513,6 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       await tx.t_reset_password.update(resetPasswordRequest.id, {
         used: true
       });
-
-      // ask all instances in this account to clear their key cache
-      await socketModel.askInstanceToClearKeyCache(userWithSecret.account_id);
 
       logger.info(`Reset password: Successfully invalidated ${sessionsInvalidated.length} sessions.`);
 

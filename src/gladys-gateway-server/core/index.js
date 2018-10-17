@@ -45,7 +45,7 @@ module.exports = async () => {
 
   const controllers = {
     pingController: require('./api/ping/ping.controller')(models.pingModel),
-    userController: require('./api/user/user.controller')(models.userModel, services.mailgunService),
+    userController: require('./api/user/user.controller')(models.userModel, services.mailgunService, models.socketModel),
     socketController: require('./api/socket/socket.controller')(logger, models.socketModel, io),
     instanceController: require('./api/instance/instance.controller')(models.instanceModel),
     invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),

@@ -6,7 +6,7 @@
   "author": "Pierre-Gilles Leymarie",
   "scripts": {
     "start": "if-env NODE_ENV=production && npm run -s serve || npm run -s dev",
-    "build": "preact build",
+    "build": "preact build --no-prerender",
     "serve": "preact build && preact serve",
     "dev": "preact watch",
     "lint": "eslint src",
@@ -25,6 +25,7 @@
     "if-env": "^1.0.0",
     "jest": "^21.2.1",
     "preact-cli": "^2.1.0",
+    "preact-cli-plugin-fast-async": "^1.0.1",
     "preact-render-spy": "^1.2.1"
   },
   "dependencies": {

@@ -28,6 +28,12 @@ const Step3LinkGladys = ({ children, ...props }) => (
           <h3 class="card-title">Select your local Gladys user</h3>
         </div>
         <div class="card-body">
+          {props.instanceFound === false && (
+            <div class="alert alert-danger" role="alert">
+              You Gladys instance is not connected. Connect it and reload this page.
+            </div>
+          )}
+          {props.instanceFound &&
           <div class="row">
             <div class="col-md">
               <select
@@ -48,6 +54,7 @@ const Step3LinkGladys = ({ children, ...props }) => (
               </button>
             </div>
           </div>
+          }
         </div>
       </div>
     </div>

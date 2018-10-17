@@ -52,16 +52,17 @@ class SetupPage extends Component {
 
   activateStep3 = async () => {
     let user = await Auth.getMySelf();
-    
+    let instance = await Auth.getInstance();
+
     try {
       let usersInGladys = await Auth.request.get('/user');
       let gladysUserSelected = usersInGladys.length ? usersInGladys[0].id : null;
-      this.setState({ step: 3, user, usersInGladys, gladysUserSelected });
+      this.setState({ step: 3, user, instance, instanceFound: true, usersInGladys, gladysUserSelected });
     } catch (err) {
 
       // in case we can't find the instance
       if (err && err.status === 404) {
-        this.setState({ step: 2, instanceFound: false });
+        this.setState({ user, step: 3, instanceFound: false });
       }
     }
   };
@@ -107,6 +108,7 @@ class SetupPage extends Component {
   };
 
   connect = async () => {
+
     // we connect in websocket to the gateway
     await Auth.connectSocket(this.handleNewEvent);
 

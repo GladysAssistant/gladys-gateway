@@ -64,6 +64,7 @@ const SetupContainer = ({ children, ...props }) => (
                     gladysUserSelected={props.gladysUserSelected}
                     updateGladysUserSelected={props.updateGladysUserSelected}
                     saveUserInInGladys={props.saveUserInInGladys}
+                    instanceFound={props.instanceFound}
                   />
                 )}
                 {props.step === 4 && <Step4Success goToDashboard={props.goToDashboard} />}

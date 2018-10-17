@@ -81,6 +81,16 @@ const Auth = {
     keyValStore.set('rsa_keys', data.rsaKeys);
     keyValStore.set('ecdsa_keys', data.ecdsaKeys);
   },
+  saveUser: user => keyValStore.set('user', user),
+  getUser: async () => {
+    let user = await keyValStore.get('user');
+    if (user) {
+      return user;
+    }
+    user = await client.getMyself();
+    await keyValStore.set('user', user);
+    return user;
+  },
   isConnected: async () => {
     let refreshToken = await keyValStore.get('refresh_token');
     if (refreshToken) {

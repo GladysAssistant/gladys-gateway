@@ -41,7 +41,10 @@ class DashboardProfilePage extends Component {
     }
 
     return Auth.updateMyself(this.state.newUser.name, this.state.newUser.email, this.state.newUser.newPassword, this.state.newUser.language)
-      .then((newUser) => this.setState({ user: newUser, newUser, userSavedSuccess: true }))
+      .then((newUser) => {
+        Auth.saveUser(newUser);
+        this.setState({ user: newUser, newUser, userSavedSuccess: true });
+      })
       .catch((err) => this.setState({ userSavedSuccess: false }));
   };
 

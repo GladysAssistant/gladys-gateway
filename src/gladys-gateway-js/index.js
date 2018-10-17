@@ -195,7 +195,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
   async function loginInstance(twoFactorToken, twoFactorCode) {
     
-    const loginData = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: twoFactorCode }, {
+    const loginData = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' }, {
       headers: {
         authorization: twoFactorToken
       }

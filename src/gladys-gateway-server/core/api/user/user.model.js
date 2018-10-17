@@ -128,7 +128,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       }
     }
 
-    var updatedUser = await db.t_user.update(user.id, value, {fields: ['id', 'name', 'email', 'email_confirmed', 'language']});
+    var updatedUser = await db.t_user.update(user.id, value, {fields: ['id', 'name', 'email', 'profile_url', 'email_confirmed', 'language']});
     updatedUser.email_confirmation_token = emailConfirmationToken;
     return updatedUser;
   }

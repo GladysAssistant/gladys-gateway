@@ -49,7 +49,7 @@ module.exports = async () => {
     socketController: require('./api/socket/socket.controller')(logger, models.socketModel, io),
     instanceController: require('./api/instance/instance.controller')(models.instanceModel),
     invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),
-    accountController: require('./api/account/account.controller')(models.accountModel),
+    accountController: require('./api/account/account.controller')(models.accountModel, models.socketModel),
     deviceController: require('./api/device/device.controller')(models.deviceModel),
   };
 

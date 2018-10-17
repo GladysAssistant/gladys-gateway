@@ -1,4 +1,4 @@
-module.exports = function(accountModel) {
+module.exports = function(accountModel, socketModel) {
 
   /**
    * @api {get} /accounts/users Get users
@@ -131,11 +131,31 @@ module.exports = function(accountModel) {
     res.json({ current_period_end: account.current_period_end });
   }
 
+  /**
+   * @api {post} /accounts/users/:id/revoke Revoke user
+   * @apiName Revoke user
+   * @apiGroup Account
+   * 
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function revokeUser(req, res, next) {
+    await accountModel.revokeUser(req.user, req.params.id);
+    await socketModel.disconnectUser(req.params.id);
+    res.json({ success: true });
+  }
+
   return {
     getUsers,
     subscribeMonthlyPlan,
     subscribeAgainToMonthlySubscription,
     updateCard,
+    revokeUser,
     getCard,
     cancelMonthlySubscription,
     stripeEvent

@@ -1,4 +1,4 @@
-const { AlreadyExistError } = require('../../common/error');
+const { AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const Promise = require('bluebird');
 
 module.exports = function AccountModel(logger, db, redisClient, stripeService) {
@@ -253,9 +253,51 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     } 
   }
 
+  async function revokeUser(user, userIdToRevoke) {
+     
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'role', 'account_id']});
+
+    if(userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    if(userIdToRevoke === user.id) {
+      throw new ForbiddenError('You cannot remove yourself from an account');
+    }
+
+    var userToRevoke = await db.t_user.findOne({
+      id: userIdToRevoke,
+      account_id: userWithAccount.account_id,
+      is_deleted: false
+    }, {fields: ['id', 'role', 'account_id']});
+
+    if(userIdToRevoke === null) {
+      throw new NotFoundError();
+    }
+
+    // deleting user
+    var deletedUser = await db.t_user.update(userToRevoke.id, {
+      is_deleted: true
+    });
+
+    // disonnect all connected devices
+    await db.t_device.update({
+      user_id: userIdToRevoke.id,
+      revoked: false
+    }, {
+      revoked: true
+    });
+
+    return deletedUser;
+  } 
+
   return {
     getUsers,
     updateCard,
+    revokeUser,
     subscribeMonthlyPlan,
     cancelMonthlySubscription,
     subscribeAgainToMonthlySubscription,

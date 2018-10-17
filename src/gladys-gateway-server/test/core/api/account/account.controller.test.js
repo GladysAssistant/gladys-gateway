@@ -34,3 +34,17 @@ describe('POST /accounts/subscribe', function() {
       });
   });
 });
+
+describe('POST /accounts/users/:id/revoke', function() {
+  it('should revoke a user', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('success', true);
+      });
+  });
+});

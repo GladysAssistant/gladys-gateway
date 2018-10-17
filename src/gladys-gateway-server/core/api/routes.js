@@ -76,6 +76,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.patch('/accounts/source', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.updateCard));
   app.get('/accounts/source', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getCard));
   app.post('/accounts/cancel', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.cancelMonthlySubscription));
+  app.post('/accounts/users/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.revokeUser));
   app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
   
   // socket

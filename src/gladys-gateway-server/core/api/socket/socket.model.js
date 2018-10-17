@@ -14,8 +14,14 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
       return cb(null);
     } else {
 
-      // else, we ask
-      socket.emit('message', data.message, cb);
+      if(data.disconnect === true) {
+        socket.disconnect();
+        cb(true);
+      } else {
+        
+        // else, we ask
+        socket.emit('message', data.message, cb);
+      }
     }
   };
 
@@ -131,6 +137,17 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
   async function askInstanceToClearKeyCache(accountId) {
     io.to('account:instances:' + accountId).emit('clear-key-cache');
   }
+
+  async function disconnectUser(userId) {
+
+    var socketId = await redisClient.getAsync('connected_user:' + userId);
+
+    io.of('/').adapter.customRequest({socket_id: socketId, disconnect: true }, function(err, replies) {
+      if(err) {
+        logger.warn('socketModel.disconnectUser : error while trying to disconnect user ' + userId);
+      }
+    });
+  } 
 
   return {
     authenticateUser,

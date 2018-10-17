@@ -50,6 +50,8 @@ class Layout extends Component {
       .catch(err => {
         if (err && err.response && err.response.data && err.response.data.status === 401) {
           route('/login');
+        } else if (err && err.response && err.response.data && err.response.data.status === 403) {
+          route('/login');
         } else {
           console.log(err);
         }

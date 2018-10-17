@@ -376,6 +376,14 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.get(serverUrl + '/invitations/' + token, state);
   }
 
+  async function revokeInvitation(invitationId) {
+    return requestApi.post(serverUrl + '/invitations/' + invitationId + '/revoke', {}, state);
+  }
+
+  async function revokeUser(userId) {
+    return requestApi.post(serverUrl + '/accounts/users/' + userId + '/revoke', {}, state);
+  }
+
   async function getSetupState() {
     return requestApi.get(serverUrl + '/users/setup', state);
   }
@@ -713,7 +721,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     getResetPasswordEmail,
     getInstance,
     inviteUser,
+    revokeUser,
     getInvitation,
+    revokeInvitation,
     loginInstance,
     createInstance,
     getAccessTokenInstance,

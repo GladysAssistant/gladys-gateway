@@ -14,6 +14,8 @@ const DashboardUsers = ({ children, ...props }) => (
         updateEmail={props.updateEmail}
         updateRole={props.updateRole}
         role={props.role}
+        revokeUserError={props.revokeUserError}
+        revokeUser={props.revokeUser}
       />
     </div>
   </Layout>

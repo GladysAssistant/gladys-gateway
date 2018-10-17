@@ -33,6 +33,8 @@ const Auth = {
   updateUserIdInGladys: client.updateUserIdInGladys,
   getDevices: client.getDevices,
   revokeDevice: client.revokeDevice,
+  revokeUser: client.revokeUser,
+  revokeInvitation: client.revokeInvitation,
   revokeCurrentDevice: async () => {
     let deviceId = await keyValStore.get('device_id');
     await client.revokeDevice(deviceId);

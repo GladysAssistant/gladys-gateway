@@ -1,9 +1,18 @@
+import UserRow from './UserRow';
+
 const UserList = ({ children, ...props }) => (
   <div class="col-lg-12">
     <div class="card">
       <div class="card-header">
         <h3 class="card-title">Manage your users</h3>
       </div>
+
+      {props.revokeUserError &&
+        <div class="alert alert-danger" role="alert">
+          You cannot revoke this user.
+        </div>
+      }
+
       <div class="table-responsive">
         <table class="table card-table table-striped table-vcenter">
           <thead>
@@ -11,27 +20,15 @@ const UserList = ({ children, ...props }) => (
               <th />
               <th>Name</th>
               <th>Role</th>
+              <th>Status</th>
               <th>Added at</th>
               <th>Revoke</th>
             </tr>
           </thead>
           <tbody>
-            {props.users.map(user => (
-              <tr>
-                <td class="w-1">
-                  <span
-                    class="avatar"
-                    style="background-image: url(/assets/images/undraw_profile_pic.svg)"
-                  />
-                </td>
-                <td>
-                  {user.name}
-                  <div class="small text-muted">{user.email}</div>
-                </td>
-                <td>{user.role}</td>
-                <td class="text-nowrap">{user.created_at}</td>
-                <td class="w-1" />
-              </tr>
+            
+            {props.users.map((user, index) => (
+              <UserRow user={user} index={index} revokeUser={props.revokeUser} />
             ))}
 
             <tr>
@@ -48,6 +45,7 @@ const UserList = ({ children, ...props }) => (
               <td>
                 <button onClick={props.inviteUser} class="btn btn-primary ml-auto">Invite User</button>
               </td>
+              <td />
               <td />
             </tr>
           </tbody>

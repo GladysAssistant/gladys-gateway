@@ -1,6 +1,6 @@
 {
   "name": "@gladysproject/gladys-gateway-js",
-  "version": "0.1.5",
+  "version": "1.0.0",
   "description": "Gladys Gateway JS client",
   "main": "index.js",
   "scripts": {

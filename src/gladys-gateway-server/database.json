@@ -6,6 +6,13 @@
         "host": {"ENV": "POSTGRESQL_HOST"},
         "database": {"ENV": "POSTGRESQL_DATABASE"}
     },
+    "production": {
+      "driver": "pg",
+      "user": {"ENV": "POSTGRESQL_USER"},
+      "password": {"ENV": "POSTGRESQL_PASSWORD"},
+      "host": {"ENV": "POSTGRESQL_HOST"},
+      "database": {"ENV": "POSTGRESQL_DATABASE"}
+    },
     "test": {
       "driver": "pg",
       "user": {"ENV": "POSTGRESQL_USER"},

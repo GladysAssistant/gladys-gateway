@@ -379,6 +379,18 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       throw new ForbiddenError();
     }
 
+    // we get the current user account, to be sure the account is active
+    var fullUser = await db.t_user.findOne({
+      id: user.id,
+      is_deleted: false
+    });
+
+    // the user doesn't exist or has been revoked
+    if(fullUser === null) {
+      logger.debug(`Forbidden: User not found or revoked`);
+      throw new ForbiddenError();
+    }
+
     var scope =  ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
     var accessToken = jwtService.generateAccessToken(user, scope);
 

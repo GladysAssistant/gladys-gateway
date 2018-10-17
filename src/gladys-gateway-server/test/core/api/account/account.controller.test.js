@@ -13,6 +13,7 @@ describe('GET /accounts/users', function() {
         response.body.should.be.instanceOf(Array);
         response.body.forEach((user) => {
           user.should.have.property('email');
+          user.should.have.property('is_invitation');
         });
       });
   });

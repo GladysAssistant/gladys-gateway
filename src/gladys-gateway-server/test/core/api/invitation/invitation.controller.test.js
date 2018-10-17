@@ -128,3 +128,19 @@ describe('GET /invitations/:id', function() {
       });
   });
 });
+
+describe('POST /invitations/:id/revoke', function() {
+  it('should revoke invitation', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/invitations/b141f826-5e43-4aa6-807e-a37d4e9177de/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        should.deepEqual(response.body, { 
+          success: true
+        });
+      });
+  });
+});

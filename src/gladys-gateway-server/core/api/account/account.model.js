@@ -23,7 +23,17 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
       accepted: false
     }, {field: ['id', 'email', 'account_id', 'role', 'created_at']});
 
-    var allUsers = users.concat(usersNotAccepted);
+    var allUsers = [];
+
+    users.forEach((user) => {
+      user.is_invitation = false;
+      allUsers.push(user);
+    });
+
+    usersNotAccepted.forEach((user) => {
+      user.is_invitation = true;
+      allUsers.push(user);
+    });
 
     return allUsers;
   }
@@ -285,7 +295,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
 
     // disonnect all connected devices
     await db.t_device.update({
-      user_id: userIdToRevoke.id,
+      user_id: userIdToRevoke,
       revoked: false
     }, {
       revoked: true

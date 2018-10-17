@@ -141,9 +141,32 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
     return invitation;
   }
 
+  async function revokeInvitation(user, invitationId) {
+      
+    // get the account_id of the currently connected user
+    var userWithAccount = await db.t_user.findOne({
+      id: user.id
+    }, {fields: ['id', 'role', 'account_id']});
+
+    if(userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    await db.t_invitation.update({
+      id: invitationId,
+      account_id: userWithAccount.account_id,
+      revoked: false,
+      accepted: false,
+      is_deleted: false
+    }, {
+      revoked: true
+    });
+  }
+
   return {
     inviteUser,
     accept,
-    getInvitation
+    getInvitation,
+    revokeInvitation
   };
 };

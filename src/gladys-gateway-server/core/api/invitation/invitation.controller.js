@@ -22,7 +22,9 @@ module.exports = function(invitationModel) {
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
-      account_id: invitation.account_id
+      account_id: invitation.account_id,
+      is_invitation: true,
+      created_at: invitation.created_at
     });
   }
 
@@ -77,9 +79,28 @@ module.exports = function(invitationModel) {
     res.json(invitation);
   }
 
+  /**
+   * @api {post} /invitations/:id/revoke Revoke invitation
+   * @apiName Revoke invitation
+   * @apiGroup Invitation
+   *
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 201 CREATED
+   * 
+   * {
+   *   "success": true
+   * }
+   */
+  async function revokeInvitation(req, res, next) {
+    await invitationModel.revokeInvitation(req.user, req.params.id);
+    res.json({ success: true });
+  }
+
   return {
     inviteUser,
     accept,
-    getInvitation
+    getInvitation,
+    revokeInvitation
   };
 };

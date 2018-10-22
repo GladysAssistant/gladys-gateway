@@ -9,7 +9,8 @@ class ResetPasswordPage extends Component {
     password: '',
     passwordRepeat: '',
     twoFactorEnabled: null,
-    success: false
+    success: false,
+    resetInProgress: false
   };
 
   resetPassword = async (e) => {
@@ -23,23 +24,23 @@ class ResetPasswordPage extends Component {
       return this.setState({ passwordError: true, passwordNotMatching: false });
     }
 
-    this.setState({ passwordError: false, passwordNotMatching: false });
+    this.setState({ passwordError: false, passwordNotMatching: false, resetInProgress: true });
 
     try {
       let user = await Auth.getResetPasswordEmail(this.props.token);
       if (user.two_factor_enabled === true && this.state.twoFactorEnabled === null) {
-        this.setState({ twoFactorEnabled: true });
+        this.setState({ twoFactorEnabled: true, resetInProgress: false });
       } else {
         await Auth.resetPassword(user.email, this.state.password, this.props.token, this.state.twoFactorCode);
-        this.setState({ success: true });
+        this.setState({ success: true, resetInProgress: false });
       }
     } catch (e) {
-      this.setState({ errorLink: true });
+      this.setState({ errorLink: true, resetInProgress: false });
     }
   };
 
 
-  render({}, { password, success, errorLink, twoFactorEnabled, passwordRepeat, twoFactorCode, passwordError, passwordNotMatching }) {
+  render({}, { password, success, errorLink, twoFactorEnabled, passwordRepeat, twoFactorCode, passwordError, passwordNotMatching, resetInProgress }) {
     return (
       <ResetPassword
         password={password}
@@ -54,6 +55,7 @@ class ResetPasswordPage extends Component {
         updateTwoFactorCode={linkState(this, 'twoFactorCode')}
         passwordRepeat={passwordRepeat}
         updatePasswordRepeat={linkState(this, 'passwordRepeat')}
+        resetInProgress={resetInProgress}
       />
     );
   }

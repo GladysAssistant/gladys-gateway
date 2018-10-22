@@ -56,7 +56,7 @@ const ResetPassworFrom = ({ children, ...props }) => (
       </div>
       }
       <div className="form-footer">
-        <button type="submit" className="btn btn-primary btn-block">
+        <button type="submit" className="btn btn-primary btn-block" disabled={props.resetInProgress}>
           Reset Password
         </button>
       </div>

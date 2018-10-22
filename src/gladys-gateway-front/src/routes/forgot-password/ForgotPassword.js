@@ -31,7 +31,7 @@ const ForgotPassword = ({ children, ...props }) => (
                     />
                   </div>
                   <div class="form-footer">
-                    <button type="submit" class="btn btn-primary btn-block">
+                    <button type="submit" class="btn btn-primary btn-block" disabled={props.forgotInProgress}>
                       Send reset password email
                     </button>
                   </div>

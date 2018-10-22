@@ -6,18 +6,20 @@ import Auth from '../../api/Auth';
 class ForgotPasswordPage extends Component {
   
   state = {
-    email: ''
+    email: '',
+    forgotInProgress: false
   };
 
   sendResetPasswordLink = (e) => {
     e.preventDefault();
+    this.setState({ forgotInProgress: true });
     Auth.forgotPassword(this.state.email)
-      .then(() => this.setState({ success: true }))
-      .catch(() => this.setState({ success: true }));
+      .then(() => this.setState({ success: true, forgotInProgress: false }))
+      .catch(() => this.setState({ success: true, forgotInProgress: false }));
   };
 
-  render({}, { email, password, success }) {
-    return <ForgotPassword email={email} updateEmail={linkState(this, 'email')} sendResetPasswordLink={this.sendResetPasswordLink} success={success} />;
+  render({}, { email, password, success, forgotInProgress }) {
+    return <ForgotPassword email={email} updateEmail={linkState(this, 'email')} sendResetPasswordLink={this.sendResetPasswordLink} success={success} forgotInProgress={forgotInProgress} />;
   }
 }
 

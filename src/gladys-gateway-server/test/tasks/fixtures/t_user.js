@@ -9,7 +9,8 @@ module.exports = [
     two_factor_enabled: false,
     role: 'admin',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-    language: 'en'
+    language: 'en',
+    name: 'Tony'
   },
   {
     id: 'bdb1a902-a65e-46f9-8c2a-5c09840e2e10',
@@ -21,7 +22,8 @@ module.exports = [
     two_factor_enabled: false,
     role: 'admin',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-    language: 'en'
+    language: 'en',
+    name: 'Tony'
   },
   {
     id: '3b69f1c5-d36c-419d-884c-50b9dd6e33e4',
@@ -34,7 +36,8 @@ module.exports = [
     two_factor_enabled: false,
     role: 'admin',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-    language: 'en'
+    language: 'en',
+    name: 'Tony'
   },
   {
     id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
@@ -47,6 +50,7 @@ module.exports = [
     two_factor_enabled: true,
     role: 'admin',
     account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-    language: 'en'
+    language: 'en',
+    name: 'Tony'
   }
 ];

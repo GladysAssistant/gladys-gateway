@@ -415,7 +415,7 @@ describe('GET /users/me', function() {
       .then(response => {
         should.deepEqual(response.body, 
           { id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
-            name: null,
+            name: 'Tony',
             email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
             role: 'admin',
             language: 'en',

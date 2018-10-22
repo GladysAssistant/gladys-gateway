@@ -175,12 +175,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     state.accessToken = loginData.access_token;
     state.refreshToken = loginData.refresh_token;
 
-    state.gladysInstance = await getInstance();
-
-    if(state.gladysInstance) {
-      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(state.gladysInstance.rsa_public_key), 'RSA-OEAP', true);
-      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(state.gladysInstance.ecdsa_public_key), 'ECDSA', true); 
-    } 
+    await getInstance();
 
     return {
       gladysInstance: state.gladysInstance,
@@ -424,6 +419,13 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       }
       i++;
     }
+
+    if (instance) {
+      state.gladysInstance = instance;
+
+      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
+      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
+    }
     
     return instance;
   }
@@ -449,14 +451,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
         state.accessToken = await getAccessToken(refreshToken);
 
         // we get the instance
-        const instance = await getInstance();
-
-        if(instance) {
-          state.gladysInstance = instance;
-
-          state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
-          state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
-        }
+        await getInstance();
 
         state.socket.emit('user-authentication', { access_token: state.accessToken }, async function(res) {
           if(res.authenticated) {

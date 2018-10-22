@@ -56,7 +56,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
         account_id: userWithAccount.account_id
       });
 
-      await mailgunService.send(userWithAccount, 'invitation', {
+      await mailgunService.send({email, language: userWithAccount.language}, 'invitation', {
         invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token),
         nameOfAdminInviting: userWithAccount.name
       });

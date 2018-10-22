@@ -12,16 +12,18 @@ class LoginPage extends Component {
     twoFactorCode: '',
     loginErrored: false,
     loginTwoFactorErrored: false,
-    browserCompatible: Auth.testBrowserCompatibility()
+    browserCompatible: Auth.testBrowserCompatibility(),
+    loginInProgress: false,
+    loginTwoFactorInProgress: false
   };
 
   login = event => {
     event.preventDefault();
-
+    this.setState({ loginInProgress: true });
     Auth.login(this.state)
       .then(async data => {
         if (data.two_factor_token) {
-          this.setState({ displayTwoFactorInput: true, twoFactorToken: data.two_factor_token });
+          this.setState({ displayTwoFactorInput: true, twoFactorToken: data.two_factor_token, loginInProgress: false });
         } else {
           await Auth.saveTwoFactorAccessToken(data.access_token);
           route('/configure-two-factor');
@@ -29,12 +31,14 @@ class LoginPage extends Component {
       })
       .catch(err => {
         console.log(err);
-        this.setState({ loginErrored: true });
+        this.setState({ loginErrored: true, loginInProgress: false });
       });
   };
 
   loginTwoFactor = event => {
     event.preventDefault();
+    
+    this.setState({ loginTwoFactorInProgress: true });
 
     let twoFactorCode = this.state.twoFactorCode.replace(/\s/g, '');
 
@@ -58,7 +62,7 @@ class LoginPage extends Component {
       //return Auth.request.get('/devicetype/room', {data: 'test'});
       .catch(err => {
         console.log(err);
-        this.setState({ loginTwoFactorErrored: true });
+        this.setState({ loginTwoFactorErrored: true, loginTwoFactorInProgress: false });
       });
   };
 
@@ -81,7 +85,7 @@ class LoginPage extends Component {
     Auth.cleanLocalState();
   };
 
-  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored }) {
+  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored, loginInProgress, loginTwoFactorInProgress }) {
     return (
       <LoginForm
         email={email}
@@ -96,6 +100,8 @@ class LoginPage extends Component {
         browserCompatible={browserCompatible}
         loginErrored={loginErrored}
         loginTwoFactorErrored={loginTwoFactorErrored}
+        loginInProgress={loginInProgress}
+        loginTwoFactorInProgress={loginTwoFactorInProgress}
       />
     );
   }

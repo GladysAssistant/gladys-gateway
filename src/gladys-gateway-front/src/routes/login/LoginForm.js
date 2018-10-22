@@ -80,13 +80,13 @@ const LoginForm = ({ children, ...props }) => (
 
                 <div class="form-footer">
                   {!props.displayTwoFactorInput && (
-                    <button type="submit" class="btn btn-primary btn-block">
+                    <button type="submit" class="btn btn-primary btn-block" disabled={props.loginInProgress}>
                       Sign in
                     </button>
                   )}
 
                   {props.displayTwoFactorInput && (
-                    <button onClick={props.loginTwoFactor} class="btn btn-primary btn-block">
+                    <button onClick={props.loginTwoFactor} class="btn btn-primary btn-block" disabled={props.loginTwoFactorInProgress}>
                       Sign in
                     </button>
                   )}

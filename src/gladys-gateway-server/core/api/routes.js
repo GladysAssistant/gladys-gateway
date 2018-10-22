@@ -1,4 +1,5 @@
 const bodyParser = require('body-parser');
+const Sentry = require('@sentry/node');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
 const { NotFoundError } = require('../common/error.js');
 
@@ -6,6 +7,10 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   // the gateway is behing a proxy
   app.enable('trust proxy');
+
+  // Sentry 
+  Sentry.init({ dsn: process.env.SENTRY_DSN });
+  app.use(Sentry.Handlers.requestHandler());
 
   // parse application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({
@@ -88,6 +93,8 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.use(asyncMiddleware((req, res, next) => {
     throw new NotFoundError(`Route ${req.url} not found`);
   }));
+
+  app.use(Sentry.Handlers.errorHandler());
 
   // error
   app.use(middlewares.errorMiddleware);

@@ -43,6 +43,7 @@
     "supertest": "^3.3.0"
   },
   "dependencies": {
+    "@sentry/node": "^4.1.1",
     "body-parser": "^1.18.3",
     "db-migrate": "^0.11.3",
     "db-migrate-pg": "^0.4.0",

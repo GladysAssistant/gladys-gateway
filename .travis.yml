@@ -14,6 +14,7 @@ addons:
 services:
   - postgresql
   - redis-server
+  - docker
 
 env:
   global:
@@ -46,3 +47,8 @@ before_script:
 script:
   - lerna run eslint
   - lerna run test
+
+after_success:
+      - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+      - docker build -t gladysproject/gladys-gateway-server:latest ./src/gladys-gateway-server
+      - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysproject/gladys-gateway-server:latest; else true; fi

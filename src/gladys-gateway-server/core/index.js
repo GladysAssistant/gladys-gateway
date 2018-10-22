@@ -4,7 +4,10 @@ module.exports = async () => {
   const massive = require('massive');
   const redis = require('redis');
   Promise.promisifyAll(redis);
-  const logger = require('tracer').colorConsole();
+  
+  const logger = require('tracer').colorConsole({
+    level: process.env.LOG_LEVEL || 'debug'
+  });
 
   const app = express();
   const server = require('http').Server(app);

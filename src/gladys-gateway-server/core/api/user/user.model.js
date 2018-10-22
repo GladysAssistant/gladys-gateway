@@ -72,7 +72,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       
       return {
         id: insertedUser.id,
-        email: insertedUser.language,
+        email: insertedUser.email,
         email_confirmation_token: emailConfirmationToken,
         profile_url: insertedUser.profile_url,
         language: insertedUser.language,

@@ -60,6 +60,8 @@ class SetupPage extends Component {
       this.setState({ step: 3, user, instance, instanceFound: true, usersInGladys, gladysUserSelected });
     } catch (err) {
 
+      console.log(err);
+      
       // in case we can't find the instance
       if (err && err.status === 404) {
         this.setState({ user, step: 3, instanceFound: false });

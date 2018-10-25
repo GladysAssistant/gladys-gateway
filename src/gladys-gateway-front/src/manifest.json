@@ -1,11 +1,11 @@
 {
-  "name": "gladys-gateway-front",
-  "short_name": "gladys-gateway-front",
+  "name": "Gladys Gateway",
+  "short_name": "Gladys Gateway",
   "start_url": "/",
   "display": "standalone",
   "orientation": "portrait",
   "background_color": "#fff",
-  "theme_color": "#673ab8",
+  "theme_color": "#0052D4",
   "icons": [
     {
       "src": "/assets/icons/android-chrome-192x192.png",

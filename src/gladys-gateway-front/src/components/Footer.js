@@ -9,10 +9,7 @@ const Footer = ({ children, ...props }) => (
             <div class="col-auto">
               <ul class="list-inline list-inline-dots mb-0">
                 <li class="list-inline-item">
-                  <a href="./docs/index.html">Documentation</a>
-                </li>
-                <li class="list-inline-item">
-                  <a href="./faq.html">FAQ</a>
+                  <a href="/dashboard/help">Documentation</a>
                 </li>
               </ul>
             </div>

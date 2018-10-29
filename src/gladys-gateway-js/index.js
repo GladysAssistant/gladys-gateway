@@ -505,7 +505,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
           id: user.id,
           connected: user.connected,
           ecdsaPublicKey: await crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
-          rsaPublicKey: await crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true)
+          rsaPublicKey: await crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true),
+          ecdsaPublicKeyRaw: user.ecdsa_public_key,
+          rsaPublicKeyRaw: user.rsa_public_key
         };
       } 
       
@@ -568,6 +570,8 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
           if (state.keysDictionnary[data.sender_id]) {
             ecdsaPublicKey = state.keysDictionnary[data.sender_id].ecdsaPublicKey;
             rsaPublicKey = state.keysDictionnary[data.sender_id].rsaPublicKey;
+            data.ecdsaPublicKeyRaw = state.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
+            data.rsaPublicKeyRaw = state.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
           }
 
           if(ecdsaPublicKey == null || rsaPublicKey == null) {
@@ -576,7 +580,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
           var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, ecdsaPublicKey, data.encryptedMessage);
           
-          callbackMessage(decryptedMessage, async function(response) {
+          callbackMessage(decryptedMessage, data, async function(response) {
             var encryptedResponse = await crypto.encryptMessage(rsaPublicKey, state.ecdsaKeys.private_key, response);
             fn(encryptedResponse);
           });

@@ -119,7 +119,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
   async function getUsers(instance) {
     
     var users = await db.query(`
-      SELECT t_user.id, t_user.rsa_public_key, t_user.ecdsa_public_key
+      SELECT t_user.id, t_user.name, t_user.rsa_public_key, t_user.ecdsa_public_key
       FROM t_user
       JOIN t_instance ON t_instance.account_id = t_user.account_id
       WHERE t_user.is_deleted = false

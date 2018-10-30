@@ -2,7 +2,7 @@
 const MultiLevelDeviceType = ({ children, ...props }) => {
   
   function updateValue(e) {
-    props.updateValue(props.deviceType, props.roomIndex, props.deviceTypeIndex, e.target.value);
+    props.updateValue(props.deviceType, props.roomIndex, props.deviceTypeIndex, e.target.value, props.deviceType.lastValue);
   }
   
   return (

@@ -39,13 +39,18 @@ class DashboardPage extends Component {
       });
   };
 
-  updateValue = (deviceType, roomIndex, deviceTypeIndex, value) => {
+  updateValue = (deviceType, roomIndex, deviceTypeIndex, value, oldValue) => {
+    this.updateLocalValue(roomIndex, deviceTypeIndex, value);
+
     Auth.request
       .post(`/devicetype/${deviceType.id}/exec`, { value })
       .then(response => {
-        this.updateLocalValue( roomIndex, deviceTypeIndex, response.value);
+        this.updateLocalValue(roomIndex, deviceTypeIndex, response.value);
       })
-      .catch(console.log);
+      .catch((err) => {
+        console.log(err);
+        this.updateLocalValue(roomIndex, deviceTypeIndex, oldValue);
+      });
   };
 
   updateLocalValue = (roomIndex, deviceTypeIndex, value) => {
@@ -64,6 +69,8 @@ class DashboardPage extends Component {
         }
       }
     });
+
+    console.log(newState);
 
     this.setState(newState);
 

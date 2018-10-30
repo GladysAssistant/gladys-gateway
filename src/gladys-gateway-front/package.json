@@ -31,7 +31,6 @@
   "dependencies": {
     "@gladysproject/gladys-gateway-js": "^1.0.3",
     "axios": "^0.18.0",
-    "bootstrap": "^4.1.3",
     "idb": "^2.1.3",
     "immutability-helper": "^2.8.1",
     "jquery": "^3.3.1",

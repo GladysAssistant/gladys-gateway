@@ -10,7 +10,9 @@ const SensorDeviceType = ({ children, ...props }) => (
       { OPEN_CLOSE_SENSORS.indexOf(props.deviceType.category) !== -1 && <i class="fe fe-home" /> }
       { props.deviceType.category === null && <i class="fe fe-bar-chart-2" /> }
     </td>
-    <td>{props.deviceType.deviceTypeName}</td>
+    { props.deviceType.deviceTypeName && <td>{props.deviceType.deviceTypeName}</td> }
+    { !props.deviceType.deviceTypeName && props.deviceType.type === 'binary' && <td>{props.deviceType.name}</td>}
+    { !props.deviceType.deviceTypeName && props.deviceType.type !== 'binary' && <td>{props.deviceType.name} - {props.deviceType.type}</td>}
     { OPEN_CLOSE_SENSORS.indexOf(props.deviceType.category) === -1 &&
       <td class="text-right">
         {props.deviceType.lastValue} {props.deviceType.unit}

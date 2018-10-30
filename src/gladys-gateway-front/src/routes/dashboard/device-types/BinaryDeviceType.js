@@ -8,7 +8,8 @@ const BinaryDeviceType = ({ children, ...props }) => {
   return (
     <tr>
       <td><i class="fe fe-toggle-right" /></td>
-      <td>{props.deviceType.deviceTypeName}</td>
+      { props.deviceType.deviceTypeName && <td>{props.deviceType.deviceTypeName}</td> }
+      { !props.deviceType.deviceTypeName && <td>{props.deviceType.name}</td>}
       <td class="text-right">
         <label class="custom-switch">
           <input type="radio" name={props.deviceType.id} value="1" class="custom-switch-input"  checked={props.deviceType.lastValue} onClick={updateValue} />

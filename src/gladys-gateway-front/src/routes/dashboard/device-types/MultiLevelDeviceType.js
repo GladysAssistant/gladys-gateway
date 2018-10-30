@@ -8,7 +8,9 @@ const MultiLevelDeviceType = ({ children, ...props }) => {
   return (
     <tr>
       <td><i class="fe fe-toggle-right" /></td>
-      <td>{props.deviceType.deviceTypeName}</td>
+      { props.deviceType.deviceTypeName && <td>{props.deviceType.deviceTypeName}</td> }
+      { !props.deviceType.deviceTypeName && <td>{props.deviceType.name} - {props.deviceType.type}</td>}
+
       <td class="text-right" style="padding-top: 0px; padding-bottom: 0px">
         <div class="col">
           <input

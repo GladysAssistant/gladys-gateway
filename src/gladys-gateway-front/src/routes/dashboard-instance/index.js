@@ -16,6 +16,7 @@ class DashboardInstancePage extends Component {
       cpuUsage: '- '
     },
     noInstanceFoundError: false,
+    userNotAcceptedLocallyError: false,
     latency: '- '
   };
 
@@ -51,8 +52,13 @@ class DashboardInstancePage extends Component {
 
       Auth.cache.set(INSTANCE_INFOS_CACHE_KEY, { instanceInfos, lastUpdated: new Date() });
     } catch (err) {
+      
       if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
         this.setState({ noInstanceFoundError: true });
+      }
+
+      if (err && err.status === 403 && err.error_code === 'USER_NOT_ACCEPTED_LOCALLY') {
+        this.setState({ userNotAcceptedLocallyError: true });
       }
     }
   };
@@ -128,8 +134,18 @@ class DashboardInstancePage extends Component {
     clearInterval(this.interval);
   }
 
-  render({}, { instanceInfos, latency, noInstanceFoundError }) {
-    return <DashboardInstance connected={this.connected} instanceInfos={instanceInfos} latency={latency} restartGladys={this.restartGladys} trainBrain={this.trainBrain} noInstanceFoundError={noInstanceFoundError} />;
+  render({}, { instanceInfos, latency, noInstanceFoundError, userNotAcceptedLocallyError }) {
+    return (
+      <DashboardInstance
+        connected={this.connected}
+        instanceInfos={instanceInfos}
+        latency={latency}
+        restartGladys={this.restartGladys}
+        trainBrain={this.trainBrain}
+        noInstanceFoundError={noInstanceFoundError}
+        userNotAcceptedLocallyError={userNotAcceptedLocallyError}
+      />
+    );
   }
 }
 

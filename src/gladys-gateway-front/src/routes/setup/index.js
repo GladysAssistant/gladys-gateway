@@ -15,6 +15,7 @@ class SetupPage extends Component {
     instanceFound: false,
     paymentInProgress: false,
     savingBillingError: false,
+    userNotAcceptedLocallyError: false,
     instance: {},
     usersInGladys: [],
     gladysUserSelected: null,
@@ -60,7 +61,9 @@ class SetupPage extends Component {
       this.setState({ step: 3, user, instance, instanceFound: true, usersInGladys, gladysUserSelected });
     } catch (err) {
 
-      console.log(err);
+      if (err && err.status === 403 && err.error_code === 'USER_NOT_ACCEPTED_LOCALLY') {
+        this.setState({ step: 3, user, instance, instanceFound: true, userNotAcceptedLocallyError: true });
+      }
       
       // in case we can't find the instance
       if (err && err.status === 404) {
@@ -159,7 +162,8 @@ class SetupPage extends Component {
       paymentInProgress,
       savingBillingError,
       usersInGladys,
-      gladysUserSelected
+      gladysUserSelected,
+      userNotAcceptedLocallyError
     }
   ) {
     return (
@@ -180,6 +184,7 @@ class SetupPage extends Component {
         gladysUserSelected={gladysUserSelected}
         saveUserInInGladys={this.saveUserInInGladys}
         goToDashboard={this.goToDashboard}
+        userNotAcceptedLocallyError={userNotAcceptedLocallyError}
         user={user}
       />
     );

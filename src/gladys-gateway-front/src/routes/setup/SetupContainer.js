@@ -64,6 +64,7 @@ const SetupContainer = ({ children, ...props }) => (
                     gladysUserSelected={props.gladysUserSelected}
                     updateGladysUserSelected={props.updateGladysUserSelected}
                     saveUserInInGladys={props.saveUserInInGladys}
+                    userNotAcceptedLocallyError={props.userNotAcceptedLocallyError}
                     instanceFound={props.instanceFound}
                   />
                 )}

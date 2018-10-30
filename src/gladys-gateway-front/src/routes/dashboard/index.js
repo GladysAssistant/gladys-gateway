@@ -8,7 +8,8 @@ const DEVICE_TYPE_CACHE_KEY = 'devicetype_rooms';
 class DashboardPage extends Component {
   state = {
     rooms: null,
-    noInstanceFoundError: false
+    noInstanceFoundError: false,
+    userNotAcceptedLocallyError: false
   };
 
   lastRoomUpdate = null;
@@ -30,6 +31,10 @@ class DashboardPage extends Component {
       .catch(err => {
         if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
           this.setState({ noInstanceFoundError: true });
+        }
+        
+        if (err && err.status === 403 && err.error_code === 'USER_NOT_ACCEPTED_LOCALLY') {
+          this.setState({ userNotAcceptedLocallyError: true });
         }
       });
   };
@@ -109,7 +114,7 @@ class DashboardPage extends Component {
     }
   };
 
-  render({}, { user, rooms, noInstanceFoundError }) {
+  render({}, { user, rooms, noInstanceFoundError, userNotAcceptedLocallyError }) {
     return (
       <Dashboard
         rooms={rooms}
@@ -118,6 +123,7 @@ class DashboardPage extends Component {
         noInstanceFoundError={noInstanceFoundError}
         newInstanceEvent={this.newInstanceEvent}
         collapseRoom={this.collapseRoom}
+        userNotAcceptedLocallyError={userNotAcceptedLocallyError}
       />
     );
   }

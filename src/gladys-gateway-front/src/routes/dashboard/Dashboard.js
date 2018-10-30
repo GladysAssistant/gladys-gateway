@@ -15,6 +15,12 @@ const Dashboard = ({ children, ...props }) => (
         </div>
       )}
 
+      {props.userNotAcceptedLocallyError && (
+        <div class="alert alert-warning" role="alert">
+         Warning: Your Gladys Gateway user is not allowed to control your local Gladys instance. Go to your local Gladys instance and authorize this user.
+        </div>
+      )}
+
       { props.rooms &&
       <DeviceList
         rooms={props.rooms}

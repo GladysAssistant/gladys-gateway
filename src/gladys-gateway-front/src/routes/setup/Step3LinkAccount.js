@@ -33,6 +33,12 @@ const Step3LinkGladys = ({ children, ...props }) => (
               You Gladys instance is not connected. Connect it and reload this page.
             </div>
           )}
+
+          {props.userNotAcceptedLocallyError && (
+            <div class="alert alert-danger" role="alert">
+            Warning: Your Gladys Gateway user is not allowed to control your local Gladys instance. Go to your local Gladys instance and authorize this user, then reload this page.
+            </div>
+          )}
           {props.instanceFound &&
           <div class="row">
             <div class="col-md">

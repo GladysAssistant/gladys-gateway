@@ -678,8 +678,14 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
         if(response && response.status && response.error_code) {
           return reject(response);
         } else {
+          
           const decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, response);
-          return resolve(decryptedMessage);
+
+          if(decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
+            return reject(decryptedMessage);
+          } else {
+            return resolve(decryptedMessage);
+          }
         }
       });
     });

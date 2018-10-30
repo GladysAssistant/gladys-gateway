@@ -15,6 +15,9 @@ class DashboardProfilePage extends Component {
     Auth.getMySelf().then(user => {
       this.setState({ user, newUser: user });
     });
+    Auth.getUserKeyFingerprint().then((keys) => {
+      this.setState({ ecdsaPublicKeyFingerprint: keys.ecdsaPublicKeyFingerprint, rsaPublicKeyFingerprint: keys.rsaPublicKeyFingerprint });
+    });
   };
 
   saveUser = async (e) => {
@@ -59,7 +62,7 @@ class DashboardProfilePage extends Component {
     this.getUser();
   };
 
-  render({}, { user, newUser, errors, userSavedSuccess }) {
+  render({}, { user, newUser, errors, userSavedSuccess, ecdsaPublicKeyFingerprint, rsaPublicKeyFingerprint }) {
     return (
       <DashboardProfile
         connected={this.connected}
@@ -72,6 +75,8 @@ class DashboardProfilePage extends Component {
         updateLanguage={this.updateValue('language')}
         updateNewPassword={this.updateValue('newPassword')}
         updateNewPasswordRepeat={this.updateValue('newPasswordRepeat')}
+        ecdsaPublicKeyFingerprint={ecdsaPublicKeyFingerprint}
+        rsaPublicKeyFingerprint={rsaPublicKeyFingerprint}
         saveUser={this.saveUser}
       />
     );

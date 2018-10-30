@@ -76,6 +76,14 @@ const DashboardProfile = ({ children, ...props }) => (
                   </select>
                 </div>
                 <div class="form-group">
+                  <label class="form-label">RSA Key fingerprint</label>
+                  <input class="form-control" value={props.rsaPublicKeyFingerprint} disabled="disabled"  />
+                </div>
+                <div class="form-group">
+                  <label class="form-label">ECDSA Key fingerprint</label>
+                  <input class="form-control" value={props.ecdsaPublicKeyFingerprint} disabled="disabled"  />
+                </div>
+                <div class="form-group">
                   <label class="form-label">Password</label>
                   <input type="password" class="form-control" placeholder="New password (min 8 characters)"  value={props.newUser.newPassword} onChange={props.updateNewPassword}  />
                 </div>

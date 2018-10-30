@@ -78,8 +78,20 @@ const Auth = {
     keyValStore.set('access_token', data.accessToken),
     keyValStore.set('device_id', data.deviceId),
     keyValStore.set('rsa_keys', data.rsaKeys),
-    keyValStore.set('ecdsa_keys', data.ecdsaKeys)
+    keyValStore.set('ecdsa_keys', data.ecdsaKeys),
+    keyValStore.set('rsa_public_key_fingerprint', data.rsaPublicKeyFingerprint),
+    keyValStore.set('ecdsa_public_key_fingerprint', data.ecdsaPublicKeyFingerprint)
   ]),
+  getUserKeyFingerprint: async () => {
+    
+    let rsaPublicKeyFingerprint = await keyValStore.get('rsa_public_key_fingerprint');
+    let ecdsaPublicKeyFingerprint = await keyValStore.get('ecdsa_public_key_fingerprint');
+
+    return {
+      rsaPublicKeyFingerprint,
+      ecdsaPublicKeyFingerprint
+    };
+  },
   saveUser: user => keyValStore.set('user', user),
   getUser: async () => {
     let user = await keyValStore.get('user');

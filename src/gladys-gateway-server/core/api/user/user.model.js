@@ -308,7 +308,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
 
     var userWithSecret = await db.t_user.findOne({
       id: user.id
-    }, {fields: ['id', 'two_factor_secret', 'rsa_encrypted_private_key', 'ecdsa_encrypted_private_key']});
+    }, {fields: ['id', 'two_factor_secret', 'rsa_encrypted_private_key', 'ecdsa_encrypted_private_key', 'rsa_public_key', 'ecdsa_public_key']});
 
     var tokenValidates = speakeasy.totp.verify({
       secret: userWithSecret.two_factor_secret,
@@ -355,7 +355,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
         refresh_token: refreshToken,
         device_id: insertedDevice.id,
         rsa_encrypted_private_key: userWithSecret.rsa_encrypted_private_key,
-        ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key
+        ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key,
+        rsa_public_key: userWithSecret.rsa_public_key,
+        ecdsa_public_key: userWithSecret.ecdsa_public_key
       };
     });
   }

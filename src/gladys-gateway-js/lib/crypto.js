@@ -359,12 +359,24 @@ module.exports = function ({ cryptoLib }) {
     );
   }
 
+  async function generateFingerprint(key) {
+    let hash = await cryptoLib.subtle.digest({
+      name: 'SHA-256',
+    }, str2ab(key));
+
+    hash = arrayBufferToHex(hash);
+
+    var withColons = hash.replace(/(.{2})(?=.)/g, '$1:');
+    return withColons;
+  }
+
   return {
     generateKeyPair,
     encryptPrivateKey,
     decryptPrivateKey,
     encryptMessage,
     decryptMessage,
-    importKey
+    importKey,
+    generateFingerprint
   };
 };

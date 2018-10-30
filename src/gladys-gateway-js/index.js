@@ -177,6 +177,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
     await getInstance();
 
+    var rsaPublicKeyFingerprint = await crypto.generateFingerprint(loginData.rsa_public_key);
+    var ecdsaPublicKeyFingerprint = await crypto.generateFingerprint(loginData.ecdsa_public_key);
+
     return {
       gladysInstance: state.gladysInstance,
       gladysInstancePublicKey: state.gladysInstancePublicKey,
@@ -184,7 +187,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       ecdsaKeys: state.ecdsaKeys,
       refreshToken: loginData.refresh_token,
       accessToken: loginData.access_token,
-      deviceId: loginData.device_id
+      deviceId: loginData.device_id,
+      rsaPublicKeyFingerprint,
+      ecdsaPublicKeyFingerprint
     };
   }
 
@@ -490,6 +495,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.get(serverUrl + '/instances/users', state);
   }
 
+  async function generateFingerprint(key) {
+    return crypto.generateFingerprint(key);
+  }
+
   async function refreshUsersList() {
 
     // first, we get all users in instance
@@ -754,6 +763,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     getCard,
     cancelMonthlyPlan,
     sendMessageAllUsers,
-    newEventInstance
+    newEventInstance,
+    generateFingerprint
   };
 };

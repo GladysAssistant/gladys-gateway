@@ -44,7 +44,7 @@ const DashboardProfile = ({ children, ...props }) => (
 
                 { props.errors.includes('password-should-be-provided-to-update-email') &&
                   <div class="alert alert-danger" role="alert">
-                    Password should be provided to update email.
+                    Because the Gladys Gateway is end-to-end encrypted, when you change your email we need to encrypt again your keys, and therefore we need your password. Please provide your password to update your email.
                   </div>
                 }
 

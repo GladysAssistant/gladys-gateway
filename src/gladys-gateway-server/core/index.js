@@ -39,11 +39,12 @@ module.exports = async () => {
     mailgunService: require('./service/mailgun')(logger),
     jwtService: require('./service/jwt')(),
     stripeService: require('./service/stripe')(logger),
+    slackService: require('./service/slack')(logger)
   };
 
   const models = {
     pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
-    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService, services.mailgunService),
+    userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService, services.mailgunService, services.slackService),
     socketModel: require('./api/socket/socket.model')(logger, db, redisClient, io, services.fingerprint),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),

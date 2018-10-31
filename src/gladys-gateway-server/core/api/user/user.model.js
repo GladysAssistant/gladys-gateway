@@ -11,7 +11,7 @@ const schema = require('../../common/schema');
 const redisLoginSessionExpiryInSecond = 60;
 const resetPasswordTokenExpiryInMilliSeconds = 2*60*60*1000;
 
-module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
+module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService, slackService) {
 
   /**
    * Create a new user with his email and language
@@ -69,6 +69,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
 
       // we insert the user in db
       var insertedUser = await tx.t_user.insert(value);
+
+      // we invite the user in slack if slack is enabled
+      await slackService.inviteUser(insertedUser.email);
       
       return {
         id: insertedUser.id,

@@ -529,9 +529,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
   async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
 
-    if(state.socket) {
-      return Promise.resolve({ authenticated: true });
-    }
+    // clean current state
+    state.socket = null;
+    state.accessToken = null;
     
     state.refreshToken = refreshToken;
     state.isInstance = true;

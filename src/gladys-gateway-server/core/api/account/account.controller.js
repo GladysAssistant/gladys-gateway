@@ -39,6 +39,27 @@ module.exports = function(accountModel, socketModel) {
   }
 
   /**
+   * @api {post} /accounts/subscribe/new New account with plan
+   * @apiName New account with plan
+   * @apiGroup Account
+   * 
+   * @apiParam {String} email email
+   * @apiParam {String} language Language
+   * @apiParam {String} stripe_source_id Stripe source id
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "current_period_end": 1537841579580,
+   * }
+   */
+  async function subscribeMonthlyPlanWithoutAccount(req, res, next) {
+    var account = await accountModel.subscribeMonthlyPlanWithoutAccount(req.body.email, req.body.language, req.body.stripe_source_id);
+    res.json({ current_period_end: account.current_period_end });
+  }
+
+  /**
    * @api {post} /stripe/webhook Stripe Webhook
    * @apiName Stripe Webhook
    * @apiGroup Stripe
@@ -176,6 +197,7 @@ module.exports = function(accountModel, socketModel) {
     getUsers,
     subscribeMonthlyPlan,
     subscribeAgainToMonthlySubscription,
+    subscribeMonthlyPlanWithoutAccount,
     updateCard,
     revokeUser,
     getCard,

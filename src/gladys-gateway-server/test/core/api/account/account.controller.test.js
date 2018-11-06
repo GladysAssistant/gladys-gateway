@@ -36,6 +36,25 @@ describe('POST /accounts/subscribe', function() {
   });
 });
 
+describe('POST /accounts/subscribe/new', function() {
+  it('should subscribe a new email to account', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/accounts/subscribe/new')
+      .send({
+        email: 'tony.stark@gladysproject.com',
+        language: 'fr',
+        stripe_source_id: 'stripe-source-id-sample'
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('current_period_end');
+      });
+  });
+});
+
 describe('POST /accounts/users/:id/revoke', function() {
   it('should revoke a user', function() {
     return request(TEST_BACKEND_APP)

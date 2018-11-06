@@ -31,5 +31,15 @@ module.exports = {
       subject: 'Gladys Gateway - Réinitialiser votre mot de passe',
       ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/fr/password_reset.ejs', 'utf8'))
     }
-  }
+  },
+  welcome: {
+    en: {
+      subject: 'Gladys Gateway - Confirm your email address',
+      ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/en/welcome.ejs', 'utf8'))
+    },
+    fr: {
+      subject: 'Gladys Gateway - Confirmez votre adresse email',
+      ejs: ejs.compile(fs.readFileSync(__dirname + '/email-template/fr/welcome.ejs', 'utf8'))
+    }
+  },
 };

@@ -1,7 +1,9 @@
 const { AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const Promise = require('bluebird');
+const crypto = require('crypto');
+const randomBytes = Promise.promisify(require('crypto').randomBytes);
 
-module.exports = function AccountModel(logger, db, redisClient, stripeService) {
+module.exports = function AccountModel(logger, db, redisClient, stripeService, mailgunService) {
 
   async function getUsers(user) {
     
@@ -36,6 +38,56 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     });
 
     return allUsers;
+  }
+
+  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language, sourceId){
+
+    var email = rawEmail.trim().toLowerCase();
+    var role = 'admin';
+    
+    // create the customer on stripe side
+    var customer = await stripeService.createCustomer(email, sourceId);
+
+    // contact stripe to save the subscription id
+    var subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
+
+    // it means stripe is disabled
+    // so we add to the account 100 years of life
+    if(subscription === null) {
+      subscription = {
+        id: 'stripe-subcription-sample',
+        current_period_end: new Date().getTime() + 100*365*24*60*60*1000
+      };
+    }
+
+    var newAccount = {
+      name: email,
+      stripe_customer_id: customer.id,
+      stripe_subscription_id: subscription.id,
+      current_period_end: new Date(subscription.current_period_end * 1000)
+    };
+
+    var insertedAccount = await db.t_account.insert(newAccount);
+
+    // generate email confirmation token
+    var token = (await randomBytes(64)).toString('hex');
+
+    // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
+    // (due to SQL injection for example)
+    var tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await db.t_invitation.insert({
+      email,
+      role,
+      token_hash: tokenHash,
+      account_id: insertedAccount.id
+    });
+
+    await mailgunService.send({ email, language }, 'welcome', {
+      confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token)
+    });
+
+    return insertedAccount;
   }
 
   async function subscribeMonthlyPlan(user, sourceId) {
@@ -328,6 +380,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService) {
     subscribeMonthlyPlan,
     cancelMonthlySubscription,
     subscribeAgainToMonthlySubscription,
+    subscribeMonthlyPlanWithoutAccount,
     stripeEvent,
     getCard,
     getInvoices

@@ -396,6 +396,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.post(serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, state);
   }
 
+  async function subcribeMonthlyPlanWithoutAccount(email, language, sourceId) {
+    return requestApi.post(serverUrl + '/accounts/subscribe/new', { email, language, stripe_source_id: sourceId }, state);
+  }
+
   async function reSubcribeMonthlyPlan() {
     return requestApi.post(serverUrl + '/accounts/resubscribe', {}, state);
   }
@@ -758,6 +762,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     getUsersInstance,
     calculateLatency,
     subcribeMonthlyPlan,
+    subcribeMonthlyPlanWithoutAccount,
     reSubcribeMonthlyPlan,
     updateCard,
     getCard,

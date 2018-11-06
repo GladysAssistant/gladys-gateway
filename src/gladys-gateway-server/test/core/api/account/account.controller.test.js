@@ -55,6 +55,25 @@ describe('POST /accounts/subscribe/new', function() {
   });
 });
 
+describe('POST /accounts/subscribe/new', function() {
+  it('should return already exist error', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/accounts/subscribe/new')
+      .send({
+        email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+        language: 'fr',
+        stripe_source_id: 'stripe-source-id-sample'
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(409)
+      .then(response => {
+        
+      });
+  });
+});
+
 describe('POST /accounts/users/:id/revoke', function() {
   it('should revoke a user', function() {
     return request(TEST_BACKEND_APP)

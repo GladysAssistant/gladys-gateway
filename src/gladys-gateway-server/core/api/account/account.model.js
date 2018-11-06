@@ -44,6 +44,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
     var email = rawEmail.trim().toLowerCase();
     var role = 'admin';
+
+    // we first test if an account already exist with this email
+    var account = await db.t_account.findOne({ name: email });
+
+    // it means an account already exist with this email
+    if (account !== null) {
+      throw new AlreadyExistError();
+    }
     
     // create the customer on stripe side
     var customer = await stripeService.createCustomer(email, sourceId);

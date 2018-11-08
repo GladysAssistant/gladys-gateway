@@ -1,0 +1,12 @@
+{
+  "register-community-package-title": "Register to the Gladys Community Package",
+  "email-address": "Email Address",
+  "email-address-placeholder": "Enter Email",
+  "card-informations": "Card Informations",
+  "payment-secured-by": "Payment Secured by",
+  "subscribe-button": "Subscribe (9.99€/month)",
+  "invalid-email-address": "Invalid Email Adress",
+  "email-already-exist": "An account with this email address already exist!",
+  "payment-failed": "Payment failed. Please try again or try with a different card.",
+  "payment-success": "Congrats, you just suscribed to the Gladys community package. Check your email to get access to the Slack and the Gladys Gateway. Thanks for your support!"
+}

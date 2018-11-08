@@ -3,6 +3,7 @@ import { Router, route } from 'preact-router';
 
 // Code-splitting is automated for routes
 import Signup from '../routes/signup';
+import Subscribe from '../routes/subscribe';
 import Login from '../routes/login';
 import ConfigureTwoFactor from '../routes/configure-two-factor';
 import Setup from '../routes/setup';
@@ -41,6 +42,7 @@ export default class App extends Component {
       <div id="app" style={{ display: 'block', height: '100%' }}>
         <Router onChange={this.handleRoute}>
           <Signup path="/signup" />
+          <Subscribe path="/subscribe" />
           <ConfirmEmail path="/confirm-email/:token" />
           <Login path="/login" />
           <ConfigureTwoFactor path="/configure-two-factor" />

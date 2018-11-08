@@ -96,6 +96,13 @@ background-color: #f6f6f6;
                   </td>
                 </tr>
 
+                <% if(selzDiscountUrl){ %>
+                  <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;"><td class="content-block" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0; padding: 0 0 20px;" valign="top">
+                    🎁 Enfin, comme promis tu as le droit au Gladys Starter Pack gratuitement en suivant ce lien (attention le lien est à usage unique et expire sous une semaine) => <a href="<%= selzDiscountUrl %>">Récupérer mon Gladys Starter Pack gratuit</a>.
+                    </td>
+                  </tr>
+                <% } %>
+
                 <tr style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;"><td class="content-block" style="font-family: 'Helvetica Neue',Helvetica,Arial,sans-serif; box-sizing: border-box; font-size: 14px; vertical-align: top; margin: 0; padding: 0 0 20px;" valign="top">
                   Si tu souhaites recevoir une facture, mettre à jour tes informations de paiement, où annuler ton abonnement, tu peux te rendre dans les paramètres du Gladys Gateway.
                   </td>

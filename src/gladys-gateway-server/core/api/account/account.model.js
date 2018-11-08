@@ -3,7 +3,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 
-module.exports = function AccountModel(logger, db, redisClient, stripeService, mailgunService) {
+module.exports = function AccountModel(logger, db, redisClient, stripeService, mailgunService, selzService, slackService) {
 
   async function getUsers(user) {
     
@@ -91,8 +91,17 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       account_id: insertedAccount.id
     });
 
+    // we invite the user in slack if slack is enabled
+    await slackService.inviteUser(email);
+
+    // we create a selz discount
+    const selzDiscount = await selzService.createDiscount(email);
+
+    const selzDiscountUrl = (selzDiscount && selzDiscount.data)  ? selzDiscount.data.short_url : null;
+
     await mailgunService.send({ email, language }, 'welcome', {
-      confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token)
+      confirmationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token),
+      selzDiscountUrl
     });
 
     return insertedAccount;

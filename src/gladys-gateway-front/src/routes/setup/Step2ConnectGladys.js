@@ -24,7 +24,7 @@ const Step2ConnectGladys = ({ children, ...props }) => (
         <div class="card-body">
           <h4>How to connect your Gladys Instance</h4>
           <div class="text">
-            <li>Connect to your Gladys instance</li>
+            <li>Connect to your Gladys instance (need Gladys >= v3.11)</li>
             <li>Go to "Parameters"</li>
             <li>Click on the "Gateway" tab</li>
             <li>Connect with your Gladys Gateway account</li>

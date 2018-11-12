@@ -26,7 +26,7 @@ const LoginForm = ({ children, ...props }) => (
 
                 {props.loginTwoFactorErrored &&
                   <div class="alert alert-danger" role="alert">
-                  Invalid two factor code.
+                  Invalid two factor code. If you are using Firefox, we are sorry to say that they are not fully compatible with the WebCrypto API we are using in the Gateway. Try using Chrome or Safari instead.
                   </div>
                 }
 

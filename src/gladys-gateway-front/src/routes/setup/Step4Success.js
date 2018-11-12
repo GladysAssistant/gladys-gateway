@@ -19,7 +19,7 @@ const Step4Success = ({ children, ...props }) => (
             <p class="text">
               Pierre-Gilles Leymarie
               <br />
-              Find me on <a href="">Twitter</a> 😉
+              Find me on <a href="https://twitter.com/pierregillesl">Twitter</a> 😉
             </p>
           </div>
           <div class="text-right align-items-end">

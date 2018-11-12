@@ -11,11 +11,14 @@ module.exports = function (logger) {
 
     logger.info('Creating Selz Discount...');
 
+    // Selz does not accept discount name bigger than 40
+    var truncatedEmail = email.substring(0, 38);
+
     const options = {
       method: 'POST',
       headers: { 'authorization': 'Bearer ' +  process.env.SELZ_TOKEN},
       data: {
-        name: email,
+        name: truncatedEmail,
         type: 'product',
         target_id: process.env.SELZ_PRODUCT_ID,
         minimum_value: '0.00',

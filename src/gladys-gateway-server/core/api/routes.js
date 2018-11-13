@@ -84,7 +84,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/accounts/cancel', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.cancelMonthlySubscription));
   app.post('/accounts/users/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.revokeUser));
   app.get('/accounts/invoices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getInvoices));
-  app.post('/accounts/subscribe/new', middlewares.rateLimiter, asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount));
+  app.post('/accounts/subscribe/new', asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount));
   
   // admin
   app.post('/admin/accounts/:id/resend', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), middlewares.isSuperAdmin, asyncMiddleware(controllers.adminController.resendConfirmationEmail));

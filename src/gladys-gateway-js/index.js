@@ -491,6 +491,19 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
+
+  /**
+   * Admin API
+   */
+
+  async function adminGetAccounts(){
+    return requestApi.get(serverUrl + '/admin/accounts', state);
+  }
+
+  async function adminResendConfirmationEmail(accountId, language){
+    return requestApi.post(serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, state);
+  }
+
   /**
    * Instance API
    */
@@ -769,6 +782,8 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     cancelMonthlyPlan,
     sendMessageAllUsers,
     newEventInstance,
-    generateFingerprint
+    generateFingerprint,
+    adminResendConfirmationEmail,
+    adminGetAccounts
   };
 };

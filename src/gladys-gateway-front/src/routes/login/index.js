@@ -24,7 +24,7 @@ class LoginPage extends Component {
     Auth.login(this.state)
       .then(async data => {
         if (data.two_factor_token) {
-          this.setState({ displayTwoFactorInput: true, twoFactorToken: data.two_factor_token, loginInProgress: false });
+          this.setState({ loginErrored: false, displayTwoFactorInput: true, twoFactorToken: data.two_factor_token, loginInProgress: false });
         } else {
           await Auth.saveTwoFactorAccessToken(data.access_token);
           route('/configure-two-factor');

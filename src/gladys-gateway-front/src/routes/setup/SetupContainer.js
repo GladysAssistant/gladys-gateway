@@ -71,6 +71,11 @@ const SetupContainer = ({ children, ...props }) => (
                 {props.step === 4 && <Step4Success goToDashboard={props.goToDashboard} />}
               </div>
             </div>
+
+            <div class="text-center text-muted">
+                To manage your billing, click <a href="/dashboard/settings">here</a>
+            </div>
+            
           </div>
         </div>
       </div>

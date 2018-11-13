@@ -40,7 +40,7 @@ class Layout extends Component {
       .then(user => this.setState({ user }))
       .then(() => Auth.isAccoutSetup())
       .then((isAccountSetup) => {
-        if (!isAccountSetup) {
+        if (!isAccountSetup && !this.props.dontCheckSetup) {
           route('/setup');
         }
       })

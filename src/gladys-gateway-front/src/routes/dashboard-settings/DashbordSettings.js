@@ -7,7 +7,7 @@ import Invoices from './Invoices';
 import SuperAdmin from './SuperAdmin';
 
 const DashboardSettings = ({ children, ...props }) => (
-  <Layout user={props.user} callback={props.connected}>
+  <Layout user={props.user} callback={props.connected} dontCheckSetup >
     <div class="container">
       
       <div class="row">

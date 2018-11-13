@@ -31,7 +31,7 @@ class MyStoreCheckout extends Component {
         />
         <br />
         <label>
-          🔒 {translate(this.props.language, 'payment-secured-by')} <a href="https://stripe.com/docs/security/stripe">Stripe</a>
+          🔒 {translate(this.props.language, 'payment-secured-by')} <a href="https://stripe.com/docs/security/stripe" target="_blank" rel="noopener noreferrer">Stripe</a>
         </label>
         <button className="btn btn-primary btn-block" style={{ marginTop: '15px' }} disabled={this.props.requestPending === true}>
           {translate(this.props.language, 'subscribe-button')}

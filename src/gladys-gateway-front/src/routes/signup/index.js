@@ -17,7 +17,8 @@ class SignupPage extends Component {
     currentStep: 1,
     accountAlreadyExist: false,
     signupCompleted: false,
-    browserCompatible: Auth.testBrowserCompatibility()
+    browserCompatible: Auth.testBrowserCompatibility(),
+    isFireFox: navigator.userAgent.toLowerCase().indexOf('firefox') > -1
   };
 
   validateEmail = email => {
@@ -107,7 +108,7 @@ class SignupPage extends Component {
 
   render(
     {},
-    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError }
+    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError, isFireFox }
   ) {
     return (
       <SignupBase currentStep={currentStep} >
@@ -126,6 +127,7 @@ class SignupPage extends Component {
             browserCompatible={browserCompatible}
             token={this.props.token}
             invitationError={invitationError}
+            isFireFox={isFireFox}
           />
         )}
         {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} token={this.props.token} />}

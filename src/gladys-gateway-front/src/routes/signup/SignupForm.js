@@ -12,6 +12,12 @@ const SignupForm = ({ children, ...props }) => (
           Sorry, your browser is not compatible with the Gladys Gateway. Your browser should support the WebCrypto API as well as IndexedDB database.
       </div>
       }
+      {props.isFireFox === true &&
+         <div class="alert alert-danger" role="alert">
+          The Gladys Gateway is fully end-to-end encrypted and uses advanced functions of the WebCrypto API. Unfortunately, Firefox doesn't support one critical function that we use. While waiting for a new Firefox release with this missing function, we recommend using another browser like Chrome/Safari.
+         </div>
+      }
+
       {props.invitationError &&
        <div class="alert alert-danger" role="alert">
        We cannot retrieve your invitation. Maybe it was already used or has expired!

@@ -30,6 +30,12 @@ const LoginForm = ({ children, ...props }) => (
                   </div>
                 }
 
+                {props.isFireFox === true &&
+                  <div class="alert alert-danger" role="alert">
+                    The Gladys Gateway is fully end-to-end encrypted and uses advanced functions of the WebCrypto API. Unfortunately, Firefox doesn't support one critical function that we use. While waiting for a new Firefox release with this missing function, we recommend using another browser like Chrome/Safari.
+                  </div>
+                }
+
                 {!props.displayTwoFactorInput && (
                   <div class="form-group">
                     <label class="form-label">Email address</label>

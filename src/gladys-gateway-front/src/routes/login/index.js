@@ -13,6 +13,7 @@ class LoginPage extends Component {
     loginErrored: false,
     loginTwoFactorErrored: false,
     browserCompatible: Auth.testBrowserCompatibility(),
+    isFireFox: navigator.userAgent.toLowerCase().indexOf('firefox') > -1,
     loginInProgress: false,
     loginTwoFactorInProgress: false
   };
@@ -85,7 +86,7 @@ class LoginPage extends Component {
     Auth.cleanLocalState();
   };
 
-  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored, loginInProgress, loginTwoFactorInProgress }) {
+  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored, loginInProgress, loginTwoFactorInProgress, isFireFox }) {
     return (
       <LoginForm
         email={email}
@@ -102,6 +103,7 @@ class LoginPage extends Component {
         loginTwoFactorErrored={loginTwoFactorErrored}
         loginInProgress={loginInProgress}
         loginTwoFactorInProgress={loginTwoFactorInProgress}
+        isFireFox={isFireFox}
       />
     );
   }

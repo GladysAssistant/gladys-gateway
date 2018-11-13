@@ -10,7 +10,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailgunService, se
       SELECT t_account.*, COUNT(t_user.id) as user_count 
       FROM t_account
       LEFT JOIN t_user ON t_user.account_id = t_account.id
-      GROUP BY t_account.id;
+      GROUP BY t_account.id
+      ORDER BY t_account.created_at DESC;
     `;
 
     return db.query(request);

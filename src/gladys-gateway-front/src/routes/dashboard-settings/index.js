@@ -7,7 +7,9 @@ import linkState from 'linkstate';
 class DashboarSettingsPage extends Component {
   
   state = {
-    currentTab: 'sessions'
+    currentTab: 'sessions',
+    isSuperAdmin: false,
+    accounts: null
   };
 
   changeTab = (e) => {
@@ -25,6 +27,14 @@ class DashboarSettingsPage extends Component {
     
     Auth.getInvoices()
       .then((invoices) => this.setState({ invoices }));
+
+    Auth.getMySelf()
+      .then(async (user) => {
+        if (user.superAdmin === true) {
+          let accounts = await Auth.adminGetAccounts();
+          this.setState({ isSuperAdmin: true, accounts });
+        }
+      });
     
     this.refreshCard();
   };
@@ -61,6 +71,16 @@ class DashboarSettingsPage extends Component {
     };
   };
 
+  resendInvitationEmail = (accountId, language) => {
+    Auth.adminResendConfirmationEmail(accountId, language)
+      .then(() => {
+        this.setState({ accountConfirmationSucceed: accountId });
+      })
+      .catch(() => {
+        this.setState({ accountConfirmationFailed: accountId });
+      });
+  };
+
   saveBillingInformations = (stripeToken) => {
     
     // if no stripe token is passed, error
@@ -90,7 +110,7 @@ class DashboarSettingsPage extends Component {
       .catch(() =>  this.setState({ reSubscribeMonthlyPlanError: true }));
   };
 
-  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError, cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError, invoices }) {
+  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError, cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError, invoices, isSuperAdmin, accounts, accountConfirmationSucceed, accountConfirmationFailed }) {
     return (
       <DashbordSettings
         connected={this.connected}
@@ -109,6 +129,11 @@ class DashboarSettingsPage extends Component {
         reSubscribeMonthlyPlanError={reSubscribeMonthlyPlanError}
         invoices={invoices}
         card={card}
+        isSuperAdmin={isSuperAdmin}
+        accounts={accounts}
+        resendInvitationEmail={this.resendInvitationEmail}
+        accountConfirmationSucceed={accountConfirmationSucceed}
+        accountConfirmationFailed={accountConfirmationFailed}
       />
     );
   }

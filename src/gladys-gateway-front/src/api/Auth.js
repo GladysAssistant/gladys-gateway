@@ -67,6 +67,8 @@ const Auth = {
   getCard: client.getCard,
   cancelMonthlyPlan: client.cancelMonthlyPlan,
   updateCard: client.updateCard,
+  adminGetAccounts: client.adminGetAccounts,
+  adminResendConfirmationEmail: client.adminResendConfirmationEmail,
   request: {
     get: redirectWrapper(client.request.get),
     post: redirectWrapper(client.request.post),

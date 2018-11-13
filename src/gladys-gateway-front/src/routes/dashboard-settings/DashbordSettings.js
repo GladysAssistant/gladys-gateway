@@ -4,6 +4,7 @@ import Billing from './Billing';
 import Geolocation from './Geolocation';
 import Sessions from './Sessions';
 import Invoices from './Invoices';
+import SuperAdmin from './SuperAdmin';
 
 const DashboardSettings = ({ children, ...props }) => (
   <Layout user={props.user} callback={props.connected}>
@@ -34,6 +35,12 @@ const DashboardSettings = ({ children, ...props }) => (
               <a  href="" data-target="billing" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'billing' && 'active')}>
                 <span class="icon mr-3"><i class="fe fe-credit-card" /></span>Billing
               </a>
+
+              {props.isSuperAdmin === true &&
+                 <a  href="" data-target="super-admin" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'super-admin' && 'active')}>
+                   <span class="icon mr-3"><i class="fe fe-book" /></span>Administrate
+                 </a>
+              }
               
             </div>
           </div>
@@ -57,6 +64,7 @@ const DashboardSettings = ({ children, ...props }) => (
             />
           }
           {props.currentTab === 'invoices' && <Invoices invoices={props.invoices} />}
+          {props.currentTab === 'super-admin' && <SuperAdmin accounts={props.accounts} resendInvitationEmail={props.resendInvitationEmail} accountConfirmationSucceed={props.accountConfirmationSucceed} accountConfirmationFailed={props.accountConfirmationFailed} />}
         </div>
       
       </div>

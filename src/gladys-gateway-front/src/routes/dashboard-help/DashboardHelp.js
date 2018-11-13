@@ -37,7 +37,7 @@ const DashboardHelp = ({ children, ...props }) => (
           </div>
           
           <div class="d-none d-lg-block mt-6">
-            <a href="https://github.com/tabler/tabler/edit/dev/src/_docs/alerts.md" class="text-muted">Edit this page</a>
+            <a href="https://github.com/GladysProject/gladys-gateway/blob/master/src/gladys-gateway-front/src/routes/dashboard-help/DashboardHelp.js" class="text-muted">Edit this page</a>
           </div>
         </div>
       </div>

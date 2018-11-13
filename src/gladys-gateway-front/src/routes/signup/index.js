@@ -17,6 +17,8 @@ class SignupPage extends Component {
     currentStep: 1,
     accountAlreadyExist: false,
     signupCompleted: false,
+    unknownError: false,
+    tokenError: false,
     browserCompatible: Auth.testBrowserCompatibility(),
     isFireFox: navigator.userAgent.toLowerCase().indexOf('firefox') > -1
   };
@@ -71,6 +73,10 @@ class SignupPage extends Component {
       return;
     }
 
+    if (!this.props.token) {
+      return this.setState({ tokenError: true, currentStep: 1 });
+    }
+
     Auth.signup(newUser.name, newUser.email, newUser.password, newUser.language, this.props.token)
       .then(() => {
         setTimeout(() => {
@@ -78,6 +84,8 @@ class SignupPage extends Component {
             fieldsErrored: [],
             currentStep: 2,
             accountAlreadyExist: false,
+            unknownError: false,
+            tokenError: false,
             signupCompleted: true
           });
         }, 1000);
@@ -94,6 +102,7 @@ class SignupPage extends Component {
           this.setState({ accountAlreadyExist: true });
         } else {
           console.log(error);
+          this.setState({ unknownError: true });
         }
       });
   };
@@ -108,7 +117,7 @@ class SignupPage extends Component {
 
   render(
     {},
-    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError, isFireFox }
+    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError, isFireFox, unknownError, tokenError }
   ) {
     return (
       <SignupBase currentStep={currentStep} >
@@ -128,6 +137,8 @@ class SignupPage extends Component {
             token={this.props.token}
             invitationError={invitationError}
             isFireFox={isFireFox}
+            unknownError={unknownError}
+            tokenError={tokenError}
           />
         )}
         {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} token={this.props.token} />}

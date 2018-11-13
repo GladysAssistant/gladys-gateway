@@ -18,6 +18,18 @@ const SignupForm = ({ children, ...props }) => (
          </div>
       }
 
+      {props.tokenError === true &&
+         <div class="alert alert-danger" role="alert">
+          You have to subscribe to the Gladys Community Package on Gladys website first!
+         </div>
+      }
+
+      {props.unknownError === true &&
+         <div class="alert alert-danger" role="alert">
+          An unknown error occured. Please retry later or contact me at hello@gladysproject.com to understand what happened.
+         </div>
+      }
+
       {props.invitationError &&
        <div class="alert alert-danger" role="alert">
        We cannot retrieve your invitation. Maybe it was already used or has expired!

@@ -11,7 +11,8 @@ const SignupBase = ({ children, ...props }) => (
 
             {props.currentStep === 1 && (
               <div className="text-center text-muted">
-                Already have account? <a href="/login">Sign in</a>
+                Already have account? <a href="/login">Sign in</a><br />
+                Support at hello@gladysproject.com.
               </div>
             )}
           </div>

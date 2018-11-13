@@ -95,6 +95,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       'gladys_user_id'
     ]});
 
+    currentUser.superAdmin = (currentUser.id === process.env.SUPER_ADMIN_USER_ID);
+
     return currentUser;
   }
 

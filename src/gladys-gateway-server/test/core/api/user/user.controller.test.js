@@ -418,6 +418,7 @@ describe('GET /users/me', function() {
             name: 'Tony',
             email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
             role: 'admin',
+            superAdmin: false,
             language: 'en',
             profile_url: null,
             gladys_user_id: null

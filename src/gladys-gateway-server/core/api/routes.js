@@ -86,7 +86,11 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.get('/accounts/invoices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getInvoices));
   app.post('/accounts/subscribe/new', middlewares.rateLimiter, asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount));
   
+  // admin
+  app.post('/admin/accounts/:id/resend', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), middlewares.isSuperAdmin, asyncMiddleware(controllers.adminController.resendConfirmationEmail));
+  app.get('/admin/accounts', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), middlewares.isSuperAdmin, asyncMiddleware(controllers.adminController.getAllAccounts));
 
+  // stripe webhook
   app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
   
   // socket

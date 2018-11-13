@@ -50,7 +50,8 @@ module.exports = async () => {
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
     accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService, services.mailgunService, services.selzService, services.slackService),
-    deviceModel: require('./api/device/device.model')(logger, db, redisClient)
+    deviceModel: require('./api/device/device.model')(logger, db, redisClient),
+    adminModel: require('./api/admin/admin.models')(logger, db, redisClient, services.mailgunService, services.selzService, services.slackService)
   };
 
   const controllers = {
@@ -61,6 +62,7 @@ module.exports = async () => {
     invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),
     accountController: require('./api/account/account.controller')(models.accountModel, models.socketModel),
     deviceController: require('./api/device/device.controller')(models.deviceModel),
+    adminController: require('./api/admin/admin.controller')(models.adminModel)
   };
 
   const middlewares = {
@@ -70,7 +72,8 @@ module.exports = async () => {
     refreshTokenInstanceAuth: require('./middleware/refreshTokenInstanceAuth')(logger),
     accessTokenInstanceAuth: require('./middleware/accessTokenInstanceAuth')(logger),
     errorMiddleware: require('./middleware/errorMiddleware.js'),
-    rateLimiter: require('./middleware/rateLimiter')(redisClient)
+    rateLimiter: require('./middleware/rateLimiter')(redisClient),
+    isSuperAdmin: require('./middleware/isSuperAdmin')(logger)
   };
   
 

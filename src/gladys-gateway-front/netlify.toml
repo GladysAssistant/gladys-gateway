@@ -15,3 +15,11 @@
   to = "https://gateway.gladysproject.com/:splat"
   status = 301
   force = true
+
+[[redirects]]
+  from = "http://gateway.gladysproject.com/*"
+  to = "https://gateway.gladysproject.com/:splat"
+  status = 302
+  force = true
+
+

@@ -594,3 +594,44 @@ describe('GET /users/setup', function() {
       });
   });
 });
+
+describe('GET /users/two-factor/new', function() {
+  it('should generate new two factor secret', function() {
+    return request(TEST_BACKEND_APP)
+      .get('/users/two-factor/new')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('otpauth_url');
+      });
+  });
+});
+
+describe('PATCH /users/two-factor', function() {
+  it('should update two factor', function() {
+
+    const speakeasy = require('speakeasy');
+
+    var secret = speakeasy.generateSecret();
+
+    var twoFactorCode = speakeasy.totp({
+      secret: secret.base32
+    });
+
+    return request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: twoFactorCode
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then(response => {
+        response.body.should.have.property('two_factor_enabled', true);
+      });
+  });
+});

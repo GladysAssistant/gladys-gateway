@@ -197,6 +197,40 @@ module.exports = function(userModel, mailgunService, socketModel) {
   }
 
   /**
+   * @api {get} /users/two-factor/new Get new two factor secret
+   * @apiName Get new two factor secret
+   * @apiGroup User
+   * 
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "otpauth_url": ""
+   * }
+   */
+  async function getNewTwoFactorSecret(req, res, next) {
+    res.json(await userModel.getNewTwoFactorSecret(req.user));
+  }
+
+  /**
+   * @api {patch} /users/two-factor Update two factor
+   * @apiName Update two factor
+   * @apiGroup User
+   * 
+   * 
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   * 
+   * {
+   *   "two_factor_enabled": true
+   * }
+   */
+  async function updateTwoFactor(req, res, next) {
+    res.json(await userModel.updateTwoFactor(req.user, req.body.two_factor_secret, req.body.two_factor_code));
+  }
+
+  /**
    * @api {post} /users/login-two-factor Login two factor
    * @apiName Login two factor
    * @apiGroup User
@@ -358,6 +392,8 @@ module.exports = function(userModel, mailgunService, socketModel) {
     resetPassword,
     getMySelf,
     getSetupState,
-    getEmailResetPassword
+    getEmailResetPassword,
+    getNewTwoFactorSecret,
+    updateTwoFactor
   };
 };

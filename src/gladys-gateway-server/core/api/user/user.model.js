@@ -306,6 +306,48 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     };
   }
 
+  async function getNewTwoFactorSecret(user) {
+    
+    var fullUser = await db.t_user.findOne({
+      id: user.id
+    });
+
+    var secret = speakeasy.generateSecret();
+
+    var url = speakeasy.otpauthURL({ 
+      secret: secret.base32, 
+      label: fullUser.email, 
+      issuer: 'Gladys Gateway'
+    });
+
+    return {
+      otpauth_url: url
+    };
+  }
+
+  async function updateTwoFactor(user, twoFactorSecret, twoFactorCode) {
+    
+    var tokenValidates = speakeasy.totp.verify({
+      secret: twoFactorSecret,
+      token: twoFactorCode
+    });
+
+    if(!tokenValidates) {
+      throw new ForbiddenError();
+    }
+
+    await db.t_user.update({
+      id: user.id
+    }, {
+      two_factor_enabled: true,
+      two_factor_secret: twoFactorSecret
+    });
+    
+    return {
+      two_factor_enabled: true
+    };
+  }
+
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent){
 
     var userWithSecret = await db.t_user.findOne({
@@ -570,6 +612,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     resetPassword,
     getEmailResetPassword,
     getMySelf,
-    getSetupState
+    getSetupState,
+    getNewTwoFactorSecret,
+    updateTwoFactor
   };
 };

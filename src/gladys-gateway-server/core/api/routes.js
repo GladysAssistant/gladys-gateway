@@ -58,6 +58,9 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/users/reset-password', middlewares.rateLimiter, asyncMiddleware(controllers.userController.resetPassword));
   app.get('/users/reset-password/:token', middlewares.rateLimiter, asyncMiddleware(controllers.userController.getEmailResetPassword));
 
+  app.get('/users/two-factor/new', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.userController.getNewTwoFactorSecret));
+  app.patch('/users/two-factor', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.userController.updateTwoFactor));
+
   // devices
   app.get('/users/me/devices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.deviceController.getDevices));
   app.post('/devices/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.deviceController.revokeDevice));

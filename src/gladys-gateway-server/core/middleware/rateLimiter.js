@@ -2,7 +2,7 @@ const rateLimit = require('express-rate-limit');
 const asyncMiddleware = require('./asyncMiddleware.js');
 const RedisStore = require('rate-limit-redis');
 
-const MAX_REQUEST_PER_HOUR = 10000;
+const MAX_REQUEST_PER_HOUR = 400;
 
 module.exports = function(redisClient) {
 

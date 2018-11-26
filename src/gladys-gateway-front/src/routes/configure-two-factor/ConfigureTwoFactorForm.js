@@ -15,8 +15,8 @@ const ConfigureTwoFactorForm = ({ children, ...props }) => (
                   <p>The security of your Gladys Gateway account is really important to us.</p>
                   <p>
                     To ensure that your account remains secure, please enable two-factor
-                    authentication using a two-factor app like Authy on <a href="">iOS</a> or{' '}
-                    <a href="">Android</a>.
+                    authentication using a two-factor app like Authy on <a href="https://itunes.apple.com/us/app/authy/id494168017?mt=8">iOS</a> or{' '}
+                    <a href="https://play.google.com/store/apps/details?id=com.authy.authy">Android</a>.
                   </p>
 
                   <div class="form-footer">

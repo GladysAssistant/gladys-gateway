@@ -4561,7 +4561,7 @@ input[type="button"].btn-block {
   margin-bottom: 1.5rem;
 }
 
-@media (min-width: 576px) {
+@media (min-width: 1000px) {
   .card-columns {
     -webkit-column-count: 3;
     -moz-column-count: 3;
@@ -4577,6 +4577,24 @@ input[type="button"].btn-block {
     width: 100%;
   }
 }
+
+@media (min-width: 770px) and (max-width: 1000px) {
+  .card-columns {
+    -webkit-column-count: 2;
+    -moz-column-count: 2;
+    column-count: 2;
+    -webkit-column-gap: 1.25rem;
+    -moz-column-gap: 1.25rem;
+    column-gap: 1.25rem;
+    orphans: 1;
+    widows: 1;
+  }
+  .card-columns .card {
+    display: inline-block;
+    width: 100%;
+  }
+}
+
 
 .accordion .card:not(:first-of-type):not(:last-of-type) {
   border-bottom: 0;

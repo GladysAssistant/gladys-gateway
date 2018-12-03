@@ -486,7 +486,14 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       });
 
       state.socket.on('disconnect', async function(){
-        console.log('Socket disconnected, trying to reconnect....');
+        if (reason === 'io server disconnect') {
+          
+          // the disconnection was initiated by the server, you need to reconnect manually
+          logger.warn('Socket disconnected by the server. Trying to reconnect...');
+          state.socket.connect();
+        } else {
+          logger.warn('Socket disconnected client side. Trying to reconnect...');
+        }
       });
     });
   }

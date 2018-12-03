@@ -29,7 +29,7 @@
     "preact-render-spy": "^1.2.1"
   },
   "dependencies": {
-    "@gladysproject/gladys-gateway-js": "^1.0.6",
+    "@gladysproject/gladys-gateway-js": "^1.0.8",
     "axios": "^0.18.0",
     "idb": "^2.1.3",
     "immutability-helper": "^2.8.1",

@@ -1,0 +1,1 @@
+DROP TABLE t_open_api_key;

@@ -590,6 +590,15 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
           }
         });
 
+        // Open API message
+        // By definition, those messages cannot be E2E encrypted
+        // because the recipient is a third-party
+        state.socket.on('open-api-message', async function(data, fn) {
+          callbackMessage(data, data, async function(response) {
+            fn(response);
+          });
+        });
+
         state.socket.on('message', async function(data, fn) {
 
           var ecdsaPublicKey = null;

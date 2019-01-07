@@ -26,7 +26,7 @@ const SignupForm = ({ children, ...props }) => (
 
       {props.unknownError === true &&
          <div class="alert alert-danger" role="alert">
-          An unknown error occured. Please retry later or contact me at hello@gladysproject.com to understand what happened.
+          An unknown error occured. Please retry later or contact me at hello@gladysassistant.com to understand what happened.
          </div>
       }
 

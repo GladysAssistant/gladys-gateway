@@ -70,7 +70,7 @@ module.exports = function(invitationModel) {
    * 
    * {
    *   "id": "61243769-6b09-496d-85f6-2189bd54662e",
-   *   "email": "tony.stark@gladysproject.com"
+   *   "email": "tony.stark@gladysassistant.com"
    * }
    */
   async function getInvitation(req, res, next) {

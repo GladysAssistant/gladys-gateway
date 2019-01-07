@@ -104,8 +104,8 @@ const LoginForm = ({ children, ...props }) => (
               </div>
             </form>
             <div class="text-center text-muted">
-              Don't have account yet? <a href="https://gladysproject.com/gladys-community-package">Sign up</a><br />
-              Support at hello@gladysproject.com.
+              Don't have account yet? <a href="https://gladysassistant.com/gladys-community-package">Sign up</a><br />
+              Support at hello@gladysassistant.com.
             </div>
           </div>
         </div>

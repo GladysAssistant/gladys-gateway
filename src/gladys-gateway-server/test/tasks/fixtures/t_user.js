@@ -2,7 +2,7 @@ module.exports = [
   {
     id: '29770e0d-26a9-444e-91a1-f175c99a5218',
     email_confirmation_token_hash: '022faf0269f420adbfb62e9b2f31c9855c8c5223da1e6fdc31196db9c83e5749',
-    email: 'tony.stark@gladysproject.com',
+    email: 'tony.stark@gladysassistant.com',
     email_confirmed: false,
     srp_salt: 'ddd',
     srp_verifier: 'sdfsdf',

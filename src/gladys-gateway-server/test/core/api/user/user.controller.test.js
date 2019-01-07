@@ -7,7 +7,7 @@ describe('POST /users/signup', function() {
       .post('/users/signup')
       .send({
         name: 'Tony',
-        email: 'tony.stark@gladysproject.com',
+        email: 'tony.stark@gladysassistant.com',
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
@@ -31,7 +31,7 @@ describe('POST /users/signup', function() {
     return request(TEST_BACKEND_APP)
       .post('/users/signup')
       .send({
-        email: 'tony.stark@gladysproject.com',
+        email: 'tony.stark@gladysassistant.com',
         language: 'en',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
@@ -62,7 +62,7 @@ describe('POST /users/verify', function() {
       .then(response => {
         should.deepEqual(response.body, {
           id: '29770e0d-26a9-444e-91a1-f175c99a5218',
-          email: 'tony.stark@gladysproject.com',
+          email: 'tony.stark@gladysassistant.com',
           email_confirmed: true
         });
       });
@@ -393,12 +393,12 @@ describe('PATCH /users/me', function() {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .send({
-        email: 'new-email@gladysproject.com'
+        email: 'new-email@gladysassistant.com'
       })
       .expect('Content-Type', /json/)
       .expect(200)
       .then(response => {
-        response.body.should.have.property('email', 'new-email@gladysproject.com');
+        response.body.should.have.property('email', 'new-email@gladysassistant.com');
         response.body.should.have.property('email_confirmed', false);
       });
   });
@@ -449,7 +449,7 @@ describe('POST /users/forgot-password', function() {
       .post('/users/forgot-password')
       .set('Accept', 'application/json')
       .send({
-        email: 'this-email-does-not-exist@gladysproject.com'
+        email: 'this-email-does-not-exist@gladysassistant.com'
       })
       .expect('Content-Type', /json/)
       .expect(404)

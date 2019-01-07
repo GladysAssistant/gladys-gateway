@@ -1,4 +1,4 @@
-# Gladys Gateway Server [![Build Status](https://travis-ci.org/GladysProject/gladys-gateway.svg?branch=master&style=flat-square)](https://travis-ci.org/GladysProject/gladys-gateway)
+# Gladys Gateway Server [![Build Status](https://travis-ci.org/gladysassistant/gladys-gateway.svg?branch=master&style=flat-square)](https://travis-ci.org/gladysassistant/gladys-gateway)
 
 The goal of the Gladys Gateway server is to be the proxy between the frontend and the Gladys instance of the user.
 
@@ -13,7 +13,7 @@ The goal of the Gladys Gateway server is to be the proxy between the frontend an
 First step, clone this repository
 
 ```
-git clone https://github.com/GladysProject/gladys-gateway
+git clone https://github.com/gladysassistant/gladys-gateway
 ```
 
 Move in the gladys gateway server folder

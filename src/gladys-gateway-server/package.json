@@ -13,7 +13,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/GladysProject/gladys-gateway.git"
+    "url": "git+https://github.com/gladysassistant/gladys-gateway.git"
   },
   "keywords": [
     "gladys",
@@ -27,13 +27,13 @@
   "author": "Pierre-Gilles Leymarie",
   "license": "MIT",
   "bugs": {
-    "url": "https://github.com/GladysProject/gladys-gateway/issues"
+    "url": "https://github.com/gladysassistant/gladys-gateway/issues"
   },
   "apidoc": {
     "title": "Gladys Gateway",
     "name": "Gladys Gateway"
   },
-  "homepage": "https://github.com/GladysProject/gladys-gateway#readme",
+  "homepage": "https://github.com/gladysassistant/gladys-gateway#readme",
   "devDependencies": {
     "dotenv": "^6.0.0",
     "eslint": "^5.6.0",

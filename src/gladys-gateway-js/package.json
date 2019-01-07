@@ -1,5 +1,5 @@
 {
-  "name": "@gladysproject/gladys-gateway-js",
+  "name": "@gladysassistant/gladys-gateway-js",
   "version": "1.0.9",
   "description": "Gladys Gateway JS client",
   "main": "index.js",

@@ -22,7 +22,7 @@ class SignupPage extends Component {
   saveSale = () => {
 
     const script = document.createElement('script');
-    script.src = 'https://gladysproject.com/assets/js/external-gladys-community-package-sales.js';
+    script.src = 'https://gladysassistant.com/assets/js/external-gladys-community-package-sales.js';
     document.body.appendChild(script);
 
     script.onload = () => {

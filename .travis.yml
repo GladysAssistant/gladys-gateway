@@ -50,12 +50,12 @@ script:
 
 after_success:
       - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-      - docker build -t gladysproject/gladys-gateway-server:latest ./src/gladys-gateway-server
-      - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysproject/gladys-gateway-server:latest; else true; fi
+      - docker build -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+      - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysassistant/gladys-gateway-server:latest; else true; fi
       - |
-        docker build -t gladysproject/gladys-gateway-front:latest \
+        docker build -t gladysassistant/gladys-gateway-front:latest \
         --build-arg SERVER_URL=$GLADYS_GATEWAY_API_URL \
         --build-arg STRIPE_API_KEY=$STRIPE_API_KEY \
         --build-arg NODE_ENV=production \
         ./src/gladys-gateway-front
-      - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysproject/gladys-gateway-front:latest; else true; fi
+      - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysassistant/gladys-gateway-front:latest; else true; fi

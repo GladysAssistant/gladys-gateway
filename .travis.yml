@@ -39,7 +39,6 @@ before_install:
   - npm install -g lerna eslint db-migrate
   - lerna bootstrap
   - cd src/gladys-gateway-js && npm rebuild && cd ..
-  - ls src/gladys-gateway-js/node_modules/node-webcrypto-ossl/build/
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres

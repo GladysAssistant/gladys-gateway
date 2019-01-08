@@ -456,8 +456,18 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
 
       state.socket.on('connect', async () => {
 
-        // we are connected, so we get a new access token
-        state.accessToken = await getAccessToken(refreshToken);
+        try {
+          // we are connected, so we get a new access token
+          state.accessToken = await getAccessToken(refreshToken);
+        } catch (err) {
+
+          // refresh token is not good anymore
+          if(err && err.response && err.response.data && err.response.data.status === 401) {
+            reject(new Error('invalid-refresh-token'));
+          }
+
+          throw err;
+        }
 
         // we get the instance
         await getInstance();
@@ -467,7 +477,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
             logger.info('Gladys Gateway, connected in websocket');
             resolve();
           } else {
-            reject();
+            reject(new Error('invalid-access-token'));
           }
         });
       });
@@ -485,7 +495,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
         }
       });
 
-      state.socket.on('disconnect', async function(){
+      state.socket.on('disconnect', async function(reason) {
         if (reason === 'io server disconnect') {
           
           // the disconnection was initiated by the server, you need to reconnect manually

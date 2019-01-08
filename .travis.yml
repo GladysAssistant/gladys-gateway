@@ -38,6 +38,7 @@ env:
 before_install:
   - npm install -g lerna eslint db-migrate
   - lerna bootstrap
+  - cd src/gladys-gateway-js && npm install && cd ../..
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres

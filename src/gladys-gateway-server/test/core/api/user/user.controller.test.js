@@ -421,7 +421,8 @@ describe('GET /users/me', function() {
             superAdmin: false,
             language: 'en',
             profile_url: null,
-            gladys_user_id: null
+            gladys_user_id: null,
+            current_period_end: null
           });
       });
   });

@@ -28,7 +28,7 @@
     "dotenv": "^6.0.0",
     "mocha": "^5.2.0",
     "nock": "^10.0.0",
-    "node-webcrypto-ossl": "^1.0.38",
+    "node-webcrypto-ossl": "^1.0.39",
     "should": "^13.2.3",
     "speakeasy": "^2.0.0"
   }

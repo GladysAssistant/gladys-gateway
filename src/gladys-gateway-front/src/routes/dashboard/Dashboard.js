@@ -15,18 +15,24 @@ const Dashboard = ({ children, ...props }) => (
         </div>
       )}
 
+      {props.accountExpired && (
+        <div class="alert alert-warning" role="alert">
+          Your account has expired, to use the Gateway again, go to "Settings" =>  "Billing" :)
+        </div>
+      )}
+
       {props.userNotAcceptedLocallyError && (
         <div class="alert alert-warning" role="alert">
          Warning: Your Gladys Gateway user is not allowed to control your local Gladys instance. Go to your local Gladys instance and authorize this user.
         </div>
       )}
 
-      { props.rooms &&
-      <DeviceList
-        rooms={props.rooms}
-        updateValue={props.updateValue}
-        collapseRoom={props.collapseRoom}
-      />
+      { props.rooms && !props.accountExpired &&
+        <DeviceList
+          rooms={props.rooms}
+          updateValue={props.updateValue}
+          collapseRoom={props.collapseRoom}
+        />
       }
 
       {props.rooms && props.rooms.length === 0 && <EmptyState />}

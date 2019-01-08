@@ -24,7 +24,7 @@ module.exports = function() {
       algorithm: 'HS256',
       audience: 'user',
       issuer: 'gladys-gateway',
-      expiresIn: 30*24*60*60 // refresh token is valid 30 days
+      expiresIn: 100*365*24*60*60 // refresh token basically never expires, they are invalidated server side
     });
   }
   
@@ -33,7 +33,7 @@ module.exports = function() {
       algorithm: 'HS256',
       audience: 'instance',
       issuer: 'gladys-gateway',
-      expiresIn: 10*365*24*60*60 // refresh token of instance basically never expires, they are invalidated server side
+      expiresIn: 100*365*24*60*60 // refresh token of instance basically never expires, they are invalidated server side
     });
   }
 

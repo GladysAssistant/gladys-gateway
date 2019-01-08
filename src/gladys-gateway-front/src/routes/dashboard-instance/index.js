@@ -17,6 +17,7 @@ class DashboardInstancePage extends Component {
     },
     noInstanceFoundError: false,
     userNotAcceptedLocallyError: false,
+    accountExpired: false,
     latency: '- '
   };
 
@@ -26,6 +27,13 @@ class DashboardInstancePage extends Component {
   connected = async () => {
     this.refreshStats();
     this.interval = setInterval(this.refreshStats, REFRESH_INTERVAL);
+    Auth.getMySelf()
+      .then((user) => {
+        const expiredAccountDate = new Date(user.current_period_end);
+        if (expiredAccountDate < new Date()) {
+          this.setState({ accountExpired: true });
+        }
+      });
   };
 
   calculateLatency = async () => {
@@ -134,7 +142,7 @@ class DashboardInstancePage extends Component {
     clearInterval(this.interval);
   }
 
-  render({}, { instanceInfos, latency, noInstanceFoundError, userNotAcceptedLocallyError }) {
+  render({}, { instanceInfos, latency, noInstanceFoundError, userNotAcceptedLocallyError, accountExpired }) {
     return (
       <DashboardInstance
         connected={this.connected}
@@ -144,6 +152,7 @@ class DashboardInstancePage extends Component {
         trainBrain={this.trainBrain}
         noInstanceFoundError={noInstanceFoundError}
         userNotAcceptedLocallyError={userNotAcceptedLocallyError}
+        accountExpired={accountExpired}
       />
     );
   }

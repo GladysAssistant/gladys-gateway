@@ -18,7 +18,17 @@ const DashboardInstance = ({ children, ...props }) => (
          Warning: Your Gladys Gateway user is not allowed to control your local Gladys instance. Go to your local Gladys instance and authorize this user.
         </div>
       )}
-      <InstanceCard instanceInfos={props.instanceInfos} latency={props.latency} restartGladys={props.restartGladys} trainBrain={props.trainBrain} noInstanceFoundError={props.noInstanceFoundError} />
+
+      {props.accountExpired && (
+        <div class="alert alert-warning" role="alert">
+          Your account has expired, to use the Gateway again, go to "Settings" =>  "Billing" :)
+        </div>
+      )}
+      
+      { props.accountExpired === false &&
+        <InstanceCard instanceInfos={props.instanceInfos} latency={props.latency} restartGladys={props.restartGladys} trainBrain={props.trainBrain} noInstanceFoundError={props.noInstanceFoundError} />
+      }
+
     </div>
   </Layout>
 );

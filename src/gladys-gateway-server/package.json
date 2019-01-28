@@ -5,6 +5,7 @@
   "main": "index.js",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
+    "coverage": "nyc report --reporter=text-lcov npm test > coverage.lcov && codecov",
     "eslint": "eslint core test index.js",
     "start": "nodemon index.js",
     "apidoc": "apidoc -i core/ -o apidoc/",

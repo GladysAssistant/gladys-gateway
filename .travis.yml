@@ -36,7 +36,7 @@ env:
     - CXX=g++-4.8
 
 before_install:
-  - npm install -g lerna eslint db-migrate
+  - npm install -g lerna eslint db-migrate codecov nyc
   - lerna bootstrap
   - cd src/gladys-gateway-js && npm rebuild && cd ../..
 
@@ -47,7 +47,7 @@ before_script:
 
 script:
   - lerna run eslint
-  - lerna run test
+  - lerna run coverage
 
 after_success:
       - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"

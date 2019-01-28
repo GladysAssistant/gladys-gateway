@@ -12,16 +12,22 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     // if no, we return null
     if(!socket) {
       return cb(null);
-    } else {
+    } 
 
-      if(data.disconnect === true) {
-        socket.disconnect();
-        cb(true);
-      } else {
-        
-        // else, we ask
-        socket.emit('message', data.message, cb);
-      }
+    // if message is a disconnect instruction
+    else if(data.disconnect === true) {
+      socket.disconnect();
+      cb(true);
+    }
+
+    // if message is an open API message
+    else if(data.message && data.message.type === 'gladys-open-api') {
+      socket.emit('open-api-message', data.message, cb);
+    }  
+    
+    // else, we emit the message
+    else {
+      socket.emit('message', data.message, cb);
     }
   };
 
@@ -173,7 +179,19 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     } catch(e) {
       // user not connected
     }
-  } 
+  }
+
+  async function sendMessageOpenApi (user, message) {
+    return new Promise((resolve, reject) => {
+      handleNewMessageFromUser(user, message, function(response) {
+        if (response && response.error_code === 'NOT_FOUND') {
+          reject(new NotFoundError('NO_INSTANCE_FOUND'));
+        } else {
+          resolve(response);
+        }
+      });
+    });
+  }
 
   return {
     authenticateUser,
@@ -183,6 +201,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
     handleNewMessageFromInstance,
     hello,
     askInstanceToClearKeyCache,
-    isUserConnected
+    isUserConnected,
+    sendMessageOpenApi
   };
 };

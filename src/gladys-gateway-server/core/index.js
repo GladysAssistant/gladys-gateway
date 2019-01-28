@@ -51,7 +51,8 @@ module.exports = async () => {
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
     accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService, services.mailgunService, services.selzService, services.slackService),
     deviceModel: require('./api/device/device.model')(logger, db, redisClient),
-    adminModel: require('./api/admin/admin.models')(logger, db, redisClient, services.mailgunService, services.selzService, services.slackService)
+    adminModel: require('./api/admin/admin.models')(logger, db, redisClient, services.mailgunService, services.selzService, services.slackService),
+    openApiModel: require('./api/openapi/openapi.model.js')(logger, db)
   };
 
   const controllers = {
@@ -62,7 +63,8 @@ module.exports = async () => {
     invitationController: require('./api/invitation/invitation.controller')(models.invitationModel),
     accountController: require('./api/account/account.controller')(models.accountModel, models.socketModel),
     deviceController: require('./api/device/device.controller')(models.deviceModel),
-    adminController: require('./api/admin/admin.controller')(models.adminModel)
+    adminController: require('./api/admin/admin.controller')(models.adminModel),
+    openApiController: require('./api/openapi/openapi.controller')(models.openApiModel, models.socketModel)
   };
 
   const middlewares = {
@@ -73,7 +75,8 @@ module.exports = async () => {
     accessTokenInstanceAuth: require('./middleware/accessTokenInstanceAuth')(logger),
     errorMiddleware: require('./middleware/errorMiddleware.js'),
     rateLimiter: require('./middleware/rateLimiter')(redisClient),
-    isSuperAdmin: require('./middleware/isSuperAdmin')(logger)
+    isSuperAdmin: require('./middleware/isSuperAdmin')(logger),
+    openApiKeyAuth: require('./middleware/openApiApiKeyAuth')(models.openApiModel, models.userModel)
   };
   
 

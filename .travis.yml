@@ -39,6 +39,7 @@ before_install:
   - npm install -g lerna eslint db-migrate codecov nyc
   - lerna bootstrap
   - cd src/gladys-gateway-js && npm rebuild && cd ../..
+  - mkdir src/gladys-gateway-server/.nyc_output
 
 before_script:
   - psql -c 'create database travis_ci_test;' -U postgres

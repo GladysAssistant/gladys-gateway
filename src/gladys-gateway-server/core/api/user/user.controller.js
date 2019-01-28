@@ -328,7 +328,7 @@ module.exports = function(userModel, mailgunService, socketModel) {
    * {
    *   "id": "30d56556-0aaa-4933-97cd-d226e6ffb11d",
    *   "name": "Tony Stark",
-   *   "email": "tony.stark@gladysproject.com",
+   *   "email": "tony.stark@gladysassistant.com",
    *   "role": "admin",
    *   "language": "en",
    *   "profile_url": "https://gravatar.com/sdkflmskd",

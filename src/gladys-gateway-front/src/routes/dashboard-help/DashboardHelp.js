@@ -18,7 +18,7 @@ const DashboardHelp = ({ children, ...props }) => (
                 <p>The Gladys Gateway is fully end-to-end encrypted.</p>
 
                 <h2 class="mt-0 mb-4" id="help">Need help</h2>
-                <p>If you need help, please open a topic on <a href="http://community.gladysproject.com/">Gladys Community</a></p>
+                <p>If you need help, please open a topic on <a href="http://community.gladysassistant.com/">Gladys Community</a></p>
                 <p>It's the best place to receive help 🙂</p>
                 <div class="alert alert-primary mt-5 mb-6">
                   <div><strong>Work in progress!</strong> More detailed documentation is coming soon.</div>
@@ -28,7 +28,7 @@ const DashboardHelp = ({ children, ...props }) => (
           </div>
         </div>
         <div class="col-lg-3 order-lg-1 mb-4">
-          <a href="https://github.com/GladysProject/gladys-gateway" class="btn btn-block btn-primary mb-6">
+          <a href="https://github.com/gladysassistant/gladys-gateway" class="btn btn-block btn-primary mb-6">
             <i class="fe fe-github mr-2" />Browse source code
           </a>
 
@@ -37,7 +37,7 @@ const DashboardHelp = ({ children, ...props }) => (
           </div>
           
           <div class="d-none d-lg-block mt-6">
-            <a href="https://github.com/GladysProject/gladys-gateway/blob/master/src/gladys-gateway-front/src/routes/dashboard-help/DashboardHelp.js" class="text-muted">Edit this page</a>
+            <a href="https://github.com/gladysassistant/gladys-gateway/blob/master/src/gladys-gateway-front/src/routes/dashboard-help/DashboardHelp.js" class="text-muted">Edit this page</a>
           </div>
         </div>
       </div>

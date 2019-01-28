@@ -11,7 +11,7 @@ module.exports = function(accountModel, socketModel) {
    * [{
    *   "id": "86579179-a40b-44e9-9c22-2166b5de3805",
    *   "name": "Tony",
-   *   "email": "tony.stark@gladysproject.com"
+   *   "email": "tony.stark@gladysassistant.com"
    * }]
    */
   async function getUsers(req, res, next) {

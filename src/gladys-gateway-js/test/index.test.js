@@ -17,7 +17,7 @@ describe('loginInstance', function () {
 
     var password = 'test1234';
 
-    var loginResult = await gladysGatewayClient.login('tony.stark@gladysproject.com', password);
+    var loginResult = await gladysGatewayClient.login('tony.stark@gladysassistant.com', password);
 
     if(!loginResult.two_factor_token) {
       return Promise.reject(new Error('2FA_NOT_ENABLED'));

@@ -9,7 +9,8 @@ class DashboardPage extends Component {
   state = {
     rooms: null,
     noInstanceFoundError: false,
-    userNotAcceptedLocallyError: false
+    userNotAcceptedLocallyError: false,
+    accountExpired: false
   };
 
   lastRoomUpdate = null;
@@ -35,6 +36,14 @@ class DashboardPage extends Component {
         
         if (err && err.status === 403 && err.error_code === 'USER_NOT_ACCEPTED_LOCALLY') {
           this.setState({ userNotAcceptedLocallyError: true });
+        }
+      });
+
+    Auth.getMySelf()
+      .then((user) => {
+        const expiredAccountDate = new Date(user.current_period_end);
+        if (expiredAccountDate < new Date()) {
+          this.setState({ accountExpired: true });
         }
       });
   };
@@ -121,7 +130,7 @@ class DashboardPage extends Component {
     }
   };
 
-  render({}, { user, rooms, noInstanceFoundError, userNotAcceptedLocallyError }) {
+  render({}, { user, rooms, noInstanceFoundError, userNotAcceptedLocallyError, accountExpired }) {
     return (
       <Dashboard
         rooms={rooms}
@@ -131,6 +140,7 @@ class DashboardPage extends Component {
         newInstanceEvent={this.newInstanceEvent}
         collapseRoom={this.collapseRoom}
         userNotAcceptedLocallyError={userNotAcceptedLocallyError}
+        accountExpired={accountExpired}
       />
     );
   }

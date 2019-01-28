@@ -5,20 +5,20 @@
   status = 200
 
 [[redirects]]
-  from = "http://frosty-golick-e2d650.netlify.com/*"
-  to = "http://gateway.gladysproject.com/:splat"
+  from = "http://boring-hamilton-638bc6/*"
+  to = "http://gateway.gladysassistant.com/:splat"
   status = 301
   force = true
 
 [[redirects]]
-  from = "https://frosty-golick-e2d650.netlify.com/*"
-  to = "https://gateway.gladysproject.com/:splat"
+  from = "https://boring-hamilton-638bc6.netlify.com/*"
+  to = "https://gateway.gladysassistant.com/:splat"
   status = 301
   force = true
 
 [[redirects]]
-  from = "http://gateway.gladysproject.com/*"
-  to = "https://gateway.gladysproject.com/:splat"
+  from = "http://gateway.gladysassistant.com/*"
+  to = "https://gateway.gladysassistant.com/:splat"
   status = 302
   force = true
 

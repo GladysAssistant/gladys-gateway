@@ -83,17 +83,19 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
 
   async function getMySelf(user) {
     
-    const currentUser = await db.t_user.findOne({
-      id: user.id
-    }, {fields: [
-      'id', 
-      'name', 
-      'email', 
-      'role', 
-      'language', 
-      'profile_url', 
-      'gladys_user_id'
-    ]});
+    const users = await db.query(`
+      SELECT t_user.id, t_user.name, t_user.email, t_user.role, t_user.language, 
+      t_user.profile_url, t_user.gladys_user_id, t_account.current_period_end
+      FROM t_user
+      JOIN t_account ON t_user.account_id = t_account.id
+      WHERE t_user.id = $1
+    `, [user.id]);
+
+    if(users.length === 0) {
+      throw new NotFoundError('user_not_found');
+    }
+
+    const currentUser = users[0];
 
     currentUser.superAdmin = (currentUser.id === process.env.SUPER_ADMIN_USER_ID);
 

@@ -15,7 +15,7 @@ const Footer = ({ children, ...props }) => (
             </div>
             <div class="col-auto">
               <a
-                href="https://github.com/GladysProject/gladys-gateway"
+                href="https://github.com/gladysassistant/gladys-gateway"
                 class="btn btn-outline-primary btn-sm"
               >
                 Source code

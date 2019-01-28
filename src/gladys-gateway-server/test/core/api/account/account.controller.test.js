@@ -41,7 +41,7 @@ describe('POST /accounts/subscribe/new', function() {
     return request(TEST_BACKEND_APP)
       .post('/accounts/subscribe/new')
       .send({
-        email: 'tony.stark@gladysproject.com',
+        email: 'tony.stark@gladysassistant.com',
         language: 'fr',
         stripe_source_id: 'stripe-source-id-sample'
       })

@@ -417,6 +417,7 @@ describe('GET /users/me', function() {
           { id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
             name: 'Tony',
             email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+            account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
             role: 'admin',
             superAdmin: false,
             language: 'en',

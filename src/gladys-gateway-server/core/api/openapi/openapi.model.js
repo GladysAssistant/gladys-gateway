@@ -70,7 +70,7 @@ module.exports = function OpenApiModel(logger, db) {
     }, { last_used: new Date()});
   }
 
-  async function createEvent(user, event) {
+  async function createEvent(user, primaryInstance, event) {
 
     // add gladys_user_id to event
     event.user = user.gladys_user_id;
@@ -79,18 +79,20 @@ module.exports = function OpenApiModel(logger, db) {
       version: '1.0',
       type: 'gladys-open-api',
       action: 'create-event',
+      instance_id: primaryInstance.id,
       data: event
     };
 
     return message;
   }
 
-  async function createMessage(user, text) {
+  async function createMessage(user, primaryInstance, text) {
     
     const message = {
       version: '1.0',
       type: 'gladys-open-api',
       action: 'create-message',
+      instance_id: primaryInstance.id,
       data: {
         text,
         user: user.gladys_user_id

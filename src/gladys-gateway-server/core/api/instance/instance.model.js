@@ -130,11 +130,27 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     return users;
   }
 
+  async function getPrimaryInstanceByAccount(accountId) {
+
+    const instance = await db.t_instance.findOne({
+      account_id: accountId,
+      is_deleted: false,
+      primary_instance: true
+    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key']});
+
+    if(instance === null){
+      throw new NotFoundError('Instance not found');
+    }
+
+    return instance;
+  }
+
   return {
     createInstance,
     getInstances,
     getInstanceById,
     getAccessToken,
-    getUsers
+    getUsers,
+    getPrimaryInstanceByAccount
   };
 };

@@ -84,9 +84,9 @@ module.exports = function(openApiModel, socketModel) {
    * }
    */
   async function createEvent(req, res, next) {
-    const message = await openApiModel.createEvent(req.user, req.body);
-    await socketModel.sendMessageOpenApi(req.user, message);
-    return res.json({status: 200});
+    const message = await openApiModel.createEvent(req.user, req.primaryInstance, req.body);
+    const newEvent = await socketModel.sendMessageOpenApi(req.user, message);
+    return res.json(newEvent);
   }
 
   /**
@@ -102,7 +102,7 @@ module.exports = function(openApiModel, socketModel) {
    * }
    */
   async function createMessage(req, res, next) {
-    const message = await openApiModel.createMessage(req.user, req.body.text);
+    const message = await openApiModel.createMessage(req.user, req.primaryInstance, req.body.text);
     await socketModel.sendMessageOpenApi(req.user, message);
     return res.json({status: 200});
   }

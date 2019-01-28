@@ -76,7 +76,7 @@ module.exports = async () => {
     errorMiddleware: require('./middleware/errorMiddleware.js'),
     rateLimiter: require('./middleware/rateLimiter')(redisClient),
     isSuperAdmin: require('./middleware/isSuperAdmin')(logger),
-    openApiKeyAuth: require('./middleware/openApiApiKeyAuth')(models.openApiModel, models.userModel)
+    openApiKeyAuth: require('./middleware/openApiApiKeyAuth')(models.openApiModel, models.userModel, models.instanceModel)
   };
   
 

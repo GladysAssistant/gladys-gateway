@@ -27,6 +27,23 @@ function post(url, data, state) {
     });
 };
 
+function remove(url, state) {
+  return axios.delete(url, {
+    headers: {
+      authorization: state.accessToken
+    }
+  })
+    .then((data) => data.data)
+    .catch(async (err) => {
+      if (err && err.response && err.response.status === 401) {
+        await getAccessToken(state);
+        return post(url, data, state);
+      } else {
+        return Promise.reject(err);
+      }
+    });
+};
+
 function patch(url, data, state) {
   return axios.patch(url, data, {
     headers: {
@@ -64,3 +81,4 @@ function get(url, state) {
 module.exports.post = post;
 module.exports.get = get;
 module.exports.patch = patch;
+module.exports.delete = remove;

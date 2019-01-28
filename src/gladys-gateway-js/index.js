@@ -416,6 +416,22 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.post(serverUrl + '/accounts/cancel', {}, state);
   }
 
+  async function createApiKey(name) {
+    return requestApi.post(serverUrl + '/open-api-keys', { name }, state);
+  } 
+
+  async function getApiKeys() {
+    return requestApi.get(serverUrl + '/open-api-keys', state);
+  }
+
+  async function updateApiKeyName(id, name) {
+    return requestApi.post(serverUrl + '/open-api-keys/' + id, { name }, state);
+  } 
+  
+  async function revokeApiKey (id) {
+    return requestApi.delete(serverUrl + '/open-api-keys/' + id, state);
+  }
+
   async function getInstance() {
     let instances = await requestApi.get(serverUrl + '/instances', state);
 
@@ -818,6 +834,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     newEventInstance,
     generateFingerprint,
     adminResendConfirmationEmail,
-    adminGetAccounts
+    adminGetAccounts,
+    createApiKey,
+    getApiKeys,
+    updateApiKeyName,
+    revokeApiKey
   };
 };

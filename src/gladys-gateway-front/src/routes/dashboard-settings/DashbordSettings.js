@@ -5,6 +5,7 @@ import Geolocation from './Geolocation';
 import Sessions from './Sessions';
 import Invoices from './Invoices';
 import SuperAdmin from './SuperAdmin';
+import OpenApi from './OpenApi';
 
 const DashboardSettings = ({ children, ...props }) => (
   <Layout user={props.user} callback={props.connected} dontCheckSetup >
@@ -18,6 +19,10 @@ const DashboardSettings = ({ children, ...props }) => (
               
               <a href="" data-target="sessions" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'sessions' && 'active')}>
                 <span class="icon mr-3"><i class="fe fe-smartphone" /></span>Sessions
+              </a>
+
+              <a href="" data-target="open-api" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'open-api' && 'active')}>
+                <span class="icon mr-3"><i class="fe fe-globe" /></span>Open API
               </a>
               
               <a href="" data-target="geolocation" onClick={props.changeTab} class={'list-group-item list-group-item-action d-flex align-items-center ' + (props.currentTab === 'geolocation' && 'active')}>
@@ -48,6 +53,17 @@ const DashboardSettings = ({ children, ...props }) => (
 
         <div class="col-lg-9">
           {props.currentTab === 'sessions' && <Sessions devices={props.devices} revokeDevice={props.revokeDevice} /> }
+          {props.currentTab === 'open-api' &&
+            <OpenApi
+              newApiKey={props.newApiKey}
+              createApiKey={props.createApiKey}
+              apiKeys={props.apiKeys}
+              newApiKeyName={props.newApiKeyName}
+              updateNewApiKeyName={props.updateNewApiKeyName}
+              missingNewOpenApiName={props.missingNewOpenApiName}
+              revokeOpenApiKey={props.revokeOpenApiKey}
+            />
+          }
           {props.currentTab === 'geolocation' && <Geolocation /> }
           {props.currentTab === 'accounts' && <Accounts /> }
           {props.currentTab === 'billing' &&

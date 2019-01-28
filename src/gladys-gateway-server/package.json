@@ -43,7 +43,7 @@
     "supertest": "^3.3.0"
   },
   "dependencies": {
-    "@sentry/node": "^4.1.1",
+    "@sentry/node": "^4.5.3",
     "axios": "^0.18.0",
     "body-parser": "^1.18.3",
     "db-migrate": "^0.11.3",

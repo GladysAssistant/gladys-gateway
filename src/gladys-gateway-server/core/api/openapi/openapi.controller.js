@@ -14,7 +14,7 @@ module.exports = function(openApiModel, socketModel) {
    * }
    */
   async function createNewApiKey(req, res, next) {
-    const newApiKey = await openApiModel.createNewApiKey(req.user);
+    const newApiKey = await openApiModel.createNewApiKey(req.user, req.body.name);
     return res.json(newApiKey);
   }
 

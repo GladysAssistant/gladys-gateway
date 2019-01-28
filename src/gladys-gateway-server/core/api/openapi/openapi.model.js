@@ -1,24 +1,34 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
+const { ValidationError } = require('../../common/error');
+const schemas = require('../../common/schema');
+const Joi = require('joi');
 const randomBytes = Promise.promisify(crypto.randomBytes);
 
 module.exports = function OpenApiModel(logger, db) {
 
-  async function createNewApiKey(user) {
+  async function createNewApiKey(user, name) {
+    
+    const { error } = Joi.validate({ name }, schemas.openApiSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('open-api-key', error);
+    }
+
     const apiKey = (await randomBytes(40)).toString('hex');
     const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
 
     const newApiKey = {
-      name: 'Open API Key',
+      name,
       api_key_hash: apiKeyHash,
       user_id: user.id
     };
 
-    await db.t_open_api_key.insert(newApiKey);
+    const insertedApiKey = await db.t_open_api_key.insert(newApiKey);
+    insertedApiKey.api_key = apiKey; 
 
-    return {
-      api_key: apiKey
-    };
+    return insertedApiKey;
   }
 
   async function getApiKeys(user) {

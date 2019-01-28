@@ -6,13 +6,26 @@ describe('POST /open-api-keys', function() {
   it('should create a new open api key', function() {
     return request(TEST_BACKEND_APP)
       .post('/open-api-keys')
+      .send({
+        name: 'My new api key'
+      })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
       .expect(200)
       .then(response => {
         response.body.should.have.property('api_key');
+        response.body.should.have.property('name', 'My new api key');
       });
+  });
+
+  it('should not create a new open api key (missing name)', function() {
+    return request(TEST_BACKEND_APP)
+      .post('/open-api-keys')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(422);
   });
 });
 

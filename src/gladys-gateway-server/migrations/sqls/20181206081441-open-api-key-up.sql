@@ -4,7 +4,7 @@ CREATE TABLE t_open_api_key (
     api_key_hash character varying,
     revoked boolean DEFAULT false NOT NULL,
     user_id uuid NOT NULL,
-    last_used timestamptz NOT NULL default now(),
+    last_used timestamptz NULL default NULL,
     created_at timestamptz NOT NULL default now(),
     updated_at timestamptz NOT NULL default now(),
     is_deleted boolean DEFAULT false NOT NULL

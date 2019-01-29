@@ -40,13 +40,14 @@ module.exports = async () => {
     jwtService: require('./service/jwt')(),
     stripeService: require('./service/stripe')(logger),
     slackService: require('./service/slack')(logger),
-    selzService:  require('./service/selz')(logger),
+    selzService: require('./service/selz')(logger),
+    statsService: require('./service/keen')(logger)
   };
 
   const models = {
     pingModel: require('./api/ping/ping.model')(logger, db, redisClient),
     userModel: require('./api/user/user.model')(logger, db, redisClient, services.jwtService, services.mailgunService),
-    socketModel: require('./api/socket/socket.model')(logger, db, redisClient, io, services.fingerprint),
+    socketModel: require('./api/socket/socket.model')(logger, db, redisClient, io, services.fingerprint, services.statsService),
     instanceModel: require('./api/instance/instance.model')(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: require('./api/invitation/invitation.model')(logger, db, redisClient, services.mailgunService),
     accountModel: require('./api/account/account.model')(logger, db, redisClient, services.stripeService, services.mailgunService, services.selzService, services.slackService),
@@ -76,7 +77,7 @@ module.exports = async () => {
     errorMiddleware: require('./middleware/errorMiddleware.js'),
     rateLimiter: require('./middleware/rateLimiter')(redisClient),
     isSuperAdmin: require('./middleware/isSuperAdmin')(logger),
-    openApiKeyAuth: require('./middleware/openApiApiKeyAuth')(models.openApiModel, models.userModel, models.instanceModel)
+    openApiKeyAuth: require('./middleware/openApiApiKeyAuth')(models.openApiModel, models.userModel, models.instanceModel, services.statsService)
   };
   
 

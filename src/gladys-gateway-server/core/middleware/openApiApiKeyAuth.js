@@ -1,6 +1,6 @@
 const { UnauthorizedError } = require('../common/error');
 
-module.exports = function (openApiModel, userModel, instanceModel) {
+module.exports = function (openApiModel, userModel, instanceModel, statsService) {
   return async function(req, res, next) {
     
     // find open api key in DB
@@ -21,6 +21,12 @@ module.exports = function (openApiModel, userModel, instanceModel) {
 
     // update last used in DB
     await openApiModel.updateLastUsed(apiKey.id);
+
+    // save event in stats
+    statsService.track('openApiAccess', {
+      user_id: user.id,
+      route: req.route
+    });
 
     next();
   };

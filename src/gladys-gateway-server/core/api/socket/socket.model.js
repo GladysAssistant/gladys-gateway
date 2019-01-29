@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) {
+module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, statsService) {
 
   // handle messages from different nodes
   io.of('/').adapter.customHook = (data, cb) => {
@@ -111,6 +111,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
 
   async function handleNewMessageFromUser(user, message, callback) {
     logger.debug(`Received message from user ${user.id}`);
+
+    statsService.track('messageToInstance', {
+      user_id: user.id
+    });
     
     // add sender_id to message
     message.sender_id = user.id;
@@ -142,6 +146,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint) 
 
   async function handleNewMessageFromInstance(instance, message) {
     logger.debug(`New message from instance ${instance.id}`);
+
+    statsService.track('messageToUser', {
+      instance_id: instance.id
+    });
     
     // adding sending instance_id
     message.instance_id = instance.id;

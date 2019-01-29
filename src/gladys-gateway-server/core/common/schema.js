@@ -27,7 +27,12 @@ const resetPasswordSchema = Joi.object().keys({
   ecdsa_encrypted_private_key: Joi.string()
 });
 
+const openApiSchema = Joi.object().keys({
+  name: Joi.string().required(),
+});
+
 module.exports.signupSchema = signupSchema;
 module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
+module.exports.openApiSchema = openApiSchema;
   

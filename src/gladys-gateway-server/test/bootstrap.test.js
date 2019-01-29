@@ -2,6 +2,7 @@ var databaseTask, redisTask;
 var should = require('should'); // eslint-disable-line no-unused-vars
 
 before(async function() {
+  this.timeout(10000);
   require('dotenv').config();
   require('./tasks/nock.js');
   

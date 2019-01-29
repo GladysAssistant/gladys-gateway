@@ -95,6 +95,16 @@ module.exports.load = function(app, io, controllers, middlewares) {
 
   // stripe webhook
   app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
+
+  // open API managment
+  app.post('/open-api-keys', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.openApiController.createNewApiKey));
+  app.get('/open-api-keys', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.openApiController.getApiKeys));
+  app.delete('/open-api-keys/:id', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.openApiController.revokeApiKey));
+  app.patch('/open-api-keys/:id', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.openApiController.updateApiKeyName));
+
+  // open API access
+  app.post('/v1/api/event/:open_api_key', asyncMiddleware(middlewares.openApiKeyAuth), asyncMiddleware(controllers.openApiController.createEvent));
+  app.post('/v1/api/message/:open_api_key', asyncMiddleware(middlewares.openApiKeyAuth), asyncMiddleware(controllers.openApiController.createMessage));
   
   // socket
   io.on('connection', controllers.socketController.connection);

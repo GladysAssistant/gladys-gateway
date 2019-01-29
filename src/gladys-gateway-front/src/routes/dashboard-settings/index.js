@@ -28,6 +28,9 @@ class DashboarSettingsPage extends Component {
     Auth.getInvoices()
       .then((invoices) => this.setState({ invoices }));
 
+    Auth.getApiKeys()
+      .then((apiKeys) => this.setState({ apiKeys }));
+
     Auth.getMySelf()
       .then(async (user) => {
         if (user.superAdmin === true) {
@@ -110,7 +113,32 @@ class DashboarSettingsPage extends Component {
       .catch(() =>  this.setState({ reSubscribeMonthlyPlanError: true }));
   };
 
-  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError, cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError, invoices, isSuperAdmin, accounts, accountConfirmationSucceed, accountConfirmationFailed }) {
+  createApiKey = async () => {
+    if (!this.state.newApiKeyName || this.state.newApiKeyName.length === 0) {
+      return this.setState({ missingNewOpenApiName: true });
+    }
+
+    const apiKey = await Auth.createApiKey(this.state.newApiKeyName);
+    const newState = update(this.state, {
+      apiKeys: { $push: [apiKey] },
+      newApiKey: { $set: apiKey },
+      newApiKeyName: { $set: '' },
+      missingNewOpenApiName: { $set: false }
+    });
+    this.setState(newState);
+  }
+
+  revokeOpenApiKey = async (id, index) => {
+    await Auth.revokeApiKey(id);
+    const newState = update(this.state, {
+      apiKeys: { $splice: [[index, 1]] }
+    });
+    this.setState(newState);
+  }
+
+  render({}, { currentTab, devices, stripeLoaded, userCardName, card, cancelMonthlySubscriptionError,
+    cancelMonthlySubscriptionSuccess, reSubscribeMonthlyPlanError, invoices, isSuperAdmin,
+    accounts, accountConfirmationSucceed, accountConfirmationFailed, newApiKey, apiKeys, newApiKeyName, missingNewOpenApiName }) {
     return (
       <DashbordSettings
         connected={this.connected}
@@ -134,6 +162,13 @@ class DashboarSettingsPage extends Component {
         resendInvitationEmail={this.resendInvitationEmail}
         accountConfirmationSucceed={accountConfirmationSucceed}
         accountConfirmationFailed={accountConfirmationFailed}
+        createApiKey={this.createApiKey}
+        newApiKey={newApiKey}
+        apiKeys={apiKeys}
+        newApiKeyName={newApiKeyName}
+        updateNewApiKeyName={linkState(this, 'newApiKeyName')}
+        missingNewOpenApiName={missingNewOpenApiName}
+        revokeOpenApiKey={this.revokeOpenApiKey}
       />
     );
   }

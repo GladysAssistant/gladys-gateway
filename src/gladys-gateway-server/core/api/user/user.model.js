@@ -85,7 +85,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
     
     const users = await db.query(`
       SELECT t_user.id, t_user.name, t_user.email, t_user.role, t_user.language, 
-      t_user.profile_url, t_user.gladys_user_id, t_account.current_period_end
+      t_user.profile_url, t_user.gladys_user_id, t_user.account_id, t_account.current_period_end
       FROM t_user
       JOIN t_account ON t_user.account_id = t_account.id
       WHERE t_user.id = $1

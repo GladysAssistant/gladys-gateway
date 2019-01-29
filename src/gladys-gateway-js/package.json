@@ -1,10 +1,11 @@
 {
   "name": "@gladysassistant/gladys-gateway-js",
-  "version": "1.0.10",
+  "version": "1.1.0",
   "description": "Gladys Gateway JS client",
   "main": "index.js",
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit",
+    "coverage": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit",
     "eslint": "eslint lib test index.js"
   },
   "keywords": [

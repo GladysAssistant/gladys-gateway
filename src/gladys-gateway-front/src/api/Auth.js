@@ -67,6 +67,10 @@ const Auth = {
   getCard: client.getCard,
   cancelMonthlyPlan: client.cancelMonthlyPlan,
   updateCard: client.updateCard,
+  createApiKey: client.createApiKey,
+  getApiKeys: client.getApiKeys,
+  updateApiKeyName: client.updateApiKeyName,
+  revokeApiKey: client.revokeApiKey,
   adminGetAccounts: client.adminGetAccounts,
   adminResendConfirmationEmail: client.adminResendConfirmationEmail,
   request: {

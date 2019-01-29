@@ -35,6 +35,10 @@ export default class App extends Component {
     } else {
       this.currentUrl = e.url;
     }
+    
+    if (process.env.NODE_ENV === 'production' && fathom) {  // eslint-disable-line
+      fathom('trackPageview'); // eslint-disable-line
+    }
   };
 
   render() {

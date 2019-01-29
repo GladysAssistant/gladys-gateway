@@ -21,7 +21,23 @@
     <link rel="icon" type="image/png" sizes="96x96" href="/assets/icons/favicon-96x96.png">
     <link rel="icon" type="image/png" sizes="16x16" href="/assets/icons/favicon-16x16.png">
 
-		<link rel="manifest" href="<%= htmlWebpackPlugin.files.publicPath %>manifest.json">
+    <link rel="manifest" href="<%= htmlWebpackPlugin.files.publicPath %>manifest.json">
+    
+    <!-- Fathom - simple website analytics - https://github.com/usefathom/fathom -->
+    <script>
+        (function(f, a, t, h, o, m){
+          a[h]=a[h]||function(){
+            (a[h].q=a[h].q||[]).push(arguments)
+          };
+          o=f.createElement('script'),
+          m=f.getElementsByTagName('script')[0];
+          o.async=1; o.src=t; o.id='fathom-script';
+          m.parentNode.insertBefore(o,m)
+        })(document, window, 'https://stats.gladysgateway.com/tracker.js', 'fathom');
+        fathom('set', 'siteId', 'HLYBN');
+        </script>
+        <!-- / Fathom -->
+
 		<% if (htmlWebpackPlugin.options.manifest.theme_color) { %>
 			<meta name="theme-color" content="<%= htmlWebpackPlugin.options.manifest.theme_color %>">
 		<% } %>

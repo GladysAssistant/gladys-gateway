@@ -2,6 +2,7 @@ class NotFoundError extends Error {
   constructor(errorMessage) {
     super(errorMessage);
     this.errorMessage = errorMessage;
+    this.code = 404;
 
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
@@ -11,23 +12,24 @@ class NotFoundError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 404,
+      status: this.code,
       error_code: 'NOT_FOUND',
-      error_message: this.errorMessage
+      error_message: this.errorMessage,
     };
   }
 
-  getStatus(){
-    return 404;
+  getStatus() {
+    return this.code;
   }
 }
 
 class ValidationError extends Error {
   constructor(objectName, joiError) {
-    var errorMessage = `ValidationError: ${objectName} object.`;
+    const errorMessage = `ValidationError: ${objectName} object.`;
     super(errorMessage);
     this.objectName = objectName;
     this.joiError = joiError;
+    this.code = 422;
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
     Error.captureStackTrace(this, ValidationError);
@@ -36,24 +38,25 @@ class ValidationError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 422,
+      status: this.code,
       error_code: 'UNPROCESSABLE_ENTITY',
-      details: this.joiError.details
+      details: this.joiError.details,
     };
   }
 
-  getStatus(){
-    return 422;
+  getStatus() {
+    return this.code;
   }
 }
 
 class AlreadyExistError extends Error {
   constructor(objectName, identifier) {
-    var errorMessage = `${objectName} "${identifier}" already exist.`;
+    const errorMessage = `${objectName} "${identifier}" already exist.`;
     super(errorMessage);
     this.objectName = objectName;
     this.identifier = identifier;
     this.errorMessage = errorMessage;
+    this.code = 409;
 
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
@@ -63,22 +66,23 @@ class AlreadyExistError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 409,
+      status: this.code,
       error_code: 'ALREADY_EXIST',
-      error_message: this.errorMessage
+      error_message: this.errorMessage,
     };
   }
 
-  getStatus(){
-    return 409;
+  getStatus() {
+    return this.code;
   }
 }
 
 class ForbiddenError extends Error {
   constructor(message) {
-    super(message || 'Forbidden');
+    super(message || 'Forbidden');
     this.message = message;
-    
+    this.code = 403;
+
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
     Error.captureStackTrace(this, ForbiddenError);
@@ -86,26 +90,27 @@ class ForbiddenError extends Error {
 
   // we can also define custom methods on this class
   jsonError() {
-    var error = {
-      status: 403,
-      error_code: 'FORBIDDEN'
+    const error = {
+      status: this.code,
+      error_code: 'FORBIDDEN',
     };
 
-    if(this.message) {
+    if (this.message) {
       error.error_message = this.message;
     }
 
     return error;
   }
 
-  getStatus(){
-    return 403;
+  getStatus() {
+    return this.code;
   }
 }
 
 class UnauthorizedError extends Error {
   constructor() {
     super('Unauthorized');
+    this.code = 401;
 
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
@@ -115,19 +120,20 @@ class UnauthorizedError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 401,
-      error_code: 'UNAUTHORIZED'
+      status: this.code,
+      error_code: 'UNAUTHORIZED',
     };
   }
 
-  getStatus(){
-    return 401;
+  getStatus() {
+    return this.code;
   }
 }
 
 class ServerError extends Error {
   constructor() {
     super('SERVER_ERROR');
+    this.code = 500;
 
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
@@ -137,13 +143,13 @@ class ServerError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 500,
-      error_code: 'SERVER_ERROR'
+      status: this.code,
+      error_code: 'SERVER_ERROR',
     };
   }
 
-  getStatus(){
-    return 500;
+  getStatus() {
+    return this.code;
   }
 }
 
@@ -152,6 +158,7 @@ class PaymentRequiredError extends Error {
     super(message);
 
     this.message = message;
+    this.code = 402;
 
     // the next line is important so that the ValidationError constructor is not part
     // of the resulting stacktrace
@@ -161,14 +168,14 @@ class PaymentRequiredError extends Error {
   // we can also define custom methods on this class
   jsonError() {
     return {
-      status: 402,
+      status: this.code,
       error_code: 'PAYMENT_REQUIRED',
-      error_message: this.message
+      error_message: this.message,
     };
   }
 
-  getStatus(){
-    return 402;
+  getStatus() {
+    return this.code;
   }
 }
 

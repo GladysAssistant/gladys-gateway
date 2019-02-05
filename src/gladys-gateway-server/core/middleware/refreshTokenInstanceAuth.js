@@ -1,21 +1,20 @@
 const jwt = require('jsonwebtoken');
 const { UnauthorizedError } = require('../common/error');
 
-module.exports = function (logger) {
-  return async function(req, res, next) {
+module.exports = function RefreshTokenInstanceMiddleware(logger) {
+  return async function RefreshTokenInstance(req, res, next) {
     try {
-      
-      var decoded = jwt.verify(req.headers.authorization, process.env.JWT_REFRESH_TOKEN_SECRET, {
+      const decoded = jwt.verify(req.headers.authorization, process.env.JWT_REFRESH_TOKEN_SECRET, {
         audience: 'instance',
-        issuer: 'gladys-gateway'
+        issuer: 'gladys-gateway',
       });
 
       req.instance = {
-        id: decoded.instance_id
+        id: decoded.instance_id,
       };
 
       next();
-    } catch(e) {
+    } catch (e) {
       logger.warn(e);
       throw new UnauthorizedError();
     }

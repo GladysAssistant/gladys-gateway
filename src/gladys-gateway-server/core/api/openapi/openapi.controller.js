@@ -1,6 +1,4 @@
-module.exports = function(openApiModel, socketModel) {
-
-
+module.exports = function OpenApiController(openApiModel, socketModel) {
   /**
    * @api {post} /open-api-keys Create new open API key
    * @apiName createApiKey
@@ -8,7 +6,7 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "api_key": "xxxxx"
    * }
@@ -25,7 +23,7 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * [{
    *   "id": "xxxxx",
    *   "name": "Open Api Key",
@@ -44,14 +42,14 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "success": true
    * }
    */
   async function revokeApiKey(req, res, next) {
     await openApiModel.revokeApiKey(req.params.id);
-    return res.json({success: true});
+    return res.json({ success: true });
   }
 
   /**
@@ -61,7 +59,7 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "name": "new name"
    * }
@@ -78,7 +76,7 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "status": 200
    * }
@@ -86,7 +84,7 @@ module.exports = function(openApiModel, socketModel) {
   async function createEvent(req, res, next) {
     const message = await openApiModel.createEvent(req.user, req.primaryInstance, req.body);
     const newEvent = await socketModel.sendMessageOpenApi(req.user, message);
-    if(newEvent.status && newEvent.status >= 400) {
+    if (newEvent.status && newEvent.status >= 400) {
       res.status(newEvent.status);
     }
     return res.json(newEvent);
@@ -99,7 +97,7 @@ module.exports = function(openApiModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "status": 200
    * }
@@ -107,10 +105,10 @@ module.exports = function(openApiModel, socketModel) {
   async function createMessage(req, res, next) {
     const message = await openApiModel.createMessage(req.user, req.primaryInstance, req.body.text);
     const response = await socketModel.sendMessageOpenApi(req.user, message);
-    if(response.status && response.status >= 400) {
+    if (response.status && response.status >= 400) {
       return res.status(response.status).json(response);
-    } 
-    return res.json({status: 200});
+    }
+    return res.json({ status: 200 });
   }
 
   return {
@@ -119,6 +117,6 @@ module.exports = function(openApiModel, socketModel) {
     revokeApiKey,
     updateApiKeyName,
     createEvent,
-    createMessage
+    createMessage,
   };
 };

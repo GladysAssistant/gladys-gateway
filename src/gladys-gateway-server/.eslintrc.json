@@ -1,4 +1,7 @@
 {
+    "extends": [
+      "airbnb-base"
+    ],
     "parserOptions": {
         "ecmaVersion": 2018
     },
@@ -8,7 +11,15 @@
     "globals": {
         "document": false,
         "navigator": false,
-        "window": false
+        "window": false,
+        "describe": true,
+        "it": true,
+        "TEST_BACKEND_APP": true,
+        "should": true,
+        "beforeEach": true,
+        "afterEach": true,
+        "before": true,
+        "after": true
     },
     "rules": {
         "semi": ["error", "always"],
@@ -34,6 +45,17 @@
         "curly": ["error", "all"],
         "no-unused-expressions": ["error", { "allowShortCircuit": true, "allowTernary": true, "allowTaggedTemplates": true }],
         "no-unused-vars": ["error", { "vars": "all", "args": "none", "ignoreRestSiblings": true }],
-        "func-call-spacing": ["error", "never"]
+        "func-call-spacing": ["error", "never"],
+        "import/no-extraneous-dependencies": ["error", {"devDependencies": ["**/*.test.js"]}],
+        "max-len": ["error", 120, 2, {
+          "ignoreUrls": true,
+          "ignoreComments": false,
+          "ignoreRegExpLiterals": true,
+          "ignoreStrings": true,
+          "ignoreTemplateLiterals": true
+        }],
+        "brace-style": ["error", "1tbs", { 
+          "allowSingleLine": false 
+        }]
     }
 }

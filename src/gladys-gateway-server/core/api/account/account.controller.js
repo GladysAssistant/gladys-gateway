@@ -1,5 +1,4 @@
-module.exports = function(accountModel, socketModel) {
-
+module.exports = function AccountController(accountModel, socketModel) {
   /**
    * @api {get} /accounts/users Get users
    * @apiName Get Users
@@ -7,7 +6,7 @@ module.exports = function(accountModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * [{
    *   "id": "86579179-a40b-44e9-9c22-2166b5de3805",
    *   "name": "Tony",
@@ -15,7 +14,7 @@ module.exports = function(accountModel, socketModel) {
    * }]
    */
   async function getUsers(req, res, next) {
-    var users = await accountModel.getUsers(req.user);
+    const users = await accountModel.getUsers(req.user);
     res.json(users);
   }
 
@@ -23,18 +22,18 @@ module.exports = function(accountModel, socketModel) {
    * @api {post} /accounts/subscribe Subscribe plan
    * @apiName Subcribe plan
    * @apiGroup Account
-   * 
+   *
    * @apiParam {String} stripe_source_id Stripe source id
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "current_period_end": 1537841579580,
    * }
    */
   async function subscribeMonthlyPlan(req, res, next) {
-    var account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_source_id);
+    const account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_source_id);
     res.json({ current_period_end: account.current_period_end });
   }
 
@@ -42,20 +41,24 @@ module.exports = function(accountModel, socketModel) {
    * @api {post} /accounts/subscribe/new New account with plan
    * @apiName New account with plan
    * @apiGroup Account
-   * 
+   *
    * @apiParam {String} email email
    * @apiParam {String} language Language
    * @apiParam {String} stripe_source_id Stripe source id
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "current_period_end": 1537841579580,
    * }
    */
   async function subscribeMonthlyPlanWithoutAccount(req, res, next) {
-    var account = await accountModel.subscribeMonthlyPlanWithoutAccount(req.body.email, req.body.language, req.body.stripe_source_id);
+    const account = await accountModel.subscribeMonthlyPlanWithoutAccount(
+      req.body.email,
+      req.body.language,
+      req.body.stripe_source_id,
+    );
     res.json({ current_period_end: account.current_period_end });
   }
 
@@ -66,13 +69,13 @@ module.exports = function(accountModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "success": true
    * }
    */
   async function stripeEvent(req, res, next) {
-    await accountModel.stripeEvent(req.body,  req.headers['stripe-signature']);
+    await accountModel.stripeEvent(req.body, req.headers['stripe-signature']);
     res.json({ success: true });
   }
 
@@ -80,12 +83,12 @@ module.exports = function(accountModel, socketModel) {
    * @api {patch} /accounts/source Update card
    * @apiName Update card
    * @apiGroup Account
-   * 
+   *
    * @apiParam {String} stripe_source_id Stripe source id
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "success": true
    * }
@@ -102,7 +105,7 @@ module.exports = function(accountModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "brand": "VISA",
    *   "country": "US",
@@ -112,7 +115,7 @@ module.exports = function(accountModel, socketModel) {
    * }
    */
   async function getCard(req, res, next) {
-    let card = await accountModel.getCard(req.user);
+    const card = await accountModel.getCard(req.user);
     res.json(card);
   }
 
@@ -120,35 +123,35 @@ module.exports = function(accountModel, socketModel) {
    * @api {post} /accounts/cancel Cancel plan
    * @apiName Cancel plan
    * @apiGroup Account
-   * 
+   *
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "success": true
    * }
    */
   async function cancelMonthlySubscription(req, res, next) {
     await accountModel.cancelMonthlySubscription(req.user);
-    res.json({ success: true});
+    res.json({ success: true });
   }
 
   /**
    * @api {post} /accounts/resubscribe Resubscribe to plan
    * @apiName Resubscribe plan
    * @apiGroup Account
-   * 
+   *
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "current_period_end": 1537841579580,
    * }
    */
   async function subscribeAgainToMonthlySubscription(req, res, next) {
-    var account = await accountModel.subscribeAgainToMonthlySubscription(req.user);
+    const account = await accountModel.subscribeAgainToMonthlySubscription(req.user);
     res.json({ current_period_end: account.current_period_end });
   }
 
@@ -156,11 +159,11 @@ module.exports = function(accountModel, socketModel) {
    * @api {post} /accounts/users/:id/revoke Revoke user
    * @apiName Revoke user
    * @apiGroup Account
-   * 
+   *
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "success": true
    * }
@@ -175,11 +178,11 @@ module.exports = function(accountModel, socketModel) {
    * @api {get} /accounts/invoices Get Invoices
    * @apiName Get invoices
    * @apiGroup Account
-   * 
+   *
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * [{
    *   "id": "69b39956-77e7-4b4d-b0ae-259ea7e017a2",
    *   "hosted_invoice_url": "",
@@ -188,8 +191,8 @@ module.exports = function(accountModel, socketModel) {
    *   "created_at": ""
    * }]
    */
-  async function getInvoices(req, res, next) {
-    var invoices = await accountModel.getInvoices(req.user);
+  async function getInvoices(req, res, next) {
+    const invoices = await accountModel.getInvoices(req.user);
     res.json(invoices);
   }
 
@@ -203,6 +206,6 @@ module.exports = function(accountModel, socketModel) {
     getCard,
     cancelMonthlySubscription,
     stripeEvent,
-    getInvoices
+    getInvoices,
   };
 };

@@ -1,9 +1,8 @@
 const Promise = require('bluebird');
 
-module.exports = function(db) {
-
+module.exports = function Database(db) {
   function clean() {
-    var tablesToClean = [
+    const tablesToClean = [
       't_open_api_key',
       't_account_payment_activity',
       't_history',
@@ -12,16 +11,14 @@ module.exports = function(db) {
       't_invitation',
       't_instance',
       't_user',
-      't_account'
+      't_account',
     ];
 
-    return Promise.each(tablesToClean, function(tableName) {
-      return db.query(`DELETE FROM ${tableName}`);
-    });
+    return Promise.each(tablesToClean, tableName => db.query(`DELETE FROM ${tableName}`));
   }
 
   async function fill() {
-    var toFillInOrder = [
+    const toFillInOrder = [
       't_account',
       't_user',
       't_instance',
@@ -30,16 +27,14 @@ module.exports = function(db) {
       't_reset_password',
       't_history',
       't_account_payment_activity',
-      't_open_api_key'
+      't_open_api_key',
     ];
 
-    return Promise.each(toFillInOrder, function(tableName){
-      return db[tableName].insert(require(`./fixtures/${tableName}.js`));
-    });
+    return Promise.each(toFillInOrder, tableName => db[tableName].insert(require(`./fixtures/${tableName}.js`))); // eslint-disable-line
   }
 
   return {
     clean,
-    fill
+    fill,
   };
 };

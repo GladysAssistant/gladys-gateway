@@ -1,11 +1,16 @@
-var databaseTask, redisTask;
-var should = require('should'); // eslint-disable-line no-unused-vars
+let databaseTask; let
+  redisTask;
+const should = require('should'); // eslint-disable-line no-unused-vars
+require('./tasks/nock.js');
+const Dotenv = require('dotenv');
+const server = require('../core/index.js');
+const DatabaseTask = require('./tasks/database.js');
+const RedisTask = require('./tasks/redis.js');
 
-before(async function() {
+before(async function Before() {
   this.timeout(10000);
-  require('dotenv').config();
-  require('./tasks/nock.js');
-  
+  Dotenv.config();
+
   // we force this so JWT are always signed with the same secret in tests
   process.env.JWT_TWO_FACTOR_SECRET = 'twofactortesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.JWT_ACCESS_TOKEN_SECRET = 'accesstokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
@@ -14,18 +19,18 @@ before(async function() {
 
   // stripe disabled in tests
   delete process.env.STRIPE_SECRET_KEY;
-  
-  const {app, db, redisClient} = await require('../core/index.js')();
-  databaseTask = require('./tasks/database.js')(db);
-  redisTask = require('./tasks/redis.js')(redisClient);
+
+  const { app, db, redisClient } = await server();
+  databaseTask = DatabaseTask(db);
+  redisTask = RedisTask(redisClient);
   global.TEST_BACKEND_APP = app;
 });
 
-after(function() {
+after(() => {
 
 });
 
-beforeEach(function() {
+beforeEach(function BeforeEach() {
   this.timeout(6000);
   return databaseTask.clean()
     .then(() => databaseTask.fill())
@@ -33,6 +38,6 @@ beforeEach(function() {
     .then(() => redisTask.fill());
 });
 
-afterEach(function() {
+afterEach(() => {
 
 });

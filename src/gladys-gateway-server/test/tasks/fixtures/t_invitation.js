@@ -4,5 +4,5 @@ module.exports = [{
   email: 'oneuserinvited@gladysassistant.com',
   token_hash: 'b95b68f845c684562e9ed0ce4fe6ed3e2f3316168a49f638b5922bc729d2834a',
   accepted: false,
-  revoked: false
+  revoked: false,
 }];

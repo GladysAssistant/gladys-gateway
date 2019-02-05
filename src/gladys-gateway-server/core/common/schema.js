@@ -10,12 +10,12 @@ const signupSchema = Joi.object().keys({
   rsa_public_key: Joi.string(),
   rsa_encrypted_private_key: Joi.string(),
   ecdsa_public_key: Joi.string(),
-  ecdsa_encrypted_private_key: Joi.string()
+  ecdsa_encrypted_private_key: Joi.string(),
 });
 
 const invitationSchema = Joi.object().keys({
   email: Joi.string().email(),
-  role:  Joi.string()
+  role: Joi.string(),
 });
 
 const resetPasswordSchema = Joi.object().keys({
@@ -24,7 +24,7 @@ const resetPasswordSchema = Joi.object().keys({
   rsa_public_key: Joi.string(),
   rsa_encrypted_private_key: Joi.string(),
   ecdsa_public_key: Joi.string(),
-  ecdsa_encrypted_private_key: Joi.string()
+  ecdsa_encrypted_private_key: Joi.string(),
 });
 
 const openApiSchema = Joi.object().keys({
@@ -35,4 +35,3 @@ module.exports.signupSchema = signupSchema;
 module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
-  

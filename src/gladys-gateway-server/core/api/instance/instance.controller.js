@@ -1,18 +1,17 @@
 const Promise = require('bluebird');
 
-module.exports = function(instanceModel, socketModel) {
-
+module.exports = function InstanceController(instanceModel, socketModel) {
   /**
    * @api {post} /instances create new instance
    * @apiName create new instance
    * @apiGroup Instance
-   * 
+   *
    * @apiParam {String} name name of the instance
    * @apiParam {String} name name of the instance
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "id": "b55b9f2f-679d-4b79-93aa-d3325f1d9e62",
    *   "name": "Raspberry Pi",
@@ -21,7 +20,7 @@ module.exports = function(instanceModel, socketModel) {
    * }
    */
   async function createInstance(req, res, next) {
-    var newInstance = await instanceModel.createInstance(req.user, req.body);
+    const newInstance = await instanceModel.createInstance(req.user, req.body);
     res.status(201).json(newInstance);
   }
 
@@ -32,7 +31,7 @@ module.exports = function(instanceModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * [{
    *   "id": "b55b9f2f-679d-4b79-93aa-d3325f1d9e62",
    *   "name": "Raspberry Pi",
@@ -41,7 +40,7 @@ module.exports = function(instanceModel, socketModel) {
    * }]
    */
   async function getInstances(req, res, next) {
-    var instances = await instanceModel.getInstances(req.user);
+    const instances = await instanceModel.getInstances(req.user);
     res.json(instances);
   }
 
@@ -52,7 +51,7 @@ module.exports = function(instanceModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "id": "b55b9f2f-679d-4b79-93aa-d3325f1d9e62",
    *   "name": "Raspberry Pi",
@@ -63,7 +62,7 @@ module.exports = function(instanceModel, socketModel) {
    * }
    */
   async function getInstanceById(req, res, next) {
-    var instance = await instanceModel.getInstanceById(req.user, req.params.id);
+    const instance = await instanceModel.getInstanceById(req.user, req.params.id);
     res.json(instance);
   }
 
@@ -74,13 +73,13 @@ module.exports = function(instanceModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "access_token": "ejkjlsf"
    * }
    */
   async function getAccessToken(req, res, next) {
-    var token = await instanceModel.getAccessToken(req.instance, req.headers.authorization);
+    const token = await instanceModel.getAccessToken(req.instance, req.headers.authorization);
     res.json(token);
   }
 
@@ -91,7 +90,7 @@ module.exports = function(instanceModel, socketModel) {
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * [{
    *    "id": "88abe47d-80fa-41e0-a7a5-381cb13786df",
    *    "rsa_public_key: "",
@@ -100,14 +99,15 @@ module.exports = function(instanceModel, socketModel) {
    * }]
    */
   async function getUsers(req, res, next) {
-    var users = await instanceModel.getUsers(req.instance);
+    const users = await instanceModel.getUsers(req.instance);
 
-    var users = await Promise.map(users, (async (user) => {
+    const usersWithConnectedStatus = await Promise.map(users, (async (userParam) => {
+      const user = userParam;
       user.connected = await socketModel.isUserConnected(user.id);
       return user;
     }));
 
-    res.json(users);
+    res.json(usersWithConnectedStatus);
   }
 
   return {
@@ -115,6 +115,6 @@ module.exports = function(instanceModel, socketModel) {
     getInstances,
     getInstanceById,
     getAccessToken,
-    getUsers
+    getUsers,
   };
 };

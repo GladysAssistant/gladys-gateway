@@ -1,13 +1,11 @@
-const nock = require('nock');
+const nock = require('nock'); // eslint-disable-line
 
 // intercepting mailgun API call so it's not really sent during tests
-var mailgunNock = nock('https://api.mailgun.net:443') // eslint-disable-line no-unused-vars
+const mailgunNock = nock('https://api.mailgun.net:443') // eslint-disable-line no-unused-vars
   .persist()
-  .filteringPath(function (path) {
-    return '/';
-  })
+  .filteringPath(path => '/')
   .post('/')
   .reply(200, {
     id: '',
-    message: 'Queued. Thank you.'
+    message: 'Queued. Thank you.',
   });

@@ -1,15 +1,14 @@
 const Promise = require('bluebird');
 const mailgun = require('mailgun.js');
+const emails = require('../common/email.js');
 
 const SUPPORTED_LANGUAGE = ['en', 'fr'];
 
-module.exports = function mailgunService(logger) {
-
+module.exports = function MailgunService(logger) {
   const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
-  const emails = require('../common/email.js');
 
-  function send(user, template, scope) {
-
+  function send(userParam, template, scope) {
+    const user = userParam;
     // default language = en
     if (SUPPORTED_LANGUAGE.indexOf(user.language) === -1) {
       user.language = 'en';
@@ -23,22 +22,22 @@ module.exports = function mailgunService(logger) {
     // generating HTML base on EJS and scope
     const html = emails[template][user.language].ejs(scope);
 
-    var data = {
+    const data = {
       from: process.env.EMAIL_FROM,
       to: user.email,
       subject: emails[template][user.language].subject,
-      html: html
+      html,
     };
 
-    if(process.env.MAILGUN_TEST_MODE === 'true'){
+    if (process.env.MAILGUN_TEST_MODE === 'true') {
       data['o:testmode'] = 'yes';
     }
 
-    if(process.env.DISABLE_EMAIL === 'true'){
+    if (process.env.DISABLE_EMAIL === 'true') {
       logger.info(`Sending email is disabled. Not sending email.`);
-      
+
       // Displaying the scope in dev so it's easier to test
-      if(process.env.NODE_ENV === 'development') {
+      if (process.env.NODE_ENV === 'development') {
         logger.debug(scope);
       }
 
@@ -50,6 +49,6 @@ module.exports = function mailgunService(logger) {
   }
 
   return {
-    send
+    send,
   };
 };

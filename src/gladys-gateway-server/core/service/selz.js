@@ -1,9 +1,7 @@
 const axios = require('axios');
 
-module.exports = function (logger) {
-  
+module.exports = function SelzService(logger) {
   function createDiscount(email) {
-    
     if (!process.env.SELZ_TOKEN) {
       logger.info('Selz is not enabled, resolving');
       return Promise.resolve();
@@ -12,11 +10,11 @@ module.exports = function (logger) {
     logger.info('Creating Selz Discount...');
 
     // Selz does not accept discount name bigger than 40
-    var truncatedEmail = email.substring(0, 38);
+    const truncatedEmail = email.substring(0, 38);
 
     const options = {
       method: 'POST',
-      headers: { 'authorization': 'Bearer ' +  process.env.SELZ_TOKEN},
+      headers: { authorization: `Bearer ${process.env.SELZ_TOKEN}` },
       data: {
         name: truncatedEmail,
         type: 'product',
@@ -28,7 +26,7 @@ module.exports = function (logger) {
         currency_code: 'EUR',
         is_published: true,
         quantity: 1,
-        valid_to: new Date(new Date().getTime() + 7*24*60*60*1000)
+        valid_to: new Date(new Date().getTime() + 7 * 24 * 60 * 60 * 1000),
       },
       url: 'https://api.selz.com/discounts',
     };
@@ -41,6 +39,6 @@ module.exports = function (logger) {
   }
 
   return {
-    createDiscount
+    createDiscount,
   };
 };

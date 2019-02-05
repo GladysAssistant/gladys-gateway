@@ -3,35 +3,34 @@ const Sentry = require('@sentry/node');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
 const { NotFoundError } = require('../common/error.js');
 
-module.exports.load = function(app, io, controllers, middlewares) {
-
+module.exports.load = function Routes(app, io, controllers, middlewares) {
   // the gateway is behing a proxy
   app.enable('trust proxy');
 
-  // Sentry 
+  // Sentry
   Sentry.init({ dsn: process.env.SENTRY_DSN });
   app.use(Sentry.Handlers.requestHandler());
 
   // parse application/x-www-form-urlencoded
   app.use(bodyParser.urlencoded({
-    extended: false
+    extended: false,
   }));
 
   // don't parse body of stripe webhook
-  app.use('/stripe/webhook', bodyParser.raw({type: '*/*'}));
+  app.use('/stripe/webhook', bodyParser.raw({ type: '*/*' }));
 
   // parse application/json
   app.use(bodyParser.json());
 
   // CORS
-  app.use(function(req, res, next) {
+  app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,PATCH,DELETE,OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
     next();
   });
 
-  app.options('/*', function(req, res, next) {
+  app.options('/*', (req, res, next) => {
     res.sendStatus(200);
   });
 
@@ -44,7 +43,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/users/login-generate-ephemeral', middlewares.rateLimiter, asyncMiddleware(controllers.userController.loginGenerateEphemeralValuePair));
   app.post('/users/login-finalize', middlewares.rateLimiter, asyncMiddleware(controllers.userController.loginDeriveSession));
   app.post('/users/login-two-factor', asyncMiddleware(middlewares.twoFactorTokenAuth), asyncMiddleware(controllers.userController.loginTwoFactor));
-  
+
   app.post('/users/two-factor-configure', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.configureTwoFactor));
   app.post('/users/two-factor-enable', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'two-factor-configure' })), asyncMiddleware(controllers.userController.enableTwoFactor));
 
@@ -88,13 +87,13 @@ module.exports.load = function(app, io, controllers, middlewares) {
   app.post('/accounts/users/:id/revoke', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.accountController.revokeUser));
   app.get('/accounts/invoices', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })), asyncMiddleware(controllers.accountController.getInvoices));
   app.post('/accounts/subscribe/new', asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount));
-  
+
   // admin
   app.post('/admin/accounts/:id/resend', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), middlewares.isSuperAdmin, asyncMiddleware(controllers.adminController.resendConfirmationEmail));
   app.get('/admin/accounts', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), middlewares.isSuperAdmin, asyncMiddleware(controllers.adminController.getAllAccounts));
 
   // stripe webhook
-  app.post('/stripe/webhook',  asyncMiddleware(controllers.accountController.stripeEvent));
+  app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));
 
   // open API managment
   app.post('/open-api-keys', asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })), asyncMiddleware(controllers.openApiController.createNewApiKey));
@@ -105,7 +104,7 @@ module.exports.load = function(app, io, controllers, middlewares) {
   // open API access
   app.post('/v1/api/event/:open_api_key', asyncMiddleware(middlewares.openApiKeyAuth), asyncMiddleware(controllers.openApiController.createEvent));
   app.post('/v1/api/message/:open_api_key', asyncMiddleware(middlewares.openApiKeyAuth), asyncMiddleware(controllers.openApiController.createMessage));
-  
+
   // socket
   io.on('connection', controllers.socketController.connection);
 

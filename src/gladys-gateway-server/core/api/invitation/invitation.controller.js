@@ -1,30 +1,29 @@
-module.exports = function(invitationModel) {
-
+module.exports = function InvitationController(invitationModel) {
   /**
    * @api {post} /invitations Send invitation
    * @apiName Send invitation
    * @apiGroup Invitation
    *
-   * 
+   *
    * @apiParam {String} email Email of the user invited
-   * 
+   *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
-   * 
+   *
    * {
    *   "email": "pepper.potts@starkindustries.com",
    *   "account_id": "2088d7fa-8dd4-4f2c-ad98-f657487b6447"
    * }
    */
   async function inviteUser(req, res, next) {
-    var invitation = await invitationModel.inviteUser(req.user, req.body);
+    const invitation = await invitationModel.inviteUser(req.user, req.body);
     res.json({
       id: invitation.id,
       email: invitation.email,
       role: invitation.role,
       account_id: invitation.account_id,
       is_invitation: true,
-      created_at: invitation.created_at
+      created_at: invitation.created_at,
     });
   }
 
@@ -41,21 +40,21 @@ module.exports = function(invitationModel) {
    * @apiParam {string} rsa_encrypted_private_key user RSA encrypted private key
    * @apiParam {string} ecdsa_public_key user ECDSA publick key
    * @apiParam {string} ecdsa_encrypted_private_key user ECDSA encrypted private key
-   * 
+   *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 201 CREATED
-   * 
+   *
    * {
    *   "status": 201,
    *   "message": "User created with success."
    * }
    */
-  async function accept(req, res, next) {
+  async function accept(req, res, next) {
     await invitationModel.accept(req.body);
-    
+
     res.status(201).json({
       status: 201,
-      message: 'User created with success.'
+      message: 'User created with success.',
     });
   }
 
@@ -64,18 +63,18 @@ module.exports = function(invitationModel) {
    * @apiName Get invitation
    * @apiGroup Invitation
    *
-   * 
+   *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 201 CREATED
-   * 
+   *
    * {
    *   "id": "61243769-6b09-496d-85f6-2189bd54662e",
    *   "email": "tony.stark@gladysassistant.com"
    * }
    */
-  async function getInvitation(req, res, next) {
-    var invitation = await invitationModel.getInvitation(req.params.id);
-    
+  async function getInvitation(req, res, next) {
+    const invitation = await invitationModel.getInvitation(req.params.id);
+
     res.json(invitation);
   }
 
@@ -84,10 +83,10 @@ module.exports = function(invitationModel) {
    * @apiName Revoke invitation
    * @apiGroup Invitation
    *
-   * 
+   *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 201 CREATED
-   * 
+   *
    * {
    *   "success": true
    * }
@@ -101,6 +100,6 @@ module.exports = function(invitationModel) {
     inviteUser,
     accept,
     getInvitation,
-    revokeInvitation
+    revokeInvitation,
   };
 };

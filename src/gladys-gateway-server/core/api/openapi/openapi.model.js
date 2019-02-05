@@ -1,15 +1,14 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
+const Joi = require('joi');
 const { ValidationError } = require('../../common/error');
 const schemas = require('../../common/schema');
-const Joi = require('joi');
+
 const randomBytes = Promise.promisify(crypto.randomBytes);
 
 module.exports = function OpenApiModel(logger, db) {
-
   async function createNewApiKey(user, name) {
-    
-    const { error } = Joi.validate({ name }, schemas.openApiSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+    const { error } = Joi.validate({ name }, schemas.openApiSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
 
     if (error) {
       logger.debug(error);
@@ -22,11 +21,11 @@ module.exports = function OpenApiModel(logger, db) {
     const newApiKey = {
       name,
       api_key_hash: apiKeyHash,
-      user_id: user.id
+      user_id: user.id,
     };
 
     const insertedApiKey = await db.t_open_api_key.insert(newApiKey);
-    insertedApiKey.api_key = apiKey; 
+    insertedApiKey.api_key = apiKey;
 
     return insertedApiKey;
   }
@@ -35,21 +34,21 @@ module.exports = function OpenApiModel(logger, db) {
     const keys = await db.t_open_api_key.find({
       user_id: user.id,
       is_deleted: false,
-      revoked: false
-    }, { fields: ['id', 'name', 'created_at', 'last_used']});
+      revoked: false,
+    }, { fields: ['id', 'name', 'created_at', 'last_used'] });
 
     return keys;
   }
 
   async function revokeApiKey(id) {
     await db.t_open_api_key.update({
-      id
+      id,
     }, { revoked: true });
   }
 
   async function updateApiKeyName(id, name) {
     await db.t_open_api_key.update({
-      id
+      id,
     }, { name });
 
     return { name };
@@ -60,34 +59,33 @@ module.exports = function OpenApiModel(logger, db) {
     return db.t_open_api_key.findOne({
       api_key_hash: apiKeyHash,
       is_deleted: false,
-      revoked: false
-    }, { fields: ['id', 'name', 'user_id', 'created_at', 'last_used']});
+      revoked: false,
+    }, { fields: ['id', 'name', 'user_id', 'created_at', 'last_used'] });
   }
 
   async function updateLastUsed(id) {
     await db.t_open_api_key.update({
-      id
-    }, { last_used: new Date()});
+      id,
+    }, { last_used: new Date() });
   }
 
-  async function createEvent(user, primaryInstance, event) {
-
+  async function createEvent(user, primaryInstance, eventParam) {
+    const event = eventParam;
     // add gladys_user_id to event
     event.user = user.gladys_user_id;
-    
+
     const message = {
       version: '1.0',
       type: 'gladys-open-api',
       action: 'create-event',
       instance_id: primaryInstance.id,
-      data: event
+      data: event,
     };
 
     return message;
   }
 
-  async function createMessage(user, primaryInstance, text) {
-    
+  async function createMessage(user, primaryInstance, text) {
     const message = {
       version: '1.0',
       type: 'gladys-open-api',
@@ -95,8 +93,8 @@ module.exports = function OpenApiModel(logger, db) {
       instance_id: primaryInstance.id,
       data: {
         text,
-        user: user.gladys_user_id
-      }
+        user: user.gladys_user_id,
+      },
     };
 
     return message;
@@ -110,6 +108,6 @@ module.exports = function OpenApiModel(logger, db) {
     findOpenApiKey,
     updateLastUsed,
     createEvent,
-    createMessage
+    createMessage,
   };
 };

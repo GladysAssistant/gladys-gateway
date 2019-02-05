@@ -1,42 +1,42 @@
-var io = require('socket.io-client');
+const io = require('socket.io-client');
+const Jwt = require('../../../../core/service/jwt');
 
-describe('socket', function(){
-  it('should connect to socket.io server', function(done){
-    var jwt = require('../../../../core/service/jwt')();
+describe('socket', () => {
+  it('should connect to socket.io server', (done) => {
+    const jwt = Jwt();
 
-    var jwtAccessToken = jwt.generateAccessToken({id: 'a139e4a6-ec6c-442d-9730-0499155d38d4'}, ['dashboard:read', 'dashboard:write']);
+    const jwtAccessToken = jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, ['dashboard:read', 'dashboard:write']);
 
-    var socket = io('http://localhost:' + process.env.SERVER_PORT);
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`);
 
-    socket.on('connect', function() {
-      socket.emit('user-authentication', { access_token: jwtAccessToken }, function (data) {
+    socket.on('connect', () => {
+      socket.emit('user-authentication', { access_token: jwtAccessToken }, (data) => {
         data.should.have.property('authenticated', true);
         done();
       });
     });
   });
 
-  it('should not connect to socket.io server, wrong scope', function(done){
-    var jwt = require('../../../../core/service/jwt')();
+  it('should not connect to socket.io server, wrong scope', (done) => {
+    const jwt = Jwt();
 
-    var jwtAccessToken = jwt.generateAccessToken({id: 'a139e4a6-ec6c-442d-9730-0499155d38d4'}, []);
+    const jwtAccessToken = jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, []);
 
-    var socket = io('http://localhost:' + process.env.SERVER_PORT);
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`);
 
-    socket.on('connect', function() {
-      socket.emit('user-authentication', { access_token: jwtAccessToken }, function (data) {
+    socket.on('connect', () => {
+      socket.emit('user-authentication', { access_token: jwtAccessToken }, (data) => {
         data.should.have.property('authenticated', false);
         done();
       });
     });
   });
 
-  it('should not connect to socket.io server, wrong jwt', function(done){
+  it('should not connect to socket.io server, wrong jwt', (done) => {
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`);
 
-    var socket = io('http://localhost:' + process.env.SERVER_PORT);
-
-    socket.on('connect', function() {
-      socket.emit('user-authentication', { access_token: 'wrong-jwt' }, function (data) {
+    socket.on('connect', () => {
+      socket.emit('user-authentication', { access_token: 'wrong-jwt' }, (data) => {
         data.should.have.property('authenticated', false);
         done();
       });

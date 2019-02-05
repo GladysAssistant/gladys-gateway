@@ -1,5 +1,4 @@
 module.exports = function PingModel(logger, db, redisClient) {
-
   /**
    * We want to test if the database/redis
    * connections are working properly
@@ -10,6 +9,6 @@ module.exports = function PingModel(logger, db, redisClient) {
   }
 
   return {
-    ping
+    ping,
   };
 };

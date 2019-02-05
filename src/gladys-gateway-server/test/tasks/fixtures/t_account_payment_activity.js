@@ -7,6 +7,6 @@ module.exports = [
     invoice_pdf: 'test',
     amount_paid: 999,
     closed: true,
-    created_at: '2018-10-16T02:21:25.901Z'
-  }
+    created_at: '2018-10-16T02:21:25.901Z',
+  },
 ];

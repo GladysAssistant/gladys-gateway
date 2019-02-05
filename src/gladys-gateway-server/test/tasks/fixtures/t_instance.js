@@ -4,5 +4,5 @@ module.exports = [{
   account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
   rsa_public_key: 'public-key',
   ecdsa_public_key: 'public-key',
-  refresh_token_hash: '979067968ac1166e4aa0f1b452533d24543eb095ff03e5d72a8977c6d652e9f6'
+  refresh_token_hash: '979067968ac1166e4aa0f1b452533d24543eb095ff03e5d72a8977c6d652e9f6',
 }];

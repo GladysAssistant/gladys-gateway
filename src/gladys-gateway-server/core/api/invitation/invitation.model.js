@@ -1,97 +1,95 @@
-const { ValidationError, AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const Joi = require('joi');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
+const {
+  ValidationError, AlreadyExistError, ForbiddenError, NotFoundError,
+} = require('../../common/error');
 const schema = require('../../common/schema');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailgunService) {
-
   async function inviteUser(user, newInvitation) {
-
-    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
 
     if (error) {
       logger.debug(error);
       throw new ValidationError('invitation', error);
     }
 
-    return db.withTransaction(async tx => {
-
+    return db.withTransaction(async (tx) => {
       // clean email
-      var email = value.email.trim().toLowerCase();
-      var role = value.role; 
+      const email = value.email.trim().toLowerCase();
+      const { role } = value;
 
       // first we get the user to see if he is allowed to do that
-      var userWithAccount = await tx.t_user.findOne({
-        id: user.id
-      }, {fields: ['id', 'name', 'language', 'account_id', 'role']});
+      const userWithAccount = await tx.t_user.findOne({
+        id: user.id,
+      }, { fields: ['id', 'name', 'language', 'account_id', 'role'] });
 
       // only admin can send invite
-      if(userWithAccount.role !== 'admin') {
+      if (userWithAccount.role !== 'admin') {
         throw new ForbiddenError();
       }
 
-      var emailAlreadyExist = await tx.t_invitation.findOne({
+      const emailAlreadyExist = await tx.t_invitation.findOne({
         email,
-        account_id: userWithAccount.account_id
+        account_id: userWithAccount.account_id,
       });
 
       // email already exist in this account
-      if(emailAlreadyExist !== null) {
+      if (emailAlreadyExist !== null) {
         throw new AlreadyExistError();
       }
-      
+
       // generate email confirmation token
-      var token = (await randomBytes(64)).toString('hex');
+      const token = (await randomBytes(64)).toString('hex');
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      var tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
-      var insertedInvitation = await tx.t_invitation.insert({
+      const insertedInvitation = await tx.t_invitation.insert({
         email,
         role,
         token_hash: tokenHash,
-        account_id: userWithAccount.account_id
+        account_id: userWithAccount.account_id,
       });
 
-      await mailgunService.send({email, language: userWithAccount.language}, 'invitation', {
-        invitationUrl: process.env.GLADYS_GATEWAY_FRONTEND_URL + '/signup?token=' + encodeURI(token),
-        nameOfAdminInviting: userWithAccount.name
+      await mailgunService.send({ email, language: userWithAccount.language }, 'invitation', {
+        invitationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
+        nameOfAdminInviting: userWithAccount.name,
       });
 
       return insertedInvitation;
     });
   }
 
-  async function accept(data) {
-
-    var tokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
+  async function accept(dataParam) {
+    const data = dataParam;
+    const tokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
 
     // we look if for the token hash in the db
-    var invitation = await db.t_invitation.findOne({
+    const invitation = await db.t_invitation.findOne({
       token_hash: tokenHash,
       revoked: false,
       accepted: false,
-      is_deleted: false
+      is_deleted: false,
     });
 
-    if(invitation === null) {
+    if (invitation === null) {
       throw new NotFoundError();
     }
 
     data.email = invitation.email;
 
-    const { error, value } = Joi.validate(data, schema.signupSchema, {stripUnknown: true, abortEarly: false, presence: 'required'});
+    const { error, value } = Joi.validate(data, schema.signupSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
 
     if (error) {
       logger.debug(error);
       throw new ValidationError('user', error);
     }
 
-    return db.withTransaction(async tx => {
-
+    return db.withTransaction(async (tx) => {
       // email of the user is already confirmed as he clicked on the link in his email
       value.email_confirmed = true;
       value.account_id = invitation.account_id;
@@ -99,18 +97,18 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       value.role = invitation.role;
 
       // set gravatar image for the user
-      var emailHash = crypto.createHash('md5').update(value.email).digest('hex');
+      const emailHash = crypto.createHash('md5').update(value.email).digest('hex');
       value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
 
-      if(process.env.DEFAULT_USER_PROFILE_URL) {
+      if (process.env.DEFAULT_USER_PROFILE_URL) {
         value.profile_url += `?d=${process.env.DEFAULT_USER_PROFILE_URL}`;
         value.profile_url = encodeURI(value.profile_url);
       }
 
-      var insertedUser = await tx.t_user.insert(value);
+      const insertedUser = await tx.t_user.insert(value);
 
       await tx.t_invitation.update(invitation.id, {
-        accepted: true
+        accepted: true,
       });
 
       return {
@@ -118,23 +116,23 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
         email: insertedUser.language,
         language: insertedUser.language,
         profile_url: insertedUser.profile_url,
-        account_id: insertedUser.account_id
+        account_id: insertedUser.account_id,
       };
     });
   }
 
-  async function getInvitation(token){
-    var tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+  async function getInvitation(token) {
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     // we look if for the token hash in the db
-    var invitation = await db.t_invitation.findOne({
+    const invitation = await db.t_invitation.findOne({
       token_hash: tokenHash,
       revoked: false,
       accepted: false,
-      is_deleted: false
+      is_deleted: false,
     }, { fields: ['id', 'email'] });
 
-    if(invitation === null) {
+    if (invitation === null) {
       throw new NotFoundError();
     }
 
@@ -142,13 +140,12 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
   }
 
   async function revokeInvitation(user, invitationId) {
-      
     // get the account_id of the currently connected user
-    var userWithAccount = await db.t_user.findOne({
-      id: user.id
-    }, {fields: ['id', 'role', 'account_id']});
+    const userWithAccount = await db.t_user.findOne({
+      id: user.id,
+    }, { fields: ['id', 'role', 'account_id'] });
 
-    if(userWithAccount.role !== 'admin') {
+    if (userWithAccount.role !== 'admin') {
       throw new ForbiddenError('You must be admin to perform this operation');
     }
 
@@ -157,9 +154,9 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
       account_id: userWithAccount.account_id,
       revoked: false,
       accepted: false,
-      is_deleted: false
+      is_deleted: false,
     }, {
-      revoked: true
+      revoked: true,
     });
   }
 
@@ -167,6 +164,6 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
     inviteUser,
     accept,
     getInvitation,
-    revokeInvitation
+    revokeInvitation,
   };
 };

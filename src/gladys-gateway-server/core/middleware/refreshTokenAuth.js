@@ -22,7 +22,6 @@ module.exports = function RefreshTokenAuthMiddleware(logger) {
 
       next();
     } catch (e) {
-      logger.warn(e);
       throw new UnauthorizedError();
     }
   };

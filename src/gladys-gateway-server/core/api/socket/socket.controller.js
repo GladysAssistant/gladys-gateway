@@ -40,8 +40,6 @@ module.exports = function SocketController(logger, socketModel, io) {
           // socket disconnected
         });
       } catch (e) {
-        logger.warn(e);
-
         fn({ authenticated: false });
 
         // disconnect socket
@@ -80,8 +78,6 @@ module.exports = function SocketController(logger, socketModel, io) {
           // socket disconnected
         });
       } catch (e) {
-        logger.warn(e);
-
         fn({ authenticated: false });
 
         // disconnect socket

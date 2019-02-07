@@ -15,7 +15,7 @@ module.exports = function MailgunService(logger) {
     }
 
     if (!emails[template] || !emails[template][user.language]) {
-      logger.info(`Invalid template or language. Template = "${template}", language = "${user.language}."`);
+      logger.warn(`Invalid template or language. Template = "${template}", language = "${user.language}."`);
       return Promise.reject(new Error('INVALID_TEMPLATE_OR_LANGUAGE'));
     }
 

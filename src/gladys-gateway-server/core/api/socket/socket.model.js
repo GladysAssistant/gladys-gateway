@@ -178,7 +178,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
       io.of('/').adapter.customRequest({ socket_id: socketId, disconnect: true }, (err, replies) => {
         if (err) {
-          logger.warn(`socketModel.disconnectUser : error while trying to disconnect user ${userId}`);
+          logger.debug(`socketModel.disconnectUser : error while trying to disconnect user ${userId}`);
         }
       });
     } catch (e) {

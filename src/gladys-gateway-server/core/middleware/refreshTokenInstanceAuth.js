@@ -15,7 +15,6 @@ module.exports = function RefreshTokenInstanceMiddleware(logger) {
 
       next();
     } catch (e) {
-      logger.warn(e);
       throw new UnauthorizedError();
     }
   };

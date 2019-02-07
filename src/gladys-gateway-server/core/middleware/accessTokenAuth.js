@@ -20,7 +20,6 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
 
         next();
       } catch (e) {
-        logger.warn(e);
         throw new UnauthorizedError();
       }
     };

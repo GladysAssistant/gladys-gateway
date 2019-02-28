@@ -13,7 +13,7 @@ const schema = require('../../common/schema');
 const redisLoginSessionExpiryInSecond = 60;
 const resetPasswordTokenExpiryInMilliSeconds = 2 * 60 * 60 * 1000;
 
-module.exports = function UserModel(logger, db, redisClient, jwtService, mailgunService) {
+module.exports = function UserModel(logger, db, redisClient, jwtService, mailService) {
   /**
    * Create a new user with his email and language
    */
@@ -460,7 +460,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailgun
       user_id: user.id,
     });
 
-    await mailgunService.send(user, 'password_reset', {
+    await mailService.send(user, 'password_reset', {
       resetPasswordUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/reset-password/${encodeURI(resetPasswordToken)}`,
     });
 

@@ -1,4 +1,4 @@
-module.exports = function UserController(userModel, mailgunService, socketModel) {
+module.exports = function UserController(userModel, mailService, socketModel) {
   /**
    * @api {post} /users/signup Create a new user
    * @apiName Create user
@@ -27,7 +27,7 @@ module.exports = function UserController(userModel, mailgunService, socketModel)
     const user = await userModel.signup(req.body);
 
     // send confirmation email to user
-    mailgunService.send(user, 'confirmation', {
+    mailService.send(user, 'confirmation', {
       confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${encodeURI(user.email_confirmation_token)}`,
     });
 
@@ -68,7 +68,7 @@ module.exports = function UserController(userModel, mailgunService, socketModel)
 
     if (user.email_confirmed === false) {
       // send confirmation email to user
-      mailgunService.send(user, 'confirmation', {
+      mailService.send(user, 'confirmation', {
         confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${user.email_confirmation_token}`,
       });
     }

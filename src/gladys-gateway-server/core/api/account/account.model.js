@@ -4,7 +4,7 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 
 module.exports = function AccountModel(logger, db, redisClient, stripeService,
-  mailgunService, selzService, slackService) {
+  mailService, selzService, slackService) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne({
@@ -100,7 +100,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
     const selzDiscountUrl = (selzDiscount && selzDiscount.data) ? selzDiscount.data.short_url : null;
 
-    await mailgunService.send({ email, language }, 'welcome', {
+    await mailService.send({ email, language }, 'welcome', {
       confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
       selzDiscountUrl,
     });

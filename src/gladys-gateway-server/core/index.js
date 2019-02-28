@@ -9,7 +9,7 @@ const redisAdapter = require('socket.io-redis');
 
 // Services
 const Fingerprint = require('./service/fingerprint');
-const Mailgun = require('./service/mailgun');
+const Mail = require('./service/mail');
 const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
@@ -84,7 +84,7 @@ module.exports = async () => {
 
   const services = {
     fingerprint: Fingerprint(logger),
-    mailgunService: Mailgun(logger),
+    mailService: Mail(logger),
     jwtService: Jwt(),
     stripeService: Stripe(logger),
     slackService: Slack(logger),
@@ -94,21 +94,21 @@ module.exports = async () => {
 
   const models = {
     pingModel: Ping(logger, db, redisClient),
-    userModel: User(logger, db, redisClient, services.jwtService, services.mailgunService),
+    userModel: User(logger, db, redisClient, services.jwtService, services.mailService),
     socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.statsService),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
-    invitationModel: Invitation(logger, db, redisClient, services.mailgunService),
+    invitationModel: Invitation(logger, db, redisClient, services.mailService),
     accountModel: Account(logger, db, redisClient, services.stripeService,
-      services.mailgunService, services.selzService, services.slackService),
+      services.mailService, services.selzService, services.slackService),
     deviceModel: Device(logger, db, redisClient),
-    adminModel: Admin(logger, db, redisClient, services.mailgunService,
+    adminModel: Admin(logger, db, redisClient, services.mailService,
       services.selzService, services.slackService),
     openApiModel: OpenApi(logger, db),
   };
 
   const controllers = {
     pingController: PingController(models.pingModel),
-    userController: UserController(models.userModel, services.mailgunService, models.socketModel),
+    userController: UserController(models.userModel, services.mailService, models.socketModel),
     socketController: SocketController(logger, models.socketModel, io),
     instanceController: InstanceController(models.instanceModel, models.socketModel),
     invitationController: InvitationController(models.invitationModel),

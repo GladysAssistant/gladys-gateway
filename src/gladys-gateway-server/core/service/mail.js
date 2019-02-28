@@ -1,11 +1,30 @@
 const Promise = require('bluebird');
-const mailgun = require('mailgun.js');
+const nodemailer = require('nodemailer');
 const emails = require('../common/email.js');
 
 const SUPPORTED_LANGUAGE = ['en', 'fr'];
 
-module.exports = function MailgunService(logger) {
-  const mg = mailgun.client({ username: 'api', key: process.env.MAILGUN_API_KEY });
+module.exports = function MailService(logger) {
+  let transporter;
+
+  if (process.env.DISABLE_EMAIL !== 'true') {
+    transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: parseInt(process.env.SMTP_PORT, 10),
+      secure: true,
+      auth: {
+        user: process.env.SMTP_USER,
+        pass: process.env.SMTP_PASSWORD,
+      },
+    });
+    transporter.verify((error) => {
+      if (error) {
+        logger.error(error);
+      } else {
+        logger.info('SMTP server is valid. Ready to send emails.');
+      }
+    });
+  }
 
   function send(userParam, template, scope) {
     const user = userParam;
@@ -22,16 +41,12 @@ module.exports = function MailgunService(logger) {
     // generating HTML base on EJS and scope
     const html = emails[template][user.language].ejs(scope);
 
-    const data = {
+    const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: user.email,
       subject: emails[template][user.language].subject,
       html,
     };
-
-    if (process.env.MAILGUN_TEST_MODE === 'true') {
-      data['o:testmode'] = 'yes';
-    }
 
     if (process.env.DISABLE_EMAIL === 'true') {
       logger.info(`Sending email is disabled. Not sending email.`);
@@ -45,7 +60,7 @@ module.exports = function MailgunService(logger) {
     }
 
     logger.info(`Sending ${template} email.`);
-    return mg.messages.create(process.env.MAILGUN_DOMAIN, data);
+    return transporter.sendMail(mailOptions);
   }
 
   return {

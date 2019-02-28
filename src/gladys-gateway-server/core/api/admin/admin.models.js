@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function AdminModel(logger, db, redisClient, mailgunService, selzService, slackService) {
+module.exports = function AdminModel(logger, db, redisClient, mailService, selzService, slackService) {
   async function getAllAccounts() {
     const request = `
       SELECT t_account.*, COUNT(t_user.id) as user_count 
@@ -50,7 +50,7 @@ module.exports = function AdminModel(logger, db, redisClient, mailgunService, se
 
     const selzDiscountUrl = (selzDiscount && selzDiscount.data) ? selzDiscount.data.short_url : null;
 
-    await mailgunService.send({ email, language }, 'welcome', {
+    await mailService.send({ email, language }, 'welcome', {
       confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
       selzDiscountUrl,
     });

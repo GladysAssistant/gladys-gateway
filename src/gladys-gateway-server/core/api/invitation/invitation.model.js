@@ -7,7 +7,7 @@ const {
 } = require('../../common/error');
 const schema = require('../../common/schema');
 
-module.exports = function InvitationModel(logger, db, redisClient, mailgunService) {
+module.exports = function InvitationModel(logger, db, redisClient, mailService) {
   async function inviteUser(user, newInvitation) {
     const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
 
@@ -55,7 +55,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailgunServic
         account_id: userWithAccount.account_id,
       });
 
-      await mailgunService.send({ email, language: userWithAccount.language }, 'invitation', {
+      await mailService.send({ email, language: userWithAccount.language }, 'invitation', {
         invitationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
         nameOfAdminInviting: userWithAccount.name,
       });

@@ -107,7 +107,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function handleNewMessageFromUser(user, messageParam, callback) {
     logger.debug(`Received message from user ${user.id}`);
 
-    statsService.track('messageToInstance', {
+    statsService.track('MESSAGE_TO_INSTANCE', {
       user_id: user.id,
     });
 
@@ -143,7 +143,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function handleNewMessageFromInstance(instance, messageParam) {
     logger.debug(`New message from instance ${instance.id}`);
 
-    statsService.track('messageToUser', {
+    statsService.track('MESSAGE_TO_USER', {
       instance_id: instance.id,
     });
 

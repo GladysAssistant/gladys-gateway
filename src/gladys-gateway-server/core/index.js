@@ -14,7 +14,7 @@ const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
 const Selz = require('./service/selz');
-const Keen = require('./service/keen');
+const Stat = require('./service/stat');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -89,7 +89,7 @@ module.exports = async () => {
     stripeService: Stripe(logger),
     slackService: Slack(logger),
     selzService: Selz(logger),
-    statsService: Keen(logger),
+    statsService: await Stat(logger),
   };
 
   const models = {

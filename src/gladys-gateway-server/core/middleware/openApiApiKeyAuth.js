@@ -22,9 +22,9 @@ module.exports = function OpenApiKeyAuthMiddleware(openApiModel, userModel, inst
     await openApiModel.updateLastUsed(apiKey.id);
 
     // save event in stats
-    statsService.track('openApiAccess', {
+    statsService.track('OPEN_API_ACCESS', {
       user_id: user.id,
-      route: req.route,
+      route: req.route.path,
     });
 
     next();

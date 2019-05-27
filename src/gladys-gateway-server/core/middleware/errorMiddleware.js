@@ -9,7 +9,6 @@ const {
 } = require('../common/error');
 
 module.exports = function ErrorMiddleware(error, req, res, next) {
-  console.log(error);
   if (
     error instanceof ValidationError
     || error instanceof AlreadyExistError

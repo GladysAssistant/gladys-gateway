@@ -1,11 +1,22 @@
 const {
-  ValidationError, AlreadyExistError, NotFoundError, ForbiddenError,
-  UnauthorizedError, ServerError, PaymentRequiredError,
+  ValidationError,
+  AlreadyExistError,
+  NotFoundError,
+  ForbiddenError,
+  UnauthorizedError,
+  ServerError,
+  PaymentRequiredError,
 } = require('../common/error');
 
 module.exports = function ErrorMiddleware(error, req, res, next) {
-  if (error instanceof ValidationError || error instanceof AlreadyExistError
-    || error instanceof NotFoundError || error instanceof ForbiddenError || error instanceof UnauthorizedError) {
+  console.log(error);
+  if (
+    error instanceof ValidationError
+    || error instanceof AlreadyExistError
+    || error instanceof NotFoundError
+    || error instanceof ForbiddenError
+    || error instanceof UnauthorizedError
+  ) {
     return res.status(error.getStatus()).json(error.jsonError());
   }
 

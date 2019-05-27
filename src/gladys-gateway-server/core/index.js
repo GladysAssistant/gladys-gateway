@@ -50,6 +50,7 @@ const ErrorMiddleware = require('./middleware/errorMiddleware.js');
 const RateLimiterMiddleware = require('./middleware/rateLimiter');
 const IsSuperAdminMiddleware = require('./middleware/isSuperAdmin');
 const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
+const gladysUsageMiddleware = require('./middleware/gladysUsage');
 
 // Routes
 const routes = require('./api/routes');
@@ -145,6 +146,7 @@ module.exports = async () => {
       models.instanceModel,
       services.statsService,
     ),
+    gladysUsage: gladysUsageMiddleware(logger, db),
   };
 
   routes.load(app, io, controllers, middlewares);

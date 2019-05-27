@@ -14,7 +14,7 @@ CREATE TABLE t_gladys_usage (
     id uuid DEFAULT uuid_generate_v4() NOT NULL,
     client_id uuid NULL,
     event_type character varying(255),
-    version character varying(255),
+    user_agent character varying(255),
     country character varying(255),
     region character varying(255),
     timezone character varying(255),

@@ -265,7 +265,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
 
   // Gladys version
-  app.get('/v1/api/gladys/version', asyncMiddleware(controllers.versionController.getCurrentVersion));
+  app.get(
+    '/v1/api/gladys/version',
+    middlewares.rateLimiter,
+    middlewares.gladysUsage,
+    asyncMiddleware(controllers.versionController.getCurrentVersion),
+  );
 
   // socket
   io.on('connection', controllers.socketController.connection);

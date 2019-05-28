@@ -272,6 +272,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.versionController.getCurrentVersion),
   );
 
+  // Backup
+  app.post('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.create);
+
   // socket
   io.on('connection', controllers.socketController.connection);
 

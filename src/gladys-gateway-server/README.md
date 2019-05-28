@@ -28,7 +28,7 @@ Install global dependencies:
 npm install -g db-migrate
 ```
 
-Install dependencies 
+Install dependencies
 
 ```
 npm install
@@ -52,4 +52,14 @@ Run the backend
 
 ```
 npm start
+```
+
+## Development
+
+### Database migration
+
+To create a database migration file, execute the command:
+
+```
+db-migrate create anothermigration --sql-file
 ```

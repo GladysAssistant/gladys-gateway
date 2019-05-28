@@ -19,3 +19,4 @@ node.d.ts
 .git
 .npmrc
 .nyc_output
+coverage

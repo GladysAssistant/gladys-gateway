@@ -26,6 +26,7 @@ const Account = require('./api/account/account.model');
 const Device = require('./api/device/device.model');
 const Admin = require('./api/admin/admin.models');
 const OpenApi = require('./api/openapi/openapi.model.js');
+const Version = require('./api/version/version.model.js');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -37,6 +38,7 @@ const AccountController = require('./api/account/account.controller');
 const DeviceController = require('./api/device/device.controller');
 const AdminController = require('./api/admin/admin.controller');
 const OpenApiController = require('./api/openapi/openapi.controller');
+const VersionController = require('./api/version/version.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -48,6 +50,7 @@ const ErrorMiddleware = require('./middleware/errorMiddleware.js');
 const RateLimiterMiddleware = require('./middleware/rateLimiter');
 const IsSuperAdminMiddleware = require('./middleware/isSuperAdmin');
 const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
+const gladysUsageMiddleware = require('./middleware/gladysUsage');
 
 // Routes
 const routes = require('./api/routes');
@@ -62,11 +65,13 @@ module.exports = async () => {
   const server = http.Server(app);
   const io = socketIo(server);
 
-  io.adapter(redisAdapter({
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-    password: process.env.REDIS_PASSWORD,
-  }));
+  io.adapter(
+    redisAdapter({
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      password: process.env.REDIS_PASSWORD,
+    }),
+  );
 
   const redisClient = redis.createClient({
     host: process.env.REDIS_HOST,
@@ -98,12 +103,19 @@ module.exports = async () => {
     socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.statsService),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: Invitation(logger, db, redisClient, services.mailService),
-    accountModel: Account(logger, db, redisClient, services.stripeService,
-      services.mailService, services.selzService, services.slackService),
+    accountModel: Account(
+      logger,
+      db,
+      redisClient,
+      services.stripeService,
+      services.mailService,
+      services.selzService,
+      services.slackService,
+    ),
     deviceModel: Device(logger, db, redisClient),
-    adminModel: Admin(logger, db, redisClient, services.mailService,
-      services.selzService, services.slackService),
+    adminModel: Admin(logger, db, redisClient, services.mailService, services.selzService, services.slackService),
     openApiModel: OpenApi(logger, db),
+    versionModel: Version(logger, db),
   };
 
   const controllers = {
@@ -116,6 +128,7 @@ module.exports = async () => {
     deviceController: DeviceController(models.deviceModel),
     adminController: AdminController(models.adminModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
+    versionController: VersionController(models.versionModel),
   };
 
   const middlewares = {
@@ -127,8 +140,13 @@ module.exports = async () => {
     errorMiddleware: ErrorMiddleware,
     rateLimiter: RateLimiterMiddleware(redisClient),
     isSuperAdmin: IsSuperAdminMiddleware(logger),
-    openApiKeyAuth: OpenApiKeyAuthMiddleware(models.openApiModel, models.userModel,
-      models.instanceModel, services.statsService),
+    openApiKeyAuth: OpenApiKeyAuthMiddleware(
+      models.openApiModel,
+      models.userModel,
+      models.instanceModel,
+      services.statsService,
+    ),
+    gladysUsage: gladysUsageMiddleware(logger, db),
   };
 
   routes.load(app, io, controllers, middlewares);

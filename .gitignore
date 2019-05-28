@@ -8,3 +8,4 @@ yarn-error.log*
 apidoc
 .nyc_output
 coverage.lcov
+coverage

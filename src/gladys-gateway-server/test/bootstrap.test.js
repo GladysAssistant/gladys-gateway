@@ -1,5 +1,5 @@
-let databaseTask; let
-  redisTask;
+let databaseTask;
+let redisTask;
 const should = require('should'); // eslint-disable-line no-unused-vars
 require('./tasks/nock.js');
 const Dotenv = require('dotenv');
@@ -16,6 +16,8 @@ before(async function Before() {
   process.env.JWT_ACCESS_TOKEN_SECRET = 'accesstokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.JWT_REFRESH_TOKEN_SECRET = 'refreshtokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.POSTGRESQL_DATABASE = process.env.POSTGRESQL_DATABASE_TEST;
+  process.env.STORAGE_ENDPOINT = 'test-endpoint.com';
+  process.env.STORAGE_BUCKET = 'test';
 
   // stripe disabled in tests
   delete process.env.STRIPE_SECRET_KEY;
@@ -26,18 +28,15 @@ before(async function Before() {
   global.TEST_BACKEND_APP = app;
 });
 
-after(() => {
-
-});
+after(() => {});
 
 beforeEach(function BeforeEach() {
   this.timeout(6000);
-  return databaseTask.clean()
+  return databaseTask
+    .clean()
     .then(() => databaseTask.fill())
     .then(() => redisTask.clean())
     .then(() => redisTask.fill());
 });
 
-afterEach(() => {
-
-});
+afterEach(() => {});

@@ -34,6 +34,12 @@ class GladysGatewayJs {
     autoBind(this);
   }
 
+  disconnect() {
+    if (this.socket) {
+      this.socket.disconnect();
+    }
+  }
+
   async generateSrpAndKeys(rawEmail, rawPassword) {
     const email = rawEmail.trim().toLowerCase();
     const password = rawPassword.trim();

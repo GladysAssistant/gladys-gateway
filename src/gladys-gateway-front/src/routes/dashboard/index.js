@@ -20,7 +20,7 @@ class DashboardPage extends Component {
     Auth.cache.set(DEVICE_TYPE_CACHE_KEY, { rooms, lastUpdated: new Date() });
   };
 
-  connected = (event) => {
+  connected = event => {
     Auth.request
       .get('/devicetype/room', { displayed_only: true })
       .then(rooms => {
@@ -33,19 +33,18 @@ class DashboardPage extends Component {
         if (err && err.status === 404 && err.error_message === 'NO_INSTANCE_FOUND') {
           this.setState({ noInstanceFoundError: true });
         }
-        
+
         if (err && err.status === 403 && err.error_code === 'USER_NOT_ACCEPTED_LOCALLY') {
           this.setState({ userNotAcceptedLocallyError: true });
         }
       });
 
-    Auth.getMySelf()
-      .then((user) => {
-        const expiredAccountDate = new Date(user.current_period_end);
-        if (expiredAccountDate < new Date()) {
-          this.setState({ accountExpired: true });
-        }
-      });
+    Auth.getMySelf().then(user => {
+      const expiredAccountDate = new Date(user.current_period_end);
+      if (expiredAccountDate < new Date()) {
+        this.setState({ accountExpired: true });
+      }
+    });
   };
 
   updateValue = (deviceType, roomIndex, deviceTypeIndex, value, oldValue) => {
@@ -56,14 +55,13 @@ class DashboardPage extends Component {
       .then(response => {
         this.updateLocalValue(roomIndex, deviceTypeIndex, response.value);
       })
-      .catch((err) => {
+      .catch(err => {
         console.log(err);
         this.updateLocalValue(roomIndex, deviceTypeIndex, oldValue);
       });
   };
 
   updateLocalValue = (roomIndex, deviceTypeIndex, value) => {
-    
     // create a new immutable state
     const newState = update(this.state, {
       rooms: {
@@ -87,8 +85,7 @@ class DashboardPage extends Component {
     return this.saveState(newState.rooms);
   };
 
-  indexDeviceTypes = (rooms) => {
-
+  indexDeviceTypes = rooms => {
     rooms.forEach((room, roomIndex) => {
       room.deviceTypes.forEach((deviceType, deviceTypeIndex) => {
         this.deviceTypeDictionnary[deviceType.id] = {
@@ -97,20 +94,24 @@ class DashboardPage extends Component {
         };
       });
     });
-  }
+  };
 
   newInstanceEvent = (type, message) => {
     if (type === 'message') {
       if (message.type === 'gladys-event' && message.event === 'devicestate-new') {
         let deviceTypeId = message.data.devicetype;
         let value = message.data.value;
-      
+
         if (this.deviceTypeDictionnary[deviceTypeId]) {
-          this.updateLocalValue(this.deviceTypeDictionnary[deviceTypeId].roomIndex, this.deviceTypeDictionnary[deviceTypeId].deviceTypeIndex, value);
+          this.updateLocalValue(
+            this.deviceTypeDictionnary[deviceTypeId].roomIndex,
+            this.deviceTypeDictionnary[deviceTypeId].deviceTypeIndex,
+            value
+          );
         }
       }
     }
-  }
+  };
 
   collapseRoom = (e, index) => {
     e.preventDefault();

@@ -20,9 +20,9 @@ class Layout extends Component {
     this.setState({ showCollapsedMenu: !this.state.showCollapsedMenu });
   };
 
-  logout = async (e) => {
+  logout = async e => {
     e.preventDefault();
-    
+
     try {
       await Auth.revokeCurrentDevice();
     } catch (e) {
@@ -34,12 +34,11 @@ class Layout extends Component {
   };
 
   componentDidMount = () => {
-
     Auth.connectSocket(this.props.newInstanceEvent)
       .then(() => Auth.getUser())
       .then(user => this.setState({ user }))
       .then(() => Auth.isAccoutSetup())
-      .then((isAccountSetup) => {
+      .then(isAccountSetup => {
         if (!isAccountSetup && !this.props.dontCheckSetup) {
           route('/setup');
         }
@@ -51,6 +50,7 @@ class Layout extends Component {
         }
       })
       .catch(err => {
+        console.log(err);
         if (err && err.response && err.response.data && err.response.data.status === 401) {
           route('/login');
         } else if (err && err.response && err.response.data && err.response.data.status === 403) {
@@ -62,7 +62,6 @@ class Layout extends Component {
   };
 
   render(props, { showDropDown, showCollapsedMenu, user, connected }) {
-
     return (
       <div class="page">
         <div class="page-main">

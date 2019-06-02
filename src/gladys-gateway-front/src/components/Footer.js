@@ -24,7 +24,7 @@ const Footer = ({ children, ...props }) => (
           </div>
         </div>
         <div class="col-12 col-lg-auto mt-3 mt-lg-0 text-center">
-          Copyright © {d.getFullYear()} Gladys Project
+          Copyright © {d.getFullYear()} Gladys Assistant
         </div>
       </div>
     </div>

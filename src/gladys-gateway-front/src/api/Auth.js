@@ -100,10 +100,10 @@ const Auth = {
   getUser: async () => {
     let user = keyValStore.get('user');
     if (user) {
-      return user;
+      return Promise.resolve(JSON.parse(user));
     }
     user = await client.getMyself();
-    await keyValStore.set('user', user);
+    await keyValStore.set('user', JSON.stringify(user));
     return user;
   },
   isConnected: async () => {

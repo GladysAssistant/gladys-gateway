@@ -509,7 +509,7 @@ module.exports = ({ cryptoLib }) => {
       'jwk', // can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
       jwkKey,
       keyOptions,
-      false, // whether the key is extractable (i.e. can be used in exportKey)
+      true, // whether the key is extractable (i.e. can be used in exportKey)
       usages,
     );
   }

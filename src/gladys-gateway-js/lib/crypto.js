@@ -315,8 +315,6 @@ module.exports = function({ cryptoLib }) {
       hexToArrayBuffer(wrappedKey),
     );
 
-    console.log(decryptedData);
-
     // we decrypt the data
     const strData = ab2str(decryptedData);
 

@@ -7,6 +7,9 @@ const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
 const io = require('socket.io-client');
 const requestApi = require('./lib/request');
+
+const Crypto = require('./lib/crypto');
+
 const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
@@ -20,7 +23,7 @@ const defaultLogger = {
 
 class GladysGatewayJs {
   constructor({ cryptoLib, serverUrl, logger = defaultLogger }) {
-    this.crypto = require('./lib/crypto')({ cryptoLib });
+    this.crypto = Crypto({ cryptoLib });
     this.serverUrl = serverUrl;
     this.logger = logger;
     this.socket = null;
@@ -80,8 +83,8 @@ class GladysGatewayJs {
 
   async signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
     // first, we clean email and language
-    var name = rawName.trim();
-    var language = rawLanguage
+    const name = rawName.trim();
+    const language = rawLanguage
       .trim()
       .substr(0, 2)
       .toLowerCase();
@@ -102,7 +105,7 @@ class GladysGatewayJs {
     this.rsaKeys = rsaKeys;
     this.ecdsaKeys = ecdsaKeys;
 
-    var newUser = {
+    const newUser = {
       name,
       email,
       srp_salt: srpSalt,
@@ -116,26 +119,25 @@ class GladysGatewayJs {
 
     if (invitationToken) {
       newUser.token = invitationToken;
-      return axios.post(this.serverUrl + '/invitations/accept', newUser);
-    } else {
-      return axios.post(this.serverUrl + '/users/signup', newUser);
+      return axios.post(`${this.serverUrl}/invitations/accept`, newUser);
     }
+    return axios.post(`${this.serverUrl}/users/signup`, newUser);
   }
 
   async login(rawEmail, rawPassword) {
-    var email = rawEmail.trim().toLowerCase();
-    var password = rawPassword.trim();
+    const email = rawEmail.trim().toLowerCase();
+    const password = rawPassword.trim();
 
     // first step, we generate the clientEphemeral
     const clientEphemeral = srpClient.generateEphemeral();
 
     // We ask the server for the salt
-    const loginSaltResult = (await axios.post(this.serverUrl + '/users/login-salt', {
+    const loginSaltResult = (await axios.post(`${this.serverUrl}/users/login-salt`, {
       email,
     })).data;
 
     // Then send our clientEphemeral public + email, and retrieve the server ephemeral public
-    const serverEphemeralResult = (await axios.post(this.serverUrl + '/users/login-generate-ephemeral', {
+    const serverEphemeralResult = (await axios.post(`${this.serverUrl}/users/login-generate-ephemeral`, {
       email,
       client_ephemeral_public: clientEphemeral.public,
     })).data;
@@ -159,7 +161,7 @@ class GladysGatewayJs {
     );
 
     // finally, we send the proof to the server
-    const serverFinalLoginResult = (await axios.post(this.serverUrl + '/users/login-finalize', {
+    const serverFinalLoginResult = (await axios.post(`${this.serverUrl}/users/login-finalize`, {
       login_session_key: serverEphemeralResult.login_session_key,
       client_session_proof: clientSession.proof,
     })).data;
@@ -170,11 +172,9 @@ class GladysGatewayJs {
     return serverFinalLoginResult;
   }
 
-  async loginTwoFactor(accessToken, password, code, deviceName) {
-    deviceName = deviceName || 'Unknown';
-
+  async loginTwoFactor(accessToken, password, code, deviceName = 'Unknown') {
     const result = await axios.post(
-      this.serverUrl + '/users/login-two-factor',
+      `${this.serverUrl}/users/login-two-factor`,
       { two_factor_code: code, device_name: deviceName },
       {
         headers: {
@@ -215,15 +215,13 @@ class GladysGatewayJs {
 
     await this.getInstance();
 
-    var rsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.rsa_public_key);
-    var ecdsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.ecdsa_public_key);
+    const rsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.rsa_public_key);
+    const ecdsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.ecdsa_public_key);
 
     const serializedKeys = JSON.stringify({
       rsaPrivateKey: await this.crypto.exportKey(this.rsaKeys.private_key),
       ecdsaPrivateKey: await this.crypto.exportKey(this.ecdsaKeys.private_key),
     });
-
-    console.log(serializedKeys);
 
     return {
       gladysInstance: this.gladysInstance,
@@ -239,11 +237,9 @@ class GladysGatewayJs {
     };
   }
 
-  async getKeysString() {}
-
   async loginInstance(twoFactorToken, twoFactorCode) {
     const loginData = (await axios.post(
-      this.serverUrl + '/users/login-two-factor',
+      `${this.serverUrl}/users/login-two-factor`,
       { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' },
       {
         headers: {
@@ -271,13 +267,13 @@ class GladysGatewayJs {
       ecdsaPrivateKeyJwk,
     } = await this.crypto.generateKeyPair();
 
-    var instance = {
+    const instance = {
       name,
       rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
     };
 
-    const createdInstance = (await axios.post(this.serverUrl + '/instances', instance, {
+    const createdInstance = (await axios.post(`${this.serverUrl}/instances`, instance, {
       headers: {
         authorization: this.accessToken,
       },
@@ -298,7 +294,7 @@ class GladysGatewayJs {
 
   async configureTwoFactor(accessToken) {
     return (await axios.post(
-      this.serverUrl + '/users/two-factor-configure',
+      `${this.serverUrl}/users/two-factor-configure`,
       {},
       {
         headers: {
@@ -310,7 +306,7 @@ class GladysGatewayJs {
 
   async enableTwoFactor(accessToken, twoFactorCode) {
     return (await axios.post(
-      this.serverUrl + '/users/two-factor-enable',
+      `${this.serverUrl}/users/two-factor-enable`,
       { two_factor_code: twoFactorCode },
       {
         headers: {
@@ -321,13 +317,13 @@ class GladysGatewayJs {
   }
 
   async confirmEmail(token) {
-    return (await axios.post(this.serverUrl + '/users/verify', {
+    return (await axios.post(`${this.serverUrl}/users/verify`, {
       email_confirmation_token: token,
     })).data;
   }
 
   async getAccessToken(refreshToken) {
-    return (await axios.get(this.serverUrl + '/users/access-token', {
+    return (await axios.get(`${this.serverUrl}/users/access-token`, {
       headers: {
         authorization: refreshToken,
       },
@@ -335,7 +331,7 @@ class GladysGatewayJs {
   }
 
   async getAccessTokenInstance(refreshToken) {
-    return (await axios.get(this.serverUrl + '/instances/access-token', {
+    return (await axios.get(`${this.serverUrl}/instances/access-token`, {
       headers: {
         authorization: refreshToken,
       },
@@ -347,18 +343,18 @@ class GladysGatewayJs {
    */
 
   async getMyself() {
-    return requestApi.get(this.serverUrl + '/users/me', this);
+    return requestApi.get(`${this.serverUrl}/users/me`, this);
   }
 
   async updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
-    var email = rawEmail.trim().toLowerCase();
-    var name = rawName.trim();
-    var language = rawLanguage
+    const email = rawEmail.trim().toLowerCase();
+    const name = rawName.trim();
+    const language = rawLanguage
       .trim()
       .substr(0, 2)
       .toLowerCase();
 
-    var newUser = {
+    const newUser = {
       name,
       email,
       language,
@@ -366,7 +362,7 @@ class GladysGatewayJs {
 
     // if a password is provided
     if (rawPassword) {
-      var password = rawPassword.trim();
+      const password = rawPassword.trim();
 
       // generate srp salt, privateKey and verifier
       const srpSalt = srpClient.generateSalt();
@@ -391,12 +387,12 @@ class GladysGatewayJs {
       newUser.ecdsa_encrypted_private_key = JSON.stringify(ecdsaEncryptedPrivateKey);
     }
 
-    return requestApi.patch(this.serverUrl + '/users/me', newUser, this);
+    return requestApi.patch(`${this.serverUrl}/users/me`, newUser, this);
   }
 
   async updateUserIdInGladys(userIdInGladys) {
     return requestApi.patch(
-      this.serverUrl + '/users/me',
+      `${this.serverUrl}/users/me`,
       {
         gladys_user_id: userIdInGladys,
       },
@@ -405,11 +401,11 @@ class GladysGatewayJs {
   }
 
   async forgotPassword(email) {
-    return requestApi.post(this.serverUrl + '/users/forgot-password', { email }, this);
+    return requestApi.post(`${this.serverUrl}/users/forgot-password`, { email }, this);
   }
 
   async getResetPasswordEmail(resetToken) {
-    return requestApi.get(this.serverUrl + '/users/reset-password/' + resetToken, this);
+    return requestApi.get(`${this.serverUrl}/users/reset-password/${resetToken}`, this);
   }
 
   async resetPassword(rawEmail, rawPassword, resetToken, twoFactorCode) {
@@ -421,9 +417,9 @@ class GladysGatewayJs {
       ecdsaPublicKeyJwk,
       rsaEncryptedPrivateKey,
       ecdsaEncryptedPrivateKey,
-    } = await generateSrpAndKeys(rawEmail, rawPassword);
+    } = await this.generateSrpAndKeys(rawEmail, rawPassword);
 
-    var data = {
+    const data = {
       token: resetToken,
       two_factor_code: twoFactorCode,
       srp_salt: srpSalt,
@@ -434,91 +430,91 @@ class GladysGatewayJs {
       ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey),
     };
 
-    return requestApi.post(this.serverUrl + '/users/reset-password', data, this);
+    return requestApi.post(`${this.serverUrl}/users/reset-password`, data, this);
   }
 
   async getUsersInAccount() {
-    return requestApi.get(this.serverUrl + '/accounts/users', this);
+    return requestApi.get(`${this.serverUrl}/accounts/users`, this);
   }
 
   async getInvoices() {
-    return requestApi.get(this.serverUrl + '/accounts/invoices', this);
+    return requestApi.get(`${this.serverUrl}/accounts/invoices`, this);
   }
 
   async getDevices() {
-    return requestApi.get(this.serverUrl + '/users/me/devices', this);
+    return requestApi.get(`${this.serverUrl}/users/me/devices`, this);
   }
 
   async revokeDevice(deviceId) {
-    return requestApi.post(this.serverUrl + '/devices/' + deviceId + '/revoke', {}, this);
+    return requestApi.post(`${this.serverUrl}/devices/${deviceId}/revoke`, {}, this);
   }
 
   async inviteUser(email, role) {
-    return requestApi.post(this.serverUrl + '/invitations', { email, role }, this);
+    return requestApi.post(`${this.serverUrl}/invitations`, { email, role }, this);
   }
 
   async getInvitation(token) {
-    return requestApi.get(this.serverUrl + '/invitations/' + token, this);
+    return requestApi.get(`${this.serverUrl}/invitations/${token}`, this);
   }
 
   async revokeInvitation(invitationId) {
-    return requestApi.post(this.serverUrl + '/invitations/' + invitationId + '/revoke', {}, this);
+    return requestApi.post(`${this.serverUrl}/invitations/${invitationId}/revoke`, {}, this);
   }
 
   async revokeUser(userId) {
-    return requestApi.post(this.serverUrl + '/accounts/users/' + userId + '/revoke', {}, this);
+    return requestApi.post(`${this.serverUrl}/accounts/users/${userId}/revoke`, {}, this);
   }
 
   async getSetupState() {
-    return requestApi.get(this.serverUrl + '/users/setup', this);
+    return requestApi.get(`${this.serverUrl}/users/setup`, this);
   }
 
   async subcribeMonthlyPlan(sourceId) {
-    return requestApi.post(this.serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, this);
+    return requestApi.post(`${this.serverUrl}/accounts/subscribe`, { stripe_source_id: sourceId }, this);
   }
 
   async subcribeMonthlyPlanWithoutAccount(email, language, sourceId) {
     return requestApi.post(
-      this.serverUrl + '/accounts/subscribe/new',
+      `${this.serverUrl}/accounts/subscribe/new`,
       { email, language, stripe_source_id: sourceId },
       this,
     );
   }
 
   async reSubcribeMonthlyPlan() {
-    return requestApi.post(this.serverUrl + '/accounts/resubscribe', {}, this);
+    return requestApi.post(`${this.serverUrl}/accounts/resubscribe`, {}, this);
   }
 
   async updateCard(sourceId) {
-    return requestApi.patch(this.serverUrl + '/accounts/source', { stripe_source_id: sourceId }, this);
+    return requestApi.patch(`${this.serverUrl}/accounts/source`, { stripe_source_id: sourceId }, this);
   }
 
   async getCard() {
-    return requestApi.get(this.serverUrl + '/accounts/source', this);
+    return requestApi.get(`${this.serverUrl}/accounts/source`, this);
   }
 
   async cancelMonthlyPlan() {
-    return requestApi.post(this.serverUrl + '/accounts/cancel', {}, this);
+    return requestApi.post(`${this.serverUrl}/accounts/cancel`, {}, this);
   }
 
   async createApiKey(name) {
-    return requestApi.post(this.serverUrl + '/open-api-keys', { name }, this);
+    return requestApi.post(`${this.serverUrl}/open-api-keys`, { name }, this);
   }
 
   async getApiKeys() {
-    return requestApi.get(this.serverUrl + '/open-api-keys', this);
+    return requestApi.get(`${this.serverUrl}/open-api-keys`, this);
   }
 
   async updateApiKeyName(id, name) {
-    return requestApi.post(this.serverUrl + '/open-api-keys/' + id, { name }, this);
+    return requestApi.post(`${this.serverUrl}/open-api-keys/${id}`, { name }, this);
   }
 
   async revokeApiKey(id) {
-    return requestApi.delete(this.serverUrl + '/open-api-keys/' + id, this);
+    return requestApi.delete(`${this.serverUrl}/open-api-keys/${id}`, this);
   }
 
   async getInstance() {
-    let instances = await requestApi.get(this.serverUrl + '/instances', this);
+    const instances = await requestApi.get(`${this.serverUrl}/instances`, this);
 
     let instance = null;
     let i = 0;
@@ -527,7 +523,7 @@ class GladysGatewayJs {
       if (instances[i].primary_instance === true) {
         instance = instances[i];
       }
-      i++;
+      i += 1;
     }
 
     if (instance) {
@@ -602,7 +598,7 @@ class GladysGatewayJs {
       });
 
       this.socket.on('message', async (message) => {
-        var decryptedMessage = await this.crypto.decryptMessage(
+        const decryptedMessage = await this.crypto.decryptMessage(
           this.rsaKeys.private_key,
           this.gladysInstanceEcdsaPublicKey,
           message.encryptedMessage,
@@ -629,11 +625,11 @@ class GladysGatewayJs {
    */
 
   async adminGetAccounts() {
-    return requestApi.get(this.serverUrl + '/admin/accounts', this);
+    return requestApi.get(`${this.serverUrl}/admin/accounts`, this);
   }
 
   async adminResendConfirmationEmail(accountId, language) {
-    return requestApi.post(this.serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, this);
+    return requestApi.post(`${this.serverUrl}/admin/accounts/${accountId}/resend`, { language }, this);
   }
 
   /**
@@ -641,7 +637,7 @@ class GladysGatewayJs {
    */
 
   async getUsersInstance() {
-    return requestApi.get(this.serverUrl + '/instances/users', this);
+    return requestApi.get(`${this.serverUrl}/instances/users`, this);
   }
 
   async generateFingerprint(key) {
@@ -650,7 +646,7 @@ class GladysGatewayJs {
 
   async refreshUsersList() {
     // first, we get all users in instance
-    var users = await getUsersInstance();
+    const users = await this.getUsersInstance();
 
     users.forEach(async (user) => {
       // if the user is not in cache
@@ -664,10 +660,8 @@ class GladysGatewayJs {
           ecdsaPublicKeyRaw: user.ecdsa_public_key,
           rsaPublicKeyRaw: user.rsa_public_key,
         };
-      }
-
-      // if the user is already in cache, we just save his connected status
-      else {
+      } else {
+        // if the user is already in cache, we just save his connected status
         this.keysDictionnary[user.id].connected = user.connected;
       }
     });
@@ -699,7 +693,7 @@ class GladysGatewayJs {
         this.accessToken = await this.getAccessTokenInstance(this.refreshToken);
 
         // refresh user list
-        await refreshUsersList();
+        await this.refreshUsersList();
 
         this.socket.emit('instance-authentication', { access_token: this.accessToken }, async (res) => {
           if (res.authenticated) {
@@ -720,8 +714,8 @@ class GladysGatewayJs {
         });
 
         this.socket.on('message', async (data, fn) => {
-          var ecdsaPublicKey = null;
-          var rsaPublicKey = null;
+          let ecdsaPublicKey = null;
+          let rsaPublicKey = null;
 
           // if we don't have the key in RAM, we refresh the user list
           if (!this.keysDictionnary[data.sender_id]) {
@@ -729,8 +723,8 @@ class GladysGatewayJs {
           }
 
           if (this.keysDictionnary[data.sender_id]) {
-            ecdsaPublicKey = this.keysDictionnary[data.sender_id].ecdsaPublicKey;
-            rsaPublicKey = this.keysDictionnary[data.sender_id].rsaPublicKey;
+            ecdsaPublicKey = this.keysDictionnary[data.sender_id].ecdsaPublicKey; // eslint-disable-line
+            rsaPublicKey = this.keysDictionnary[data.sender_id].rsaPublicKey; // eslint-disable-line
             data.ecdsaPublicKeyRaw = this.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
             data.rsaPublicKeyRaw = this.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
           }
@@ -739,14 +733,14 @@ class GladysGatewayJs {
             throw new Error('User not found');
           }
 
-          var decryptedMessage = await this.crypto.decryptMessage(
+          const decryptedMessage = await this.crypto.decryptMessage(
             this.rsaKeys.private_key,
             ecdsaPublicKey,
             data.encryptedMessage,
           );
 
           callbackMessage(decryptedMessage, data, async (response) => {
-            var encryptedResponse = await this.crypto.encryptMessage(
+            const encryptedResponse = await this.crypto.encryptMessage(
               rsaPublicKey,
               this.ecdsaKeys.private_key,
               response,
@@ -782,23 +776,28 @@ class GladysGatewayJs {
 
     await this.refreshUsersList();
 
-    for (var userId in this.keysDictionnary) {
+    const allUsers = Object.keys(this.keysDictionnary);
+
+    const sendMessage = async (userId) => {
+      const encryptedMessage = await this.crypto.encryptMessage(
+        this.keysDictionnary[userId].rsaPublicKey,
+        this.ecdsaKeys.private_key,
+        data,
+      );
+      const payload = {
+        user_id: userId,
+        encryptedMessage,
+      };
+
+      this.socket.emit('message', payload);
+    };
+
+    allUsers.forEach((userId) => {
       // we send the message only if the user is connected
       if (this.keysDictionnary[userId].connected) {
-        const encryptedMessage = await this.crypto.encryptMessage(
-          this.keysDictionnary[userId].rsaPublicKey,
-          this.ecdsaKeys.private_key,
-          data,
-        );
-
-        let payload = {
-          user_id: userId,
-          encryptedMessage,
-        };
-
-        this.socket.emit('message', payload);
+        sendMessage(userId);
       }
-    }
+    });
   }
 
   async newEventInstance(event, data) {
@@ -817,7 +816,7 @@ class GladysGatewayJs {
 
     return new Promise((resolve, reject) => {
       this.socket.emit('latency', Date.now(), (startTime) => {
-        var latency = Date.now() - startTime;
+        const latency = Date.now() - startTime;
         resolve(latency);
       });
     });
@@ -846,7 +845,7 @@ class GladysGatewayJs {
       data,
     );
 
-    var payload = {
+    const payload = {
       instance_id: this.gladysInstance.id,
       encryptedMessage,
     };
@@ -855,30 +854,28 @@ class GladysGatewayJs {
       this.socket.emit('message', payload, async (response) => {
         if (response && response.status && response.error_code) {
           return reject(response);
-        } else {
-          const decryptedMessage = await this.crypto.decryptMessage(
-            this.rsaKeys.private_key,
-            this.gladysInstanceEcdsaPublicKey,
-            response,
-          );
-
-          if (decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
-            return reject(decryptedMessage);
-          } else {
-            return resolve(decryptedMessage);
-          }
         }
+        const decryptedMessage = await this.crypto.decryptMessage(
+          this.rsaKeys.private_key,
+          this.gladysInstanceEcdsaPublicKey,
+          response,
+        );
+
+        if (decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
+          return reject(decryptedMessage);
+        }
+        return resolve(decryptedMessage);
       });
     });
   }
 
   async sendRequest(method, path, body) {
-    var message = {
+    const message = {
       version: '1.0',
       type: 'gladys-api-call',
       options: {
         url: path,
-        method: method,
+        method,
       },
     };
 

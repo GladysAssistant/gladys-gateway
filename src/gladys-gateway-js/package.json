@@ -6,7 +6,7 @@
   "scripts": {
     "test": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit",
     "coverage": "./node_modules/mocha/bin/mocha ./test/**/*.test.js --exit",
-    "eslint": "eslint lib test index.js"
+    "eslint": "eslint . --fix"
   },
   "keywords": [
     "gladys",
@@ -28,6 +28,10 @@
   },
   "devDependencies": {
     "dotenv": "^6.0.0",
+    "eslint": "^5.16.0",
+    "eslint-config-airbnb": "^17.1.0",
+    "eslint-config-prettier": "^4.3.0",
+    "eslint-plugin-import": "^2.17.3",
     "mocha": "^5.2.0",
     "nock": "^10.0.0",
     "node-webcrypto-ossl": "^1.0.39",

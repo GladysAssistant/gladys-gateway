@@ -1,5 +1,6 @@
 const srpClient = require('secure-remote-password/client');
 const axios = require('axios');
+const autoBind = require('auto-bind');
 const pbkdf2 = require('@ctrlpanel/pbkdf2');
 const encodeUtf8 = require('encode-utf8');
 const arrayBufferToHex = require('array-buffer-to-hex');
@@ -18,7 +19,7 @@ const defaultLogger = {
 };
 
 class GladysGatewayJs {
-  constructor(cryptoLib, serverUrl, logger = defaultLogger) {
+  constructor({ cryptoLib, serverUrl, logger = defaultLogger }) {
     this.crypto = require('./lib/crypto')({ cryptoLib });
     this.serverUrl = serverUrl;
     this.logger = logger;
@@ -30,11 +31,7 @@ class GladysGatewayJs {
     this.gladysInstancePublicKey = null;
     this.gladysInstanceEcdsaPublicKey = null;
     this.keysDictionnary = {};
-    this.request = {
-      get: (path, query) => this.sendRequest('GET', path, query),
-      post: (path, body) => this.sendRequest('POST', path, body),
-      patch: (path, body) => this.sendRequest('PATCH', path, body),
-    };
+    autoBind(this);
   }
 
   async generateSrpAndKeys(rawEmail, rawPassword) {
@@ -55,10 +52,10 @@ class GladysGatewayJs {
     const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
 
     // generate public/private key for the Gladys Gateway
-    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk } = await crypto.generateKeyPair();
+    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk } = await this.crypto.generateKeyPair();
 
-    const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, rsaKeys.privateKey);
-    const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, ecdsaKeys.privateKey);
+    const rsaEncryptedPrivateKey = await this.crypto.encryptPrivateKey(password, rsaKeys.privateKey);
+    const ecdsaEncryptedPrivateKey = await this.crypto.encryptPrivateKey(password, ecdsaKeys.privateKey);
 
     return {
       srpSalt,
@@ -96,8 +93,8 @@ class GladysGatewayJs {
       email,
     } = await this.generateSrpAndKeys(rawEmail, rawPassword);
 
-    state.rsaKeys = rsaKeys;
-    state.ecdsaKeys = ecdsaKeys;
+    this.rsaKeys = rsaKeys;
+    this.ecdsaKeys = ecdsaKeys;
 
     var newUser = {
       name,
@@ -113,9 +110,9 @@ class GladysGatewayJs {
 
     if (invitationToken) {
       newUser.token = invitationToken;
-      return axios.post(serverUrl + '/invitations/accept', newUser);
+      return axios.post(this.serverUrl + '/invitations/accept', newUser);
     } else {
-      return axios.post(serverUrl + '/users/signup', newUser);
+      return axios.post(this.serverUrl + '/users/signup', newUser);
     }
   }
 
@@ -127,12 +124,12 @@ class GladysGatewayJs {
     const clientEphemeral = srpClient.generateEphemeral();
 
     // We ask the server for the salt
-    const loginSaltResult = (await axios.post(serverUrl + '/users/login-salt', {
+    const loginSaltResult = (await axios.post(this.serverUrl + '/users/login-salt', {
       email,
     })).data;
 
     // Then send our clientEphemeral public + email, and retrieve the server ephemeral public
-    const serverEphemeralResult = (await axios.post(serverUrl + '/users/login-generate-ephemeral', {
+    const serverEphemeralResult = (await axios.post(this.serverUrl + '/users/login-generate-ephemeral', {
       email,
       client_ephemeral_public: clientEphemeral.public,
     })).data;
@@ -156,7 +153,7 @@ class GladysGatewayJs {
     );
 
     // finally, we send the proof to the server
-    const serverFinalLoginResult = (await axios.post(serverUrl + '/users/login-finalize', {
+    const serverFinalLoginResult = (await axios.post(this.serverUrl + '/users/login-finalize', {
       login_session_key: serverEphemeralResult.login_session_key,
       client_session_proof: clientSession.proof,
     })).data;
@@ -171,7 +168,7 @@ class GladysGatewayJs {
     deviceName = deviceName || 'Unknown';
 
     const result = await axios.post(
-      serverUrl + '/users/login-two-factor',
+      this.serverUrl + '/users/login-two-factor',
       { two_factor_code: code, device_name: deviceName },
       {
         headers: {
@@ -186,8 +183,8 @@ class GladysGatewayJs {
     loginData.ecdsa_encrypted_private_key = JSON.parse(loginData.ecdsa_encrypted_private_key);
 
     // We decrypt the encrypted RSA private key
-    state.rsaKeys = {
-      private_key: await crypto.decryptPrivateKey(
+    this.rsaKeys = {
+      private_key: await this.crypto.decryptPrivateKey(
         password,
         loginData.rsa_encrypted_private_key.wrappedKey,
         'RSA-OAEP',
@@ -197,8 +194,8 @@ class GladysGatewayJs {
     };
 
     // We decrypt the encrypted ECDSA private key
-    state.ecdsaKeys = {
-      private_key: await crypto.decryptPrivateKey(
+    this.ecdsaKeys = {
+      private_key: await this.crypto.decryptPrivateKeyJwk(
         password,
         loginData.ecdsa_encrypted_private_key.wrappedKey,
         'ECDSA',
@@ -207,30 +204,40 @@ class GladysGatewayJs {
       ),
     };
 
-    state.accessToken = loginData.access_token;
-    state.refreshToken = loginData.refresh_token;
+    this.accessToken = loginData.access_token;
+    this.refreshToken = loginData.refresh_token;
 
-    await getInstance();
+    await this.getInstance();
 
-    var rsaPublicKeyFingerprint = await crypto.generateFingerprint(loginData.rsa_public_key);
-    var ecdsaPublicKeyFingerprint = await crypto.generateFingerprint(loginData.ecdsa_public_key);
+    var rsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.rsa_public_key);
+    var ecdsaPublicKeyFingerprint = await this.crypto.generateFingerprint(loginData.ecdsa_public_key);
+
+    const serializedKeys = JSON.stringify({
+      rsaPrivateKey: await this.crypto.exportKey(this.rsaKeys.private_key),
+      ecdsaPrivateKey: await this.crypto.exportKey(this.ecdsaKeys.private_key),
+    });
+
+    console.log(serializedKeys);
 
     return {
-      gladysInstance: state.gladysInstance,
-      gladysInstancePublicKey: state.gladysInstancePublicKey,
-      rsaKeys: state.rsaKeys,
-      ecdsaKeys: state.ecdsaKeys,
+      gladysInstance: this.gladysInstance,
+      gladysInstancePublicKey: this.gladysInstancePublicKey,
+      rsaKeys: this.rsaKeys,
+      ecdsaKeys: this.ecdsaKeys,
       refreshToken: loginData.refresh_token,
       accessToken: loginData.access_token,
       deviceId: loginData.device_id,
       rsaPublicKeyFingerprint,
       ecdsaPublicKeyFingerprint,
+      serializedKeys,
     };
   }
 
+  async getKeysString() {}
+
   async loginInstance(twoFactorToken, twoFactorCode) {
     const loginData = (await axios.post(
-      serverUrl + '/users/login-two-factor',
+      this.serverUrl + '/users/login-two-factor',
       { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' },
       {
         headers: {
@@ -239,12 +246,12 @@ class GladysGatewayJs {
       },
     )).data;
 
-    state.accessToken = loginData.access_token;
-    state.refreshToken = loginData.refreshToken;
+    this.accessToken = loginData.access_token;
+    this.refreshToken = loginData.refreshToken;
 
     return {
-      accessToken: state.accessToken,
-      refreshToken: state.refreshToken,
+      accessToken: this.accessToken,
+      refreshToken: this.refreshToken,
     };
   }
 
@@ -256,7 +263,7 @@ class GladysGatewayJs {
       ecdsaPublicKeyJwk,
       rsaPrivateKeyJwk,
       ecdsaPrivateKeyJwk,
-    } = await crypto.generateKeyPair();
+    } = await this.crypto.generateKeyPair();
 
     var instance = {
       name,
@@ -264,15 +271,15 @@ class GladysGatewayJs {
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
     };
 
-    const createdInstance = (await axios.post(serverUrl + '/instances', instance, {
+    const createdInstance = (await axios.post(this.serverUrl + '/instances', instance, {
       headers: {
-        authorization: state.accessToken,
+        authorization: this.accessToken,
       },
     })).data;
 
-    state.gladysInstance = createdInstance;
-    state.gladysInstanceRsaKeys = rsaKeys;
-    state.gladysInstanceEcdsaKeys = ecdsaKeys;
+    this.gladysInstance = createdInstance;
+    this.gladysInstanceRsaKeys = rsaKeys;
+    this.gladysInstanceEcdsaKeys = ecdsaKeys;
 
     return {
       instance: createdInstance,
@@ -285,7 +292,7 @@ class GladysGatewayJs {
 
   async configureTwoFactor(accessToken) {
     return (await axios.post(
-      serverUrl + '/users/two-factor-configure',
+      this.serverUrl + '/users/two-factor-configure',
       {},
       {
         headers: {
@@ -297,7 +304,7 @@ class GladysGatewayJs {
 
   async enableTwoFactor(accessToken, twoFactorCode) {
     return (await axios.post(
-      serverUrl + '/users/two-factor-enable',
+      this.serverUrl + '/users/two-factor-enable',
       { two_factor_code: twoFactorCode },
       {
         headers: {
@@ -308,13 +315,13 @@ class GladysGatewayJs {
   }
 
   async confirmEmail(token) {
-    return (await axios.post(serverUrl + '/users/verify', {
+    return (await axios.post(this.serverUrl + '/users/verify', {
       email_confirmation_token: token,
     })).data;
   }
 
   async getAccessToken(refreshToken) {
-    return (await axios.get(serverUrl + '/users/access-token', {
+    return (await axios.get(this.serverUrl + '/users/access-token', {
       headers: {
         authorization: refreshToken,
       },
@@ -322,7 +329,7 @@ class GladysGatewayJs {
   }
 
   async getAccessTokenInstance(refreshToken) {
-    return (await axios.get(serverUrl + '/instances/access-token', {
+    return (await axios.get(this.serverUrl + '/instances/access-token', {
       headers: {
         authorization: refreshToken,
       },
@@ -334,7 +341,7 @@ class GladysGatewayJs {
    */
 
   async getMyself() {
-    return requestApi.get(serverUrl + '/users/me', state);
+    return requestApi.get(this.serverUrl + '/users/me', this);
   }
 
   async updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
@@ -369,8 +376,8 @@ class GladysGatewayJs {
       const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
 
       // re-encrypte private keys
-      const rsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, state.rsaKeys.private_key);
-      const ecdsaEncryptedPrivateKey = await crypto.encryptPrivateKey(password, state.ecdsaKeys.private_key);
+      const rsaEncryptedPrivateKey = await this.crypto.encryptPrivateKey(password, this.rsaKeys.private_key);
+      const ecdsaEncryptedPrivateKey = await this.crypto.encryptPrivateKey(password, this.ecdsaKeys.private_key);
 
       newUser.srp_salt = srpSalt;
       newUser.srp_verifier = srpVerifier;
@@ -378,25 +385,25 @@ class GladysGatewayJs {
       newUser.ecdsa_encrypted_private_key = JSON.stringify(ecdsaEncryptedPrivateKey);
     }
 
-    return requestApi.patch(serverUrl + '/users/me', newUser, state);
+    return requestApi.patch(this.serverUrl + '/users/me', newUser, this);
   }
 
   async updateUserIdInGladys(userIdInGladys) {
     return requestApi.patch(
-      serverUrl + '/users/me',
+      this.serverUrl + '/users/me',
       {
         gladys_user_id: userIdInGladys,
       },
-      state,
+      this,
     );
   }
 
   async forgotPassword(email) {
-    return requestApi.post(serverUrl + '/users/forgot-password', { email }, state);
+    return requestApi.post(this.serverUrl + '/users/forgot-password', { email }, this);
   }
 
   async getResetPasswordEmail(resetToken) {
-    return requestApi.get(serverUrl + '/users/reset-password/' + resetToken, state);
+    return requestApi.get(this.serverUrl + '/users/reset-password/' + resetToken, this);
   }
 
   async resetPassword(rawEmail, rawPassword, resetToken, twoFactorCode) {
@@ -421,91 +428,91 @@ class GladysGatewayJs {
       ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey),
     };
 
-    return requestApi.post(serverUrl + '/users/reset-password', data, state);
+    return requestApi.post(this.serverUrl + '/users/reset-password', data, this);
   }
 
   async getUsersInAccount() {
-    return requestApi.get(serverUrl + '/accounts/users', state);
+    return requestApi.get(this.serverUrl + '/accounts/users', this);
   }
 
   async getInvoices() {
-    return requestApi.get(serverUrl + '/accounts/invoices', state);
+    return requestApi.get(this.serverUrl + '/accounts/invoices', this);
   }
 
   async getDevices() {
-    return requestApi.get(serverUrl + '/users/me/devices', state);
+    return requestApi.get(this.serverUrl + '/users/me/devices', this);
   }
 
   async revokeDevice(deviceId) {
-    return requestApi.post(serverUrl + '/devices/' + deviceId + '/revoke', {}, state);
+    return requestApi.post(this.serverUrl + '/devices/' + deviceId + '/revoke', {}, this);
   }
 
   async inviteUser(email, role) {
-    return requestApi.post(serverUrl + '/invitations', { email, role }, state);
+    return requestApi.post(this.serverUrl + '/invitations', { email, role }, this);
   }
 
   async getInvitation(token) {
-    return requestApi.get(serverUrl + '/invitations/' + token, state);
+    return requestApi.get(this.serverUrl + '/invitations/' + token, this);
   }
 
   async revokeInvitation(invitationId) {
-    return requestApi.post(serverUrl + '/invitations/' + invitationId + '/revoke', {}, state);
+    return requestApi.post(this.serverUrl + '/invitations/' + invitationId + '/revoke', {}, this);
   }
 
   async revokeUser(userId) {
-    return requestApi.post(serverUrl + '/accounts/users/' + userId + '/revoke', {}, state);
+    return requestApi.post(this.serverUrl + '/accounts/users/' + userId + '/revoke', {}, this);
   }
 
   async getSetupState() {
-    return requestApi.get(serverUrl + '/users/setup', state);
+    return requestApi.get(this.serverUrl + '/users/setup', this);
   }
 
   async subcribeMonthlyPlan(sourceId) {
-    return requestApi.post(serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, state);
+    return requestApi.post(this.serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, this);
   }
 
   async subcribeMonthlyPlanWithoutAccount(email, language, sourceId) {
     return requestApi.post(
-      serverUrl + '/accounts/subscribe/new',
+      this.serverUrl + '/accounts/subscribe/new',
       { email, language, stripe_source_id: sourceId },
-      state,
+      this,
     );
   }
 
   async reSubcribeMonthlyPlan() {
-    return requestApi.post(serverUrl + '/accounts/resubscribe', {}, state);
+    return requestApi.post(this.serverUrl + '/accounts/resubscribe', {}, this);
   }
 
   async updateCard(sourceId) {
-    return requestApi.patch(serverUrl + '/accounts/source', { stripe_source_id: sourceId }, state);
+    return requestApi.patch(this.serverUrl + '/accounts/source', { stripe_source_id: sourceId }, this);
   }
 
   async getCard() {
-    return requestApi.get(serverUrl + '/accounts/source', state);
+    return requestApi.get(this.serverUrl + '/accounts/source', this);
   }
 
   async cancelMonthlyPlan() {
-    return requestApi.post(serverUrl + '/accounts/cancel', {}, state);
+    return requestApi.post(this.serverUrl + '/accounts/cancel', {}, this);
   }
 
   async createApiKey(name) {
-    return requestApi.post(serverUrl + '/open-api-keys', { name }, state);
+    return requestApi.post(this.serverUrl + '/open-api-keys', { name }, this);
   }
 
   async getApiKeys() {
-    return requestApi.get(serverUrl + '/open-api-keys', state);
+    return requestApi.get(this.serverUrl + '/open-api-keys', this);
   }
 
   async updateApiKeyName(id, name) {
-    return requestApi.post(serverUrl + '/open-api-keys/' + id, { name }, state);
+    return requestApi.post(this.serverUrl + '/open-api-keys/' + id, { name }, this);
   }
 
   async revokeApiKey(id) {
-    return requestApi.delete(serverUrl + '/open-api-keys/' + id, state);
+    return requestApi.delete(this.serverUrl + '/open-api-keys/' + id, this);
   }
 
   async getInstance() {
-    let instances = await requestApi.get(serverUrl + '/instances', state);
+    let instances = await requestApi.get(this.serverUrl + '/instances', this);
 
     let instance = null;
     let i = 0;
@@ -518,33 +525,48 @@ class GladysGatewayJs {
     }
 
     if (instance) {
-      state.gladysInstance = instance;
+      this.gladysInstance = instance;
 
-      state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
-      state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
+      this.gladysInstancePublicKey = await this.crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
+      this.gladysInstanceEcdsaPublicKey = await this.crypto.importKey(
+        JSON.parse(instance.ecdsa_public_key),
+        'ECDSA',
+        true,
+      );
     }
 
     return instance;
   }
 
-  async userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {
-    if (state.socket) {
+  async userConnect(refreshToken, serializedKeys, callback) {
+    if (this.socket) {
       return Promise.resolve({ authenticated: true });
     }
 
-    state.isInstance = false;
+    // deserialize keys
+    const keys = JSON.parse(serializedKeys);
 
-    state.refreshToken = refreshToken;
-    state.rsaKeys = rsaKeys;
-    state.ecdsaKeys = ecdsaKeys;
+    const ecdsaKeys = {
+      private_key: await this.crypto.importKey(keys.ecdsaPrivateKey, 'ECDSA', false),
+    };
 
-    return new Promise(function(resolve, reject) {
-      state.socket = io(serverUrl);
+    const rsaKeys = {
+      private_key: await this.crypto.importKey(keys.rsaPrivateKey, 'RSA-OEAP', false),
+    };
 
-      state.socket.on('connect', async () => {
+    this.isInstance = false;
+
+    this.refreshToken = refreshToken;
+    this.rsaKeys = rsaKeys;
+    this.ecdsaKeys = ecdsaKeys;
+
+    return new Promise((resolve, reject) => {
+      this.socket = io(this.serverUrl);
+
+      this.socket.on('connect', async () => {
         try {
           // we are connected, so we get a new access token
-          state.accessToken = await getAccessToken(refreshToken);
+          this.accessToken = await this.getAccessToken(refreshToken);
         } catch (err) {
           // refresh token is not good anymore
           if (err && err.response && err.response.data && err.response.data.status === 401) {
@@ -555,11 +577,11 @@ class GladysGatewayJs {
         }
 
         // we get the instance
-        await getInstance();
+        await this.getInstance();
 
-        state.socket.emit('user-authentication', { access_token: state.accessToken }, async function(res) {
+        this.socket.emit('user-authentication', { access_token: this.accessToken }, async (res) => {
           if (res.authenticated) {
-            logger.info('Gladys Gateway, connected in websocket');
+            this.logger.info('Gladys Gateway, connected in websocket');
             resolve();
           } else {
             reject(new Error('invalid-access-token'));
@@ -567,16 +589,16 @@ class GladysGatewayJs {
         });
       });
 
-      state.socket.on('hello', (instance) => {
+      this.socket.on('hello', (instance) => {
         if (callback) {
           callback('hello', instance);
         }
       });
 
-      state.socket.on('message', async (message) => {
-        var decryptedMessage = await crypto.decryptMessage(
-          state.rsaKeys.private_key,
-          state.gladysInstanceEcdsaPublicKey,
+      this.socket.on('message', async (message) => {
+        var decryptedMessage = await this.crypto.decryptMessage(
+          this.rsaKeys.private_key,
+          this.gladysInstanceEcdsaPublicKey,
           message.encryptedMessage,
         );
         if (callback) {
@@ -584,13 +606,13 @@ class GladysGatewayJs {
         }
       });
 
-      state.socket.on('disconnect', async function(reason) {
+      this.socket.on('disconnect', async (reason) => {
         if (reason === 'io server disconnect') {
           // the disconnection was initiated by the server, you need to reconnect manually
-          logger.warn('Socket disconnected by the server. Trying to reconnect...');
-          state.socket.connect();
+          this.logger.warn('Socket disconnected by the server. Trying to reconnect...');
+          this.socket.connect();
         } else {
-          logger.warn('Socket disconnected client side. Trying to reconnect...');
+          this.logger.warn('Socket disconnected client side. Trying to reconnect...');
         }
       });
     });
@@ -601,11 +623,11 @@ class GladysGatewayJs {
    */
 
   async adminGetAccounts() {
-    return requestApi.get(serverUrl + '/admin/accounts', state);
+    return requestApi.get(this.serverUrl + '/admin/accounts', this);
   }
 
   async adminResendConfirmationEmail(accountId, language) {
-    return requestApi.post(serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, state);
+    return requestApi.post(this.serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, this);
   }
 
   /**
@@ -613,11 +635,11 @@ class GladysGatewayJs {
    */
 
   async getUsersInstance() {
-    return requestApi.get(serverUrl + '/instances/users', state);
+    return requestApi.get(this.serverUrl + '/instances/users', this);
   }
 
   async generateFingerprint(key) {
-    return crypto.generateFingerprint(key);
+    return this.crypto.generateFingerprint(key);
   }
 
   async refreshUsersList() {
@@ -626,13 +648,13 @@ class GladysGatewayJs {
 
     users.forEach(async (user) => {
       // if the user is not in cache
-      if (!state.keysDictionnary[user.id]) {
+      if (!this.keysDictionnary[user.id]) {
         // we cache the keys for later use
-        state.keysDictionnary[user.id] = {
+        this.keysDictionnary[user.id] = {
           id: user.id,
           connected: user.connected,
-          ecdsaPublicKey: await crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
-          rsaPublicKey: await crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true),
+          ecdsaPublicKey: await this.crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
+          rsaPublicKey: await this.crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true),
           ecdsaPublicKeyRaw: user.ecdsa_public_key,
           rsaPublicKeyRaw: user.rsa_public_key,
         };
@@ -640,42 +662,42 @@ class GladysGatewayJs {
 
       // if the user is already in cache, we just save his connected status
       else {
-        state.keysDictionnary[user.id].connected = user.connected;
+        this.keysDictionnary[user.id].connected = user.connected;
       }
     });
   }
 
   async instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
-    // clean current state
-    state.socket = null;
-    state.accessToken = null;
+    // clean current this
+    this.socket = null;
+    this.accessToken = null;
 
-    state.refreshToken = refreshToken;
-    state.isInstance = true;
+    this.refreshToken = refreshToken;
+    this.isInstance = true;
 
     // We import the RSA private key
-    state.rsaKeys = {
-      private_key: await crypto.importKey(rsaPrivateKeyJwk, 'RSA-OEAP'),
+    this.rsaKeys = {
+      private_key: await this.crypto.importKey(rsaPrivateKeyJwk, 'RSA-OEAP'),
     };
 
     // We import the ECDSA private key
-    state.ecdsaKeys = {
-      private_key: await crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA'),
+    this.ecdsaKeys = {
+      private_key: await this.crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA'),
     };
 
-    return new Promise(function(resolve, reject) {
-      state.socket = io(serverUrl);
+    return new Promise((resolve, reject) => {
+      this.socket = io(this.serverUrl);
 
-      state.socket.on('connect', async () => {
+      this.socket.on('connect', async () => {
         // we are connected, we get an access token
-        state.accessToken = await getAccessTokenInstance(state.refreshToken);
+        this.accessToken = await this.getAccessTokenInstance(this.refreshToken);
 
         // refresh user list
         await refreshUsersList();
 
-        state.socket.emit('instance-authentication', { access_token: state.accessToken }, async function(res) {
+        this.socket.emit('instance-authentication', { access_token: this.accessToken }, async (res) => {
           if (res.authenticated) {
-            logger.info('Gladys Gateway: connected in websockets');
+            this.logger.info('Gladys Gateway: connected in websockets');
             resolve();
           } else {
             reject();
@@ -685,77 +707,81 @@ class GladysGatewayJs {
         // Open API message
         // By definition, those messages cannot be E2E encrypted
         // because the recipient is a third-party
-        state.socket.on('open-api-message', async function(data, fn) {
-          callbackMessage(data, data, async function(response) {
+        this.socket.on('open-api-message', async (data, fn) => {
+          callbackMessage(data, data, async (response) => {
             fn(response);
           });
         });
 
-        state.socket.on('message', async function(data, fn) {
+        this.socket.on('message', async (data, fn) => {
           var ecdsaPublicKey = null;
           var rsaPublicKey = null;
 
           // if we don't have the key in RAM, we refresh the user list
-          if (!state.keysDictionnary[data.sender_id]) {
-            await refreshUsersList();
+          if (!this.keysDictionnary[data.sender_id]) {
+            await this.refreshUsersList();
           }
 
-          if (state.keysDictionnary[data.sender_id]) {
-            ecdsaPublicKey = state.keysDictionnary[data.sender_id].ecdsaPublicKey;
-            rsaPublicKey = state.keysDictionnary[data.sender_id].rsaPublicKey;
-            data.ecdsaPublicKeyRaw = state.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
-            data.rsaPublicKeyRaw = state.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
+          if (this.keysDictionnary[data.sender_id]) {
+            ecdsaPublicKey = this.keysDictionnary[data.sender_id].ecdsaPublicKey;
+            rsaPublicKey = this.keysDictionnary[data.sender_id].rsaPublicKey;
+            data.ecdsaPublicKeyRaw = this.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
+            data.rsaPublicKeyRaw = this.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
           }
 
           if (ecdsaPublicKey == null || rsaPublicKey == null) {
             throw new Error('User not found');
           }
 
-          var decryptedMessage = await crypto.decryptMessage(
-            state.rsaKeys.private_key,
+          var decryptedMessage = await this.crypto.decryptMessage(
+            this.rsaKeys.private_key,
             ecdsaPublicKey,
             data.encryptedMessage,
           );
 
-          callbackMessage(decryptedMessage, data, async function(response) {
-            var encryptedResponse = await crypto.encryptMessage(rsaPublicKey, state.ecdsaKeys.private_key, response);
+          callbackMessage(decryptedMessage, data, async (response) => {
+            var encryptedResponse = await this.crypto.encryptMessage(
+              rsaPublicKey,
+              this.ecdsaKeys.private_key,
+              response,
+            );
             fn(encryptedResponse);
           });
         });
       });
 
       // it means one user has updated his keys, so clearing key cache
-      state.socket.on('clear-key-cache', async function() {
-        logger.info('gladys-gateway-js: Clearing key cache');
-        state.keysDictionnary = {};
-        await refreshUsersList();
+      this.socket.on('clear-key-cache', async () => {
+        this.logger.info('gladys-gateway-js: Clearing key cache');
+        this.keysDictionnary = {};
+        await this.refreshUsersList();
       });
 
-      state.socket.on('disconnect', async function(reason) {
+      this.socket.on('disconnect', async (reason) => {
         if (reason === 'io server disconnect') {
           // the disconnection was initiated by the server, you need to reconnect manually
-          logger.warn('Socket disconnected by the server. Trying to reconnect...');
-          state.socket.connect();
+          this.logger.warn('Socket disconnected by the server. Trying to reconnect...');
+          this.socket.connect();
         } else {
-          logger.warn('Socket disconnected client side. Trying to reconnect...');
+          this.logger.warn('Socket disconnected client side. Trying to reconnect...');
         }
       });
     });
   }
 
   async sendMessageAllUsers(data) {
-    if (state.socket === null) {
+    if (this.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
-    await refreshUsersList();
+    await this.refreshUsersList();
 
-    for (var userId in state.keysDictionnary) {
+    for (var userId in this.keysDictionnary) {
       // we send the message only if the user is connected
-      if (state.keysDictionnary[userId].connected) {
-        const encryptedMessage = await crypto.encryptMessage(
-          state.keysDictionnary[userId].rsaPublicKey,
-          state.ecdsaKeys.private_key,
+      if (this.keysDictionnary[userId].connected) {
+        const encryptedMessage = await this.crypto.encryptMessage(
+          this.keysDictionnary[userId].rsaPublicKey,
+          this.ecdsaKeys.private_key,
           data,
         );
 
@@ -764,13 +790,13 @@ class GladysGatewayJs {
           encryptedMessage,
         };
 
-        state.socket.emit('message', payload);
+        this.socket.emit('message', payload);
       }
     }
   }
 
   async newEventInstance(event, data) {
-    return sendMessageAllUsers({
+    return this.sendMessageAllUsers({
       version: '1.0',
       type: 'gladys-event',
       event,
@@ -779,12 +805,12 @@ class GladysGatewayJs {
   }
 
   async calculateLatency() {
-    if (state.socket === null) {
+    if (this.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
     return new Promise((resolve, reject) => {
-      state.socket.emit('latency', Date.now(), function(startTime) {
+      this.socket.emit('latency', Date.now(), (startTime) => {
         var latency = Date.now() - startTime;
         resolve(latency);
       });
@@ -792,41 +818,41 @@ class GladysGatewayJs {
   }
 
   async sendMessageGladys(data) {
-    if (state.socket === null) {
+    if (this.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
-    if (!state.gladysInstancePublicKey) {
+    if (!this.gladysInstancePublicKey) {
       throw new Error('NO_INSTANCE_DETECTED');
     }
 
-    if (!state.gladysInstance || !state.gladysInstance.id) {
+    if (!this.gladysInstance || !this.gladysInstance.id) {
       throw new Error('NO_INSTANCE_ID_DETECTED');
     }
 
-    if (!state.ecdsaKeys) {
+    if (!this.ecdsaKeys) {
       throw new Error('NO_ECDSA_PRIVATE_KEY');
     }
 
-    const encryptedMessage = await crypto.encryptMessage(
-      state.gladysInstancePublicKey,
-      state.ecdsaKeys.private_key,
+    const encryptedMessage = await this.crypto.encryptMessage(
+      this.gladysInstancePublicKey,
+      this.ecdsaKeys.private_key,
       data,
     );
 
     var payload = {
-      instance_id: state.gladysInstance.id,
+      instance_id: this.gladysInstance.id,
       encryptedMessage,
     };
 
-    return new Promise(function(resolve, reject) {
-      state.socket.emit('message', payload, async function(response) {
+    return new Promise((resolve, reject) => {
+      this.socket.emit('message', payload, async (response) => {
         if (response && response.status && response.error_code) {
           return reject(response);
         } else {
-          const decryptedMessage = await crypto.decryptMessage(
-            state.rsaKeys.private_key,
-            state.gladysInstanceEcdsaPublicKey,
+          const decryptedMessage = await this.crypto.decryptMessage(
+            this.rsaKeys.private_key,
+            this.gladysInstanceEcdsaPublicKey,
             response,
           );
 
@@ -856,7 +882,19 @@ class GladysGatewayJs {
       message.options.data = body;
     }
 
-    return sendMessageGladys(message);
+    return this.sendMessageGladys(message);
+  }
+
+  async sendRequestGet(path, query) {
+    return this.sendRequest('GET', path, query);
+  }
+
+  async sendRequestPost(path, query) {
+    return this.sendRequest('POST', path, query);
+  }
+
+  async sendRequestPatch(path, query) {
+    return this.sendRequest('PATCH', path, query);
   }
 }
 

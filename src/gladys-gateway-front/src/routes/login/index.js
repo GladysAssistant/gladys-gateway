@@ -13,18 +13,23 @@ class LoginPage extends Component {
     loginErrored: false,
     loginTwoFactorErrored: false,
     browserCompatible: Auth.testBrowserCompatibility(),
-    isFireFox: navigator.userAgent.toLowerCase().indexOf('firefox') > -1,
     loginInProgress: false,
     loginTwoFactorInProgress: false
   };
 
   login = event => {
     event.preventDefault();
+    Auth.cleanLocalState();
     this.setState({ loginInProgress: true });
     Auth.login(this.state)
       .then(async data => {
         if (data.two_factor_token) {
-          this.setState({ loginErrored: false, displayTwoFactorInput: true, twoFactorToken: data.two_factor_token, loginInProgress: false });
+          this.setState({
+            loginErrored: false,
+            displayTwoFactorInput: true,
+            twoFactorToken: data.two_factor_token,
+            loginInProgress: false
+          });
         } else {
           await Auth.saveTwoFactorAccessToken(data.access_token);
           route('/configure-two-factor');
@@ -38,13 +43,18 @@ class LoginPage extends Component {
 
   loginTwoFactor = event => {
     event.preventDefault();
-    
+
     this.setState({ loginTwoFactorInProgress: true });
 
     let twoFactorCode = this.state.twoFactorCode.replace(/\s/g, '');
 
     // we login
-    Auth.loginTwoFactor(this.state.twoFactorToken, this.state.password, twoFactorCode, window.navigator.userAgent)
+    Auth.loginTwoFactor(
+      this.state.twoFactorToken,
+      this.state.password,
+      twoFactorCode,
+      window.navigator.userAgent
+    )
 
       // we save the users info
       .then(data => Auth.saveLoginInformations(data))
@@ -82,11 +92,21 @@ class LoginPage extends Component {
     this.setState({ twoFactorCode: newValue });
   };
 
-  componentDidMount = () => {
-    Auth.cleanLocalState();
-  };
-
-  render({}, { email, password, displayTwoFactorInput, twoFactorCode, browserCompatible, loginErrored, loginTwoFactorErrored, loginInProgress, loginTwoFactorInProgress, isFireFox }) {
+  render(
+    {},
+    {
+      email,
+      password,
+      displayTwoFactorInput,
+      twoFactorCode,
+      browserCompatible,
+      loginErrored,
+      loginTwoFactorErrored,
+      loginInProgress,
+      loginTwoFactorInProgress,
+      isFireFox
+    }
+  ) {
     return (
       <LoginForm
         email={email}

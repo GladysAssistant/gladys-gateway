@@ -67,7 +67,7 @@ describe('crypto.decryptPrivateKey', function() {
       cryptoLib: webcrypto,
     });
     var keys = await crypto.generateKeyPair();
-    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKeyJwk);
+    var encrypted = await crypto.encryptPrivateKey('mypassword', keys.rsaKeys.privateKey);
     await crypto.decryptPrivateKey('mypassword', encrypted.wrappedKey, 'RSA-OAEP', encrypted.salt, encrypted.iv);
   });
 });
@@ -142,9 +142,20 @@ describe('crypto encrypt and decrypt with decrypted private key', function() {
       encryptedKey.salt,
       encryptedKey.iv,
     );
-    var encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, 'message');
+    const data = {
+      hey: true,
+    };
+    var ecdsaEncryptedKey = await crypto.encryptPrivateKey('mypassword', keys.ecdsaKeys.privateKey);
+    const ecdsaDecryptedKey = await crypto.decryptPrivateKeyJwk(
+      'mypassword',
+      ecdsaEncryptedKey.wrappedKey,
+      'ECDSA',
+      ecdsaEncryptedKey.salt,
+      ecdsaEncryptedKey.iv,
+    );
+    var encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, ecdsaDecryptedKey, data);
     var decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
-    decrypted.should.equal('message');
+    decrypted.should.have.property('hey', true);
   });
 });
 

@@ -6,6 +6,11 @@ const PBKDF2_ITERATIONS = 100000;
 const MESSAGE_MAX_LIFETIME = 5 * 60 * 1000; // a message expire after 5 minutes
 
 module.exports = function({ cryptoLib }) {
+  async function exportKey(key) {
+    var keyJwj = await cryptoLib.subtle.exportKey('jwk', key);
+    return keyJwj;
+  }
+
   async function generateKeyPair() {
     var rsaKeys = await cryptoLib.subtle.generateKey(
       {
@@ -316,7 +321,7 @@ module.exports = function({ cryptoLib }) {
     );
 
     // we decrypt the data
-    const strData = ab2str(decryptedData);
+    const strData = String.fromCharCode.apply(null, new Uint8Array(decryptedData));
 
     // then convert it to JS object
     const privateKeyJwk = JSON.parse(strData);
@@ -455,12 +460,13 @@ module.exports = function({ cryptoLib }) {
     );
 
     // we decrypt the data
-    var strData = ab2str(decryptedData);
+    let strData = ab2str(decryptedData);
+    strData = strData.replace(/\0/g, '');
 
     // then convert it to JS object
-    var jsonData = JSON.parse(strData);
+    const jsonData = JSON.parse(strData);
 
-    var now = new Date().getTime();
+    const now = new Date().getTime();
 
     if (jsonData.timestamp + MESSAGE_MAX_LIFETIME < now) {
       throw new Error('EXPIRED_MESSAGE');
@@ -482,7 +488,7 @@ module.exports = function({ cryptoLib }) {
       if (isPublic) {
         usages = ['encrypt', 'wrapKey'];
       } else {
-        usages = ['decrypt', 'unWrapKey'];
+        usages = ['decrypt', 'unwrapKey'];
       }
     } else if (type === 'ECDSA') {
       keyOptions = {
@@ -503,7 +509,7 @@ module.exports = function({ cryptoLib }) {
       'jwk', //can be "jwk" (public or private), "spki" (public only), or "pkcs8" (private only)
       jwkKey,
       keyOptions,
-      false, //whether the key is extractable (i.e. can be used in exportKey)
+      false, // whether the key is extractable (i.e. can be used in exportKey)
       usages,
     );
   }
@@ -531,6 +537,7 @@ module.exports = function({ cryptoLib }) {
     encryptMessage,
     decryptMessage,
     importKey,
+    exportKey,
     generateFingerprint,
   };
 };

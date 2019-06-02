@@ -12,99 +12,100 @@ const LoginForm = ({ children, ...props }) => (
               <div class="card-body p-6">
                 <div class="card-title">Login to your account</div>
 
-                { props.browserCompatible === false &&
+                {props.browserCompatible === false && (
                   <div class="alert alert-danger" role="alert">
-                    Sorry, your browser is not compatible with the Gladys Gateway. Your browser should support the WebCrypto API as well as IndexedDB database.
+                    Sorry, your browser is not compatible with the Gladys Gateway. Your browser
+                    should support the WebCrypto API as well as IndexedDB database.
                   </div>
-                }
+                )}
 
-                {props.loginErrored &&
+                {props.loginErrored && (
                   <div class="alert alert-danger" role="alert">
-                  Invalid Email/Password.
+                    Invalid Email/Password.
                   </div>
-                }
+                )}
 
-                {props.loginTwoFactorErrored &&
+                {props.loginTwoFactorErrored && (
                   <div class="alert alert-danger" role="alert">
-                  Invalid two factor code. If you are using Firefox, we are sorry to say that they are not fully compatible with the WebCrypto API we are using in the Gateway. Try using Chrome or Safari instead.
+                    Invalid two factor code.
                   </div>
-                }
+                )}
 
-                {props.isFireFox === true &&
-                  <div class="alert alert-danger" role="alert">
-                    The Gladys Gateway is fully end-to-end encrypted and uses advanced functions of the WebCrypto API. Unfortunately, Firefox doesn't support one critical function that we use. While waiting for a new Firefox release with this missing function, we recommend using another browser like Chrome/Safari.
+                {!props.displayTwoFactorInput && (
+                  <div class="form-group">
+                    <label class="form-label">Email address</label>
+                    <input
+                      type="email"
+                      class="form-control"
+                      id="exampleInputEmail1"
+                      aria-describedby="emailHelp"
+                      placeholder="Enter email"
+                      value={props.email}
+                      onInput={props.updateEmail}
+                    />
                   </div>
-                }
+                )}
 
+                {!props.displayTwoFactorInput && (
+                  <div class="form-group">
+                    <label class="form-label">
+                      Password
+                      <a href="/forgot-password" class="float-right small">
+                        I forgot password
+                      </a>
+                    </label>
+                    <input
+                      type="password"
+                      class="form-control"
+                      id="exampleInputPassword1"
+                      placeholder="Password"
+                      value={props.password}
+                      onInput={props.updatePassword}
+                    />
+                  </div>
+                )}
 
-                {!props.isFireFox && <div>
+                {props.displayTwoFactorInput && (
+                  <div class="form-group">
+                    <label class="form-label">Two Factor Code</label>
+                    <input
+                      type="text"
+                      class="form-control"
+                      id="exampleInputPassword1"
+                      placeholder="6 digits code"
+                      value={props.twoFactorCode}
+                      onInput={props.updateTwoFactorCode}
+                    />
+                  </div>
+                )}
+
+                <div class="form-footer">
                   {!props.displayTwoFactorInput && (
-                    <div class="form-group">
-                      <label class="form-label">Email address</label>
-                      <input
-                        type="email"
-                        class="form-control"
-                        id="exampleInputEmail1"
-                        aria-describedby="emailHelp"
-                        placeholder="Enter email"
-                        value={props.email}
-                        onInput={props.updateEmail}
-                      />
-                    </div>
-                  )}
-
-                  {!props.displayTwoFactorInput && (
-                    <div class="form-group">
-                      <label class="form-label">
-                        Password
-                        <a href="/forgot-password" class="float-right small">
-                          I forgot password
-                        </a>
-                      </label>
-                      <input
-                        type="password"
-                        class="form-control"
-                        id="exampleInputPassword1"
-                        placeholder="Password"
-                        value={props.password}
-                        onInput={props.updatePassword}
-                      />
-                    </div>
+                    <button
+                      type="submit"
+                      class="btn btn-primary btn-block"
+                      disabled={props.loginInProgress}
+                    >
+                      Sign in
+                    </button>
                   )}
 
                   {props.displayTwoFactorInput && (
-                    <div class="form-group">
-                      <label class="form-label">Two Factor Code</label>
-                      <input
-                        type="text"
-                        class="form-control"
-                        id="exampleInputPassword1"
-                        placeholder="6 digits code"
-                        value={props.twoFactorCode}
-                        onInput={props.updateTwoFactorCode}
-                      />
-                    </div>
+                    <button
+                      onClick={props.loginTwoFactor}
+                      class="btn btn-primary btn-block"
+                      disabled={props.loginTwoFactorInProgress}
+                    >
+                      Sign in
+                    </button>
                   )}
-
-                  <div class="form-footer">
-                    {!props.displayTwoFactorInput && (
-                      <button type="submit" class="btn btn-primary btn-block" disabled={props.loginInProgress}>
-                        Sign in
-                      </button>
-                    )}
-
-                    {props.displayTwoFactorInput && (
-                      <button onClick={props.loginTwoFactor} class="btn btn-primary btn-block" disabled={props.loginTwoFactorInProgress}>
-                        Sign in
-                      </button>
-                    )}
-                  </div>
                 </div>
-                }
               </div>
             </form>
             <div class="text-center text-muted">
-              Don't have account yet? <a href="https://gladysassistant.com/gladys-community-package">Sign up</a><br />
+              Don't have account yet?{' '}
+              <a href="https://gladysassistant.com/gladys-community-package">Sign up</a>
+              <br />
               Support at hello@gladysassistant.com.
             </div>
           </div>

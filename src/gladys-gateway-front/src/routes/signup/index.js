@@ -19,8 +19,7 @@ class SignupPage extends Component {
     signupCompleted: false,
     unknownError: false,
     tokenError: false,
-    browserCompatible: Auth.testBrowserCompatibility(),
-    isFireFox: navigator.userAgent.toLowerCase().indexOf('firefox') > -1
+    browserCompatible: Auth.testBrowserCompatibility()
   };
 
   validateEmail = email => {
@@ -110,17 +109,30 @@ class SignupPage extends Component {
   componentDidMount = () => {
     if (this.props.token) {
       Auth.getInvitation(this.props.token)
-        .then((invitation) => this.setState({ email: invitation.email }))
+        .then(invitation => this.setState({ email: invitation.email }))
         .catch(() => this.setState({ invitationError: true }));
     }
   };
 
   render(
     {},
-    { name, email, password, fieldsErrored, currentStep, accountAlreadyExist, signupCompleted, browserCompatible, invitationError, isFireFox, unknownError, tokenError }
+    {
+      name,
+      email,
+      password,
+      fieldsErrored,
+      currentStep,
+      accountAlreadyExist,
+      signupCompleted,
+      browserCompatible,
+      invitationError,
+      isFireFox,
+      unknownError,
+      tokenError
+    }
   ) {
     return (
-      <SignupBase currentStep={currentStep} >
+      <SignupBase currentStep={currentStep}>
         {currentStep === 1 && (
           <SignupForm
             name={name}
@@ -141,7 +153,9 @@ class SignupPage extends Component {
             tokenError={tokenError}
           />
         )}
-        {currentStep === 2 && <SignupGeneratingKeys signupCompleted={signupCompleted} token={this.props.token} />}
+        {currentStep === 2 && (
+          <SignupGeneratingKeys signupCompleted={signupCompleted} token={this.props.token} />
+        )}
       </SignupBase>
     );
   }

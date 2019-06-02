@@ -1,13 +1,13 @@
 import config from '../../config';
-import gladysGatewayClient from '@gladysassistant/gladys-gateway-js';
+import GladysGatewayClient from '@gladysassistant/gladys-gateway-js';
 import keyValStore from './keyValStore';
 import { route } from 'preact-router';
 
-const client = gladysGatewayClient({ serverUrl: config.serverUrl, cryptoLib: window.crypto });
+const client = new GladysGatewayClient({ serverUrl: config.serverUrl, cryptoLib: window.crypto });
 
 function redirectWrapper(func) {
   return function(url, params) {
-    return func(url, params).catch((err) => {
+    return func(url, params).catch(err => {
       if (err.status === 401) {
         route('/login');
       } else {
@@ -53,11 +53,10 @@ const Auth = {
   getInvitation: client.getInvitation,
   calculateLatency: () => client.calculateLatency(),
   connectSocket: async callback => {
-    let refreshToken = await keyValStore.get('refresh_token');
-    let rsaKeys = await keyValStore.get('rsa_keys');
-    let ecdsaKeys = await keyValStore.get('ecdsa_keys');
+    let refreshToken = keyValStore.get('refresh_token');
+    let serializedKeys = keyValStore.get('serialized_keys');
 
-    return client.userConnect(refreshToken, rsaKeys, ecdsaKeys, callback);
+    return client.userConnect(refreshToken, serializedKeys, callback);
   },
   getInstance: () => client.getInstance(),
   getSetupState: () => client.getSetupState(),
@@ -74,25 +73,23 @@ const Auth = {
   adminGetAccounts: client.adminGetAccounts,
   adminResendConfirmationEmail: client.adminResendConfirmationEmail,
   request: {
-    get: redirectWrapper(client.request.get),
-    post: redirectWrapper(client.request.post),
-    patch: redirectWrapper(client.request.patch)
+    get: redirectWrapper(client.sendRequestGet),
+    post: redirectWrapper(client.sendRequestPost),
+    patch: redirectWrapper(client.sendRequestPatch)
   },
   saveTwoFactorAccessToken: token => keyValStore.set('two_factor_access_token', token),
   getTwoFactorAccessToken: token => keyValStore.get('two_factor_access_token'),
-  saveLoginInformations: data => Promise.all([
-    keyValStore.set('refresh_token', data.refreshToken),
-    keyValStore.set('access_token', data.accessToken),
-    keyValStore.set('device_id', data.deviceId),
-    keyValStore.set('rsa_keys', data.rsaKeys),
-    keyValStore.set('ecdsa_keys', data.ecdsaKeys),
-    keyValStore.set('rsa_public_key_fingerprint', data.rsaPublicKeyFingerprint),
-    keyValStore.set('ecdsa_public_key_fingerprint', data.ecdsaPublicKeyFingerprint)
-  ]),
+  saveLoginInformations: data => {
+    keyValStore.set('refresh_token', data.refreshToken);
+    keyValStore.set('access_token', data.accessToken);
+    keyValStore.set('device_id', data.deviceId);
+    keyValStore.set('serialized_keys', data.serializedKeys);
+    keyValStore.set('rsa_public_key_fingerprint', data.rsaPublicKeyFingerprint);
+    keyValStore.set('ecdsa_public_key_fingerprint', data.ecdsaPublicKeyFingerprint);
+  },
   getUserKeyFingerprint: async () => {
-    
-    let rsaPublicKeyFingerprint = await keyValStore.get('rsa_public_key_fingerprint');
-    let ecdsaPublicKeyFingerprint = await keyValStore.get('ecdsa_public_key_fingerprint');
+    let rsaPublicKeyFingerprint = keyValStore.get('rsa_public_key_fingerprint');
+    let ecdsaPublicKeyFingerprint = keyValStore.get('ecdsa_public_key_fingerprint');
 
     return {
       rsaPublicKeyFingerprint,
@@ -101,7 +98,7 @@ const Auth = {
   },
   saveUser: user => keyValStore.set('user', user),
   getUser: async () => {
-    let user = await keyValStore.get('user');
+    let user = keyValStore.get('user');
     if (user) {
       return user;
     }
@@ -110,7 +107,7 @@ const Auth = {
     return user;
   },
   isConnected: async () => {
-    let refreshToken = await keyValStore.get('refresh_token');
+    let refreshToken = keyValStore.get('refresh_token');
     if (refreshToken) {
       return true;
     }
@@ -126,15 +123,11 @@ const Auth = {
       browserCompatible = false;
     }
 
-    if (!window.indexedDB) {
-      browserCompatible = false;
-    }
-
     return browserCompatible;
   },
   cache: {
-    get: keyValStore.get,
-    set: keyValStore.set
+    get: key => JSON.parse(keyValStore.get(key)),
+    set: (key, value) => keyValStore.set(key, JSON.stringify(value))
   }
 };
 

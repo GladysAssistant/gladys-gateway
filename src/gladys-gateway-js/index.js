@@ -10,39 +10,48 @@ const PBKDF2_HASH = 'SHA-256';
 const PBKDF2_ITERATIONS = 100000;
 const PBKDF2_KEYLEN = 32;
 
-module.exports = function ({ cryptoLib, serverUrl, logger }) {
+const defaultLogger = {
+  debug: console.log,
+  info: console.log,
+  warn: console.log,
+  error: console.log,
+};
 
-  const crypto = require('./lib/crypto')({ cryptoLib });
-
-  if(!logger) {
-    logger = {
-      debug: console.log,
-      info: console.log,
-      warn: console.log,
-      error: console.log
+class GladysGatewayJs {
+  constructor(cryptoLib, serverUrl, logger = defaultLogger) {
+    this.crypto = require('./lib/crypto')({ cryptoLib });
+    this.serverUrl = serverUrl;
+    this.logger = logger;
+    this.socket = null;
+    this.refreshToken = null;
+    this.rsaKeys = null;
+    this.ecdsaKeys = null;
+    this.gladysInstance = null;
+    this.gladysInstancePublicKey = null;
+    this.gladysInstanceEcdsaPublicKey = null;
+    this.keysDictionnary = {};
+    this.request = {
+      get: (path, query) => this.sendRequest('GET', path, query),
+      post: (path, body) => this.sendRequest('POST', path, body),
+      patch: (path, body) => this.sendRequest('PATCH', path, body),
     };
   }
 
-  const state = {
-    serverUrl,
-    socket: null,
-    refreshToken: null,
-    rsaKeys: null,
-    ecdsaKeys: null,
-    gladysInstance: null,
-    gladysInstancePublicKey: null,
-    gladysInstanceEcdsaPublicKey: null,
-    keysDictionnary: {}
-  };
-
-  async function generateSrpAndKeys(rawEmail, rawPassword) {
-    
-    var email = rawEmail.trim().toLowerCase();
-    var password = rawPassword.trim();
+  async generateSrpAndKeys(rawEmail, rawPassword) {
+    const email = rawEmail.trim().toLowerCase();
+    const password = rawPassword.trim();
 
     // generate srp salt, privateKey and verifier
     const srpSalt = srpClient.generateSalt();
-    const srpPrivateKey = arrayBufferToHex(await pbkdf2(encodeUtf8(`${email}:${password}`), hexToArrayBuffer(srpSalt), PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_HASH));
+    const srpPrivateKey = arrayBufferToHex(
+      await pbkdf2(
+        encodeUtf8(`${email}:${password}`),
+        hexToArrayBuffer(srpSalt),
+        PBKDF2_ITERATIONS,
+        PBKDF2_KEYLEN,
+        PBKDF2_HASH,
+      ),
+    );
     const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
 
     // generate public/private key for the Gladys Gateway
@@ -55,37 +64,38 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       srpSalt,
       srpPrivateKey,
       srpVerifier,
-      rsaKeys, 
-      ecdsaKeys, 
-      rsaPublicKeyJwk, 
+      rsaKeys,
+      ecdsaKeys,
+      rsaPublicKeyJwk,
       ecdsaPublicKeyJwk,
       rsaEncryptedPrivateKey,
       ecdsaEncryptedPrivateKey,
       email,
-      password
+      password,
     };
   }
 
-  async function signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
-    
+  async signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
     // first, we clean email and language
     var name = rawName.trim();
-    var language = rawLanguage.trim().substr(0, 2).toLowerCase();
+    var language = rawLanguage
+      .trim()
+      .substr(0, 2)
+      .toLowerCase();
 
     // we generate the srp verifier and keys
     const {
       srpSalt,
       srpVerifier,
-      rsaKeys, 
-      ecdsaKeys, 
-      rsaPublicKeyJwk, 
+      rsaKeys,
+      ecdsaKeys,
+      rsaPublicKeyJwk,
       ecdsaPublicKeyJwk,
       rsaEncryptedPrivateKey,
       ecdsaEncryptedPrivateKey,
-      email
-    } = await generateSrpAndKeys(rawEmail, rawPassword);
+      email,
+    } = await this.generateSrpAndKeys(rawEmail, rawPassword);
 
-  
     state.rsaKeys = rsaKeys;
     state.ecdsaKeys = ecdsaKeys;
 
@@ -98,10 +108,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
       rsa_encrypted_private_key: JSON.stringify(rsaEncryptedPrivateKey),
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
-      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey)
+      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey),
     };
 
-    if(invitationToken) {
+    if (invitationToken) {
       newUser.token = invitationToken;
       return axios.post(serverUrl + '/invitations/accept', newUser);
     } else {
@@ -109,25 +119,47 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     }
   }
 
-  async function login(rawEmail, rawPassword) {
+  async login(rawEmail, rawPassword) {
     var email = rawEmail.trim().toLowerCase();
     var password = rawPassword.trim();
 
-    // first step, we generate the clientEphemeral 
-    const clientEphemeral = srpClient.generateEphemeral(); 
-    
-    // We ask the server for the salt
-    const loginSaltResult = (await axios.post(serverUrl + '/users/login-salt', { email })).data;
-    
-    // Then send our clientEphemeral public + email, and retrieve the server ephemeral public
-    const serverEphemeralResult = (await axios.post(serverUrl + '/users/login-generate-ephemeral', { email, client_ephemeral_public: clientEphemeral.public })).data;
+    // first step, we generate the clientEphemeral
+    const clientEphemeral = srpClient.generateEphemeral();
 
-    // We generate the key and wait  
-    const srpPrivateKey = arrayBufferToHex(await pbkdf2(encodeUtf8(`${email}:${password}`), hexToArrayBuffer(loginSaltResult.srp_salt), PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_HASH));
-    const clientSession = srpClient.deriveSession(clientEphemeral.secret, serverEphemeralResult.server_ephemeral_public, loginSaltResult.srp_salt, email, srpPrivateKey);
-    
+    // We ask the server for the salt
+    const loginSaltResult = (await axios.post(serverUrl + '/users/login-salt', {
+      email,
+    })).data;
+
+    // Then send our clientEphemeral public + email, and retrieve the server ephemeral public
+    const serverEphemeralResult = (await axios.post(serverUrl + '/users/login-generate-ephemeral', {
+      email,
+      client_ephemeral_public: clientEphemeral.public,
+    })).data;
+
+    // We generate the key and wait
+    const srpPrivateKey = arrayBufferToHex(
+      await pbkdf2(
+        encodeUtf8(`${email}:${password}`),
+        hexToArrayBuffer(loginSaltResult.srp_salt),
+        PBKDF2_ITERATIONS,
+        PBKDF2_KEYLEN,
+        PBKDF2_HASH,
+      ),
+    );
+    const clientSession = srpClient.deriveSession(
+      clientEphemeral.secret,
+      serverEphemeralResult.server_ephemeral_public,
+      loginSaltResult.srp_salt,
+      email,
+      srpPrivateKey,
+    );
+
     // finally, we send the proof to the server
-    const serverFinalLoginResult = (await axios.post(serverUrl + '/users/login-finalize', { login_session_key: serverEphemeralResult.login_session_key, client_session_proof: clientSession.proof })).data;
+    const serverFinalLoginResult = (await axios.post(serverUrl + '/users/login-finalize', {
+      login_session_key: serverEphemeralResult.login_session_key,
+      client_session_proof: clientSession.proof,
+    })).data;
 
     // we verify that the server have derived the correct strong session key
     srpClient.verifySession(clientEphemeral.public, clientSession, serverFinalLoginResult.server_session_proof);
@@ -135,15 +167,18 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return serverFinalLoginResult;
   }
 
-  async function loginTwoFactor(accessToken, password, code, deviceName) {
-
+  async loginTwoFactor(accessToken, password, code, deviceName) {
     deviceName = deviceName || 'Unknown';
 
-    const result = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: code, device_name: deviceName }, {
-      headers: {
-        authorization: accessToken
-      }
-    }));
+    const result = await axios.post(
+      serverUrl + '/users/login-two-factor',
+      { two_factor_code: code, device_name: deviceName },
+      {
+        headers: {
+          authorization: accessToken,
+        },
+      },
+    );
 
     const loginData = result.data;
 
@@ -153,23 +188,23 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     // We decrypt the encrypted RSA private key
     state.rsaKeys = {
       private_key: await crypto.decryptPrivateKey(
-        password, 
-        loginData.rsa_encrypted_private_key.wrappedKey, 
+        password,
+        loginData.rsa_encrypted_private_key.wrappedKey,
         'RSA-OAEP',
         loginData.rsa_encrypted_private_key.salt,
-        loginData.rsa_encrypted_private_key.iv  
-      )
+        loginData.rsa_encrypted_private_key.iv,
+      ),
     };
 
     // We decrypt the encrypted ECDSA private key
     state.ecdsaKeys = {
       private_key: await crypto.decryptPrivateKey(
-        password, 
-        loginData.ecdsa_encrypted_private_key.wrappedKey, 
+        password,
+        loginData.ecdsa_encrypted_private_key.wrappedKey,
         'ECDSA',
         loginData.ecdsa_encrypted_private_key.salt,
-        loginData.ecdsa_encrypted_private_key.iv  
-      )
+        loginData.ecdsa_encrypted_private_key.iv,
+      ),
     };
 
     state.accessToken = loginData.access_token;
@@ -189,40 +224,50 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       accessToken: loginData.access_token,
       deviceId: loginData.device_id,
       rsaPublicKeyFingerprint,
-      ecdsaPublicKeyFingerprint
+      ecdsaPublicKeyFingerprint,
     };
   }
 
-  async function loginInstance(twoFactorToken, twoFactorCode) {
-    
-    const loginData = (await axios.post(serverUrl + '/users/login-two-factor', { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' }, {
-      headers: {
-        authorization: twoFactorToken
-      }
-    })).data;
+  async loginInstance(twoFactorToken, twoFactorCode) {
+    const loginData = (await axios.post(
+      serverUrl + '/users/login-two-factor',
+      { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' },
+      {
+        headers: {
+          authorization: twoFactorToken,
+        },
+      },
+    )).data;
 
     state.accessToken = loginData.access_token;
     state.refreshToken = loginData.refreshToken;
 
     return {
       accessToken: state.accessToken,
-      refreshToken: state.refreshToken
+      refreshToken: state.refreshToken,
     };
   }
 
-  async function createInstance(name) {
-    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk } = await crypto.generateKeyPair();
+  async createInstance(name) {
+    const {
+      rsaKeys,
+      ecdsaKeys,
+      rsaPublicKeyJwk,
+      ecdsaPublicKeyJwk,
+      rsaPrivateKeyJwk,
+      ecdsaPrivateKeyJwk,
+    } = await crypto.generateKeyPair();
 
     var instance = {
       name,
       rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
-      ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk)
+      ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
     };
-    
+
     const createdInstance = (await axios.post(serverUrl + '/instances', instance, {
       headers: {
-        authorization: state.accessToken
-      }
+        authorization: state.accessToken,
+      },
     })).data;
 
     state.gladysInstance = createdInstance;
@@ -234,43 +279,53 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       rsaPrivateKeyJwk,
       ecdsaPrivateKeyJwk,
       rsaPublicKeyJwk,
-      ecdsaPublicKeyJwk
+      ecdsaPublicKeyJwk,
     };
   }
 
-  async function configureTwoFactor(accessToken) {
-    return (await axios.post(serverUrl + '/users/two-factor-configure', {}, {
-      headers: {
-        authorization: accessToken
-      }
+  async configureTwoFactor(accessToken) {
+    return (await axios.post(
+      serverUrl + '/users/two-factor-configure',
+      {},
+      {
+        headers: {
+          authorization: accessToken,
+        },
+      },
+    )).data;
+  }
+
+  async enableTwoFactor(accessToken, twoFactorCode) {
+    return (await axios.post(
+      serverUrl + '/users/two-factor-enable',
+      { two_factor_code: twoFactorCode },
+      {
+        headers: {
+          authorization: accessToken,
+        },
+      },
+    )).data;
+  }
+
+  async confirmEmail(token) {
+    return (await axios.post(serverUrl + '/users/verify', {
+      email_confirmation_token: token,
     })).data;
   }
 
-  async function enableTwoFactor(accessToken, twoFactorCode) {
-    return (await axios.post(serverUrl + '/users/two-factor-enable', { two_factor_code: twoFactorCode }, {
-      headers: {
-        authorization: accessToken
-      }
-    })).data;
-  }
-
-  async function confirmEmail(token) {
-    return (await axios.post(serverUrl + '/users/verify', { email_confirmation_token: token })).data;
-  }
-
-  async function getAccessToken(refreshToken) {
+  async getAccessToken(refreshToken) {
     return (await axios.get(serverUrl + '/users/access-token', {
       headers: {
-        authorization: refreshToken
-      }
+        authorization: refreshToken,
+      },
     })).data.access_token;
   }
 
-  async function getAccessTokenInstance(refreshToken) {
+  async getAccessTokenInstance(refreshToken) {
     return (await axios.get(serverUrl + '/instances/access-token', {
       headers: {
-        authorization: refreshToken
-      }
+        authorization: refreshToken,
+      },
     })).data.access_token;
   }
 
@@ -278,29 +333,39 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
    * Frontend API
    */
 
-  async function getMyself() {
+  async getMyself() {
     return requestApi.get(serverUrl + '/users/me', state);
   }
 
-  async function updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
-    
+  async updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
     var email = rawEmail.trim().toLowerCase();
     var name = rawName.trim();
-    var language = rawLanguage.trim().substr(0, 2).toLowerCase();
+    var language = rawLanguage
+      .trim()
+      .substr(0, 2)
+      .toLowerCase();
 
     var newUser = {
       name,
       email,
-      language
+      language,
     };
 
     // if a password is provided
-    if(rawPassword) {
+    if (rawPassword) {
       var password = rawPassword.trim();
 
       // generate srp salt, privateKey and verifier
       const srpSalt = srpClient.generateSalt();
-      const srpPrivateKey = arrayBufferToHex(await pbkdf2(encodeUtf8(`${email}:${password}`), hexToArrayBuffer(srpSalt), PBKDF2_ITERATIONS, PBKDF2_KEYLEN, PBKDF2_HASH));
+      const srpPrivateKey = arrayBufferToHex(
+        await pbkdf2(
+          encodeUtf8(`${email}:${password}`),
+          hexToArrayBuffer(srpSalt),
+          PBKDF2_ITERATIONS,
+          PBKDF2_KEYLEN,
+          PBKDF2_HASH,
+        ),
+      );
       const srpVerifier = srpClient.deriveVerifier(srpPrivateKey);
 
       // re-encrypte private keys
@@ -316,30 +381,33 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     return requestApi.patch(serverUrl + '/users/me', newUser, state);
   }
 
-  async function updateUserIdInGladys(userIdInGladys) {
-    return requestApi.patch(serverUrl + '/users/me', {
-      gladys_user_id: userIdInGladys
-    }, state);
+  async updateUserIdInGladys(userIdInGladys) {
+    return requestApi.patch(
+      serverUrl + '/users/me',
+      {
+        gladys_user_id: userIdInGladys,
+      },
+      state,
+    );
   }
 
-  async function forgotPassword(email) {
+  async forgotPassword(email) {
     return requestApi.post(serverUrl + '/users/forgot-password', { email }, state);
   }
 
-  async function getResetPasswordEmail(resetToken){
+  async getResetPasswordEmail(resetToken) {
     return requestApi.get(serverUrl + '/users/reset-password/' + resetToken, state);
   }
- 
-  async function resetPassword(rawEmail, rawPassword, resetToken, twoFactorCode) {
-    
+
+  async resetPassword(rawEmail, rawPassword, resetToken, twoFactorCode) {
     // we generate a new srp verifier and new keys
     const {
       srpSalt,
       srpVerifier,
-      rsaPublicKeyJwk, 
+      rsaPublicKeyJwk,
       ecdsaPublicKeyJwk,
       rsaEncryptedPrivateKey,
-      ecdsaEncryptedPrivateKey
+      ecdsaEncryptedPrivateKey,
     } = await generateSrpAndKeys(rawEmail, rawPassword);
 
     var data = {
@@ -350,95 +418,99 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       rsa_public_key: JSON.stringify(rsaPublicKeyJwk),
       rsa_encrypted_private_key: JSON.stringify(rsaEncryptedPrivateKey),
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
-      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey)
+      ecdsa_encrypted_private_key: JSON.stringify(ecdsaEncryptedPrivateKey),
     };
 
     return requestApi.post(serverUrl + '/users/reset-password', data, state);
   }
 
-  async function getUsersInAccount() {
+  async getUsersInAccount() {
     return requestApi.get(serverUrl + '/accounts/users', state);
   }
 
-  async function getInvoices() {
+  async getInvoices() {
     return requestApi.get(serverUrl + '/accounts/invoices', state);
   }
 
-  async function getDevices() {
+  async getDevices() {
     return requestApi.get(serverUrl + '/users/me/devices', state);
   }
 
-  async function revokeDevice(deviceId) {
+  async revokeDevice(deviceId) {
     return requestApi.post(serverUrl + '/devices/' + deviceId + '/revoke', {}, state);
   }
 
-  async function inviteUser(email, role) {
-    return requestApi.post(serverUrl + '/invitations', { email, role },  state);
+  async inviteUser(email, role) {
+    return requestApi.post(serverUrl + '/invitations', { email, role }, state);
   }
 
-  async function getInvitation(token) {
+  async getInvitation(token) {
     return requestApi.get(serverUrl + '/invitations/' + token, state);
   }
 
-  async function revokeInvitation(invitationId) {
+  async revokeInvitation(invitationId) {
     return requestApi.post(serverUrl + '/invitations/' + invitationId + '/revoke', {}, state);
   }
 
-  async function revokeUser(userId) {
+  async revokeUser(userId) {
     return requestApi.post(serverUrl + '/accounts/users/' + userId + '/revoke', {}, state);
   }
 
-  async function getSetupState() {
+  async getSetupState() {
     return requestApi.get(serverUrl + '/users/setup', state);
   }
 
-  async function subcribeMonthlyPlan(sourceId) {
+  async subcribeMonthlyPlan(sourceId) {
     return requestApi.post(serverUrl + '/accounts/subscribe', { stripe_source_id: sourceId }, state);
   }
 
-  async function subcribeMonthlyPlanWithoutAccount(email, language, sourceId) {
-    return requestApi.post(serverUrl + '/accounts/subscribe/new', { email, language, stripe_source_id: sourceId }, state);
+  async subcribeMonthlyPlanWithoutAccount(email, language, sourceId) {
+    return requestApi.post(
+      serverUrl + '/accounts/subscribe/new',
+      { email, language, stripe_source_id: sourceId },
+      state,
+    );
   }
 
-  async function reSubcribeMonthlyPlan() {
+  async reSubcribeMonthlyPlan() {
     return requestApi.post(serverUrl + '/accounts/resubscribe', {}, state);
   }
 
-  async function updateCard(sourceId) {
+  async updateCard(sourceId) {
     return requestApi.patch(serverUrl + '/accounts/source', { stripe_source_id: sourceId }, state);
   }
 
-  async function getCard() {
+  async getCard() {
     return requestApi.get(serverUrl + '/accounts/source', state);
   }
 
-  async function cancelMonthlyPlan() {
+  async cancelMonthlyPlan() {
     return requestApi.post(serverUrl + '/accounts/cancel', {}, state);
   }
 
-  async function createApiKey(name) {
+  async createApiKey(name) {
     return requestApi.post(serverUrl + '/open-api-keys', { name }, state);
-  } 
+  }
 
-  async function getApiKeys() {
+  async getApiKeys() {
     return requestApi.get(serverUrl + '/open-api-keys', state);
   }
 
-  async function updateApiKeyName(id, name) {
-    return requestApi.post(serverUrl + '/open-api-keys/' + id, { name }, state);
-  } 
-  
-  async function revokeApiKey (id) {
+  async updateApiKeyName(id, name) {
+    return requestApi.post(serverUrl + '/open-api-keys/' + id, { name }, state);
+  }
+
+  async revokeApiKey(id) {
     return requestApi.delete(serverUrl + '/open-api-keys/' + id, state);
   }
 
-  async function getInstance() {
+  async getInstance() {
     let instances = await requestApi.get(serverUrl + '/instances', state);
 
     let instance = null;
     let i = 0;
 
-    while(i < instances.length && instance === null) {
+    while (i < instances.length && instance === null) {
       if (instances[i].primary_instance === true) {
         instance = instances[i];
       }
@@ -451,34 +523,31 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       state.gladysInstancePublicKey = await crypto.importKey(JSON.parse(instance.rsa_public_key), 'RSA-OEAP', true);
       state.gladysInstanceEcdsaPublicKey = await crypto.importKey(JSON.parse(instance.ecdsa_public_key), 'ECDSA', true);
     }
-    
+
     return instance;
   }
 
-  async function userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {
-
-    if(state.socket) {
+  async userConnect(refreshToken, rsaKeys, ecdsaKeys, callback) {
+    if (state.socket) {
       return Promise.resolve({ authenticated: true });
     }
 
     state.isInstance = false;
-    
+
     state.refreshToken = refreshToken;
     state.rsaKeys = rsaKeys;
     state.ecdsaKeys = ecdsaKeys;
 
-    return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
       state.socket.on('connect', async () => {
-
         try {
           // we are connected, so we get a new access token
           state.accessToken = await getAccessToken(refreshToken);
         } catch (err) {
-
           // refresh token is not good anymore
-          if(err && err.response && err.response.data && err.response.data.status === 401) {
+          if (err && err.response && err.response.data && err.response.data.status === 401) {
             reject(new Error('invalid-refresh-token'));
           }
 
@@ -489,7 +558,7 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
         await getInstance();
 
         state.socket.emit('user-authentication', { access_token: state.accessToken }, async function(res) {
-          if(res.authenticated) {
+          if (res.authenticated) {
             logger.info('Gladys Gateway, connected in websocket');
             resolve();
           } else {
@@ -499,21 +568,24 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
       });
 
       state.socket.on('hello', (instance) => {
-        if(callback) { 
+        if (callback) {
           callback('hello', instance);
         }
       });
 
-      state.socket.on('message', async (message) => {
-        var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, message.encryptedMessage);
-        if(callback) {
+      state.socket.on('message', async (message) => {
+        var decryptedMessage = await crypto.decryptMessage(
+          state.rsaKeys.private_key,
+          state.gladysInstanceEcdsaPublicKey,
+          message.encryptedMessage,
+        );
+        if (callback) {
           callback('message', decryptedMessage);
         }
       });
 
       state.socket.on('disconnect', async function(reason) {
         if (reason === 'io server disconnect') {
-          
           // the disconnection was initiated by the server, you need to reconnect manually
           logger.warn('Socket disconnected by the server. Trying to reconnect...');
           state.socket.connect();
@@ -524,41 +596,37 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
-
   /**
    * Admin API
    */
 
-  async function adminGetAccounts(){
+  async adminGetAccounts() {
     return requestApi.get(serverUrl + '/admin/accounts', state);
   }
 
-  async function adminResendConfirmationEmail(accountId, language){
-    return requestApi.post(serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, state);
+  async adminResendConfirmationEmail(accountId, language) {
+    return requestApi.post(serverUrl + '/admin/accounts/' + accountId + '/resend', { language }, state);
   }
 
   /**
    * Instance API
    */
 
-  async function getUsersInstance() {
+  async getUsersInstance() {
     return requestApi.get(serverUrl + '/instances/users', state);
   }
 
-  async function generateFingerprint(key) {
+  async generateFingerprint(key) {
     return crypto.generateFingerprint(key);
   }
 
-  async function refreshUsersList() {
-
+  async refreshUsersList() {
     // first, we get all users in instance
     var users = await getUsersInstance();
-  
-    users.forEach(async (user) => {
 
+    users.forEach(async (user) => {
       // if the user is not in cache
-      if(!state.keysDictionnary[user.id]) {
-        
+      if (!state.keysDictionnary[user.id]) {
         // we cache the keys for later use
         state.keysDictionnary[user.id] = {
           id: user.id,
@@ -566,10 +634,10 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
           ecdsaPublicKey: await crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
           rsaPublicKey: await crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true),
           ecdsaPublicKeyRaw: user.ecdsa_public_key,
-          rsaPublicKeyRaw: user.rsa_public_key
+          rsaPublicKeyRaw: user.rsa_public_key,
         };
-      } 
-      
+      }
+
       // if the user is already in cache, we just save his connected status
       else {
         state.keysDictionnary[user.id].connected = user.connected;
@@ -577,38 +645,36 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
-  async function instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
-
+  async instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
     // clean current state
     state.socket = null;
     state.accessToken = null;
-    
+
     state.refreshToken = refreshToken;
     state.isInstance = true;
 
     // We import the RSA private key
     state.rsaKeys = {
-      private_key: await crypto.importKey(rsaPrivateKeyJwk, 'RSA-OEAP')
+      private_key: await crypto.importKey(rsaPrivateKeyJwk, 'RSA-OEAP'),
     };
 
     // We import the ECDSA private key
     state.ecdsaKeys = {
-      private_key: await crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA')
+      private_key: await crypto.importKey(ecdsaPrivateKeyJwk, 'ECDSA'),
     };
 
-    return new Promise(function(resolve, reject) {
+    return new Promise(function(resolve, reject) {
       state.socket = io(serverUrl);
 
       state.socket.on('connect', async () => {
-        
         // we are connected, we get an access token
         state.accessToken = await getAccessTokenInstance(state.refreshToken);
-        
+
         // refresh user list
         await refreshUsersList();
 
         state.socket.emit('instance-authentication', { access_token: state.accessToken }, async function(res) {
-          if(res.authenticated) {
+          if (res.authenticated) {
             logger.info('Gladys Gateway: connected in websockets');
             resolve();
           } else {
@@ -626,10 +692,9 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
         });
 
         state.socket.on('message', async function(data, fn) {
-
           var ecdsaPublicKey = null;
           var rsaPublicKey = null;
-          
+
           // if we don't have the key in RAM, we refresh the user list
           if (!state.keysDictionnary[data.sender_id]) {
             await refreshUsersList();
@@ -642,31 +707,32 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
             data.rsaPublicKeyRaw = state.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
           }
 
-          if(ecdsaPublicKey == null || rsaPublicKey == null) {
+          if (ecdsaPublicKey == null || rsaPublicKey == null) {
             throw new Error('User not found');
           }
 
-          var decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, ecdsaPublicKey, data.encryptedMessage);
-          
+          var decryptedMessage = await crypto.decryptMessage(
+            state.rsaKeys.private_key,
+            ecdsaPublicKey,
+            data.encryptedMessage,
+          );
+
           callbackMessage(decryptedMessage, data, async function(response) {
             var encryptedResponse = await crypto.encryptMessage(rsaPublicKey, state.ecdsaKeys.private_key, response);
             fn(encryptedResponse);
           });
-
         });
       });
 
       // it means one user has updated his keys, so clearing key cache
-      state.socket.on('clear-key-cache', async function(){
+      state.socket.on('clear-key-cache', async function() {
         logger.info('gladys-gateway-js: Clearing key cache');
         state.keysDictionnary = {};
         await refreshUsersList();
       });
 
-      state.socket.on('disconnect', async function(reason){
-        
+      state.socket.on('disconnect', async function(reason) {
         if (reason === 'io server disconnect') {
-          
           // the disconnection was initiated by the server, you need to reconnect manually
           logger.warn('Socket disconnected by the server. Trying to reconnect...');
           state.socket.connect();
@@ -677,23 +743,25 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
-  async function sendMessageAllUsers(data) {
-    
-    if(state.socket === null) {
+  async sendMessageAllUsers(data) {
+    if (state.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
     await refreshUsersList();
 
-    for(var userId in state.keysDictionnary) {
-      
+    for (var userId in state.keysDictionnary) {
       // we send the message only if the user is connected
-      if(state.keysDictionnary[userId].connected) {
-        const encryptedMessage = await crypto.encryptMessage(state.keysDictionnary[userId].rsaPublicKey,  state.ecdsaKeys.private_key, data);
-        
+      if (state.keysDictionnary[userId].connected) {
+        const encryptedMessage = await crypto.encryptMessage(
+          state.keysDictionnary[userId].rsaPublicKey,
+          state.ecdsaKeys.private_key,
+          data,
+        );
+
         let payload = {
           user_id: userId,
-          encryptedMessage
+          encryptedMessage,
         };
 
         state.socket.emit('message', payload);
@@ -701,22 +769,21 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     }
   }
 
-  async function newEventInstance(event, data) {
+  async newEventInstance(event, data) {
     return sendMessageAllUsers({
       version: '1.0',
       type: 'gladys-event',
-      event, 
-      data
+      event,
+      data,
     });
   }
 
-  async function calculateLatency() {
-    
-    if(state.socket === null) {
+  async calculateLatency() {
+    if (state.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       state.socket.emit('latency', Date.now(), function(startTime) {
         var latency = Date.now() - startTime;
         resolve(latency);
@@ -724,40 +791,46 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
-  async function sendMessageGladys(data) {
-    
-    if(state.socket === null) {
+  async sendMessageGladys(data) {
+    if (state.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
 
-    if(!state.gladysInstancePublicKey) {
+    if (!state.gladysInstancePublicKey) {
       throw new Error('NO_INSTANCE_DETECTED');
     }
 
-    if(!state.gladysInstance || !state.gladysInstance.id) {
+    if (!state.gladysInstance || !state.gladysInstance.id) {
       throw new Error('NO_INSTANCE_ID_DETECTED');
     }
 
-    if(!state.ecdsaKeys) {
+    if (!state.ecdsaKeys) {
       throw new Error('NO_ECDSA_PRIVATE_KEY');
     }
 
-    const encryptedMessage = await crypto.encryptMessage(state.gladysInstancePublicKey, state.ecdsaKeys.private_key, data);
-    
+    const encryptedMessage = await crypto.encryptMessage(
+      state.gladysInstancePublicKey,
+      state.ecdsaKeys.private_key,
+      data,
+    );
+
     var payload = {
       instance_id: state.gladysInstance.id,
-      encryptedMessage
+      encryptedMessage,
     };
-    
+
     return new Promise(function(resolve, reject) {
       state.socket.emit('message', payload, async function(response) {
-        if(response && response.status && response.error_code) {
+        if (response && response.status && response.error_code) {
           return reject(response);
         } else {
-          
-          const decryptedMessage = await crypto.decryptMessage(state.rsaKeys.private_key, state.gladysInstanceEcdsaPublicKey, response);
+          const decryptedMessage = await crypto.decryptMessage(
+            state.rsaKeys.private_key,
+            state.gladysInstanceEcdsaPublicKey,
+            response,
+          );
 
-          if(decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
+          if (decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
             return reject(decryptedMessage);
           } else {
             return resolve(decryptedMessage);
@@ -767,77 +840,24 @@ module.exports = function ({ cryptoLib, serverUrl, logger }) {
     });
   }
 
-  async function sendRequest(method, path, body) {
-    
+  async sendRequest(method, path, body) {
     var message = {
       version: '1.0',
       type: 'gladys-api-call',
       options: {
         url: path,
-        method: method
-      }
+        method: method,
+      },
     };
 
-    if(method === 'GET' && body) {
+    if (method === 'GET' && body) {
       message.options.query = body;
-    } else if(body) {
+    } else if (body) {
       message.options.data = body;
     }
 
     return sendMessageGladys(message);
   }
+}
 
-  var request = {
-    get: (path, query) => sendRequest('GET', path, query), 
-    post: (path, body) => sendRequest('POST', path, body), 
-    patch: (path, body) => sendRequest('PATCH', path, body) 
-  };
-
-  return {
-    signup,
-    login,
-    loginTwoFactor,
-    configureTwoFactor,
-    enableTwoFactor,
-    confirmEmail,
-    userConnect,
-    getMyself,
-    getDevices,
-    revokeDevice,
-    updateMyself,
-    updateUserIdInGladys,
-    getSetupState,
-    request,
-    getUsersInAccount,
-    getInvoices,
-    forgotPassword,
-    resetPassword,
-    getResetPasswordEmail,
-    getInstance,
-    inviteUser,
-    revokeUser,
-    getInvitation,
-    revokeInvitation,
-    loginInstance,
-    createInstance,
-    getAccessTokenInstance,
-    instanceConnect,
-    getUsersInstance,
-    calculateLatency,
-    subcribeMonthlyPlan,
-    subcribeMonthlyPlanWithoutAccount,
-    reSubcribeMonthlyPlan,
-    updateCard,
-    getCard,
-    cancelMonthlyPlan,
-    sendMessageAllUsers,
-    newEventInstance,
-    generateFingerprint,
-    adminResendConfirmationEmail,
-    adminGetAccounts,
-    createApiKey,
-    getApiKeys,
-    updateApiKeyName,
-    revokeApiKey
-  };
-};
+module.exports = GladysGatewayJs;

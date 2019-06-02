@@ -96,10 +96,13 @@ describe('crypto encrypt and decrypt', () => {
       cryptoLib: webcrypto,
     });
     const keys = await crypto.generateKeyPair();
-    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, 'message');
+    const data = {
+      message: 'hey',
+    };
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data);
     encryptedData.should.have.property('signature');
     const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
-    decrypted.should.equal('message');
+    decrypted.should.have.property('message', 'hey');
   });
 });
 
@@ -117,9 +120,12 @@ describe('crypto encrypt and decrypt with decrypted private key', () => {
       encryptedKey.salt,
       encryptedKey.iv,
     );
-    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, 'message');
+    const data = {
+      message: 'hey',
+    };
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data);
     const decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
-    decrypted.should.equal('message');
+    decrypted.should.have.property('message', 'hey');
   });
 });
 
@@ -184,7 +190,9 @@ describe('crypto encrypt and decrypt with decrypted private key', () => {
         ],
       },
     ];
-    const toSendStr = JSON.stringify(toSend);
+    const payload = {
+      toSend,
+    };
     const crypto = Crypto({
       cryptoLib: webcrypto,
     });
@@ -197,8 +205,9 @@ describe('crypto encrypt and decrypt with decrypted private key', () => {
       encryptedKey.salt,
       encryptedKey.iv,
     );
-    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, toSendStr);
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, payload);
     const decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
-    decrypted.should.equal(toSendStr);
+    payload.timestamp = decrypted.timestamp;
+    decrypted.should.deepEqual(payload);
   });
 });

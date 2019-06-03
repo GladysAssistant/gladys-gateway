@@ -899,6 +899,14 @@ class GladysGatewayJs {
   async sendRequestPatch(path, query) {
     return this.sendRequest('PATCH', path, query);
   }
+
+  async uploadBackup(form) {
+    return requestApi.upload(`${this.serverUrl}/backups`, form, this);
+  }
+
+  async getBackups() {
+    return requestApi.get(`${this.serverUrl}/backups`, this);
+  }
 }
 
 module.exports = GladysGatewayJs;

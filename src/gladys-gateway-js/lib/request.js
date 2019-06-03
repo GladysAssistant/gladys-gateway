@@ -78,7 +78,26 @@ function get(url, state) {
     });
 }
 
+function upload(url, form, state) {
+  return axios
+    .post(url, form, {
+      headers: {
+        authorization: state.accessToken,
+        'Content-Type': form.getHeaders()['content-type'],
+      },
+    })
+    .then((result) => result.data)
+    .catch(async (err) => {
+      if (err && err.response && err.response.status === 401) {
+        await getAccessToken(state);
+        return upload(url, form, state);
+      }
+      return Promise.reject(err);
+    });
+}
+
 module.exports.post = post;
 module.exports.get = get;
 module.exports.patch = patch;
 module.exports.delete = remove;
+module.exports.upload = upload;

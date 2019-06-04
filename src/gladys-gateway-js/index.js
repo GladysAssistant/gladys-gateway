@@ -899,6 +899,44 @@ class GladysGatewayJs {
   async sendRequestPatch(path, query) {
     return this.sendRequest('PATCH', path, query);
   }
+
+  async uploadBackup(form) {
+    return requestApi.upload(`${this.serverUrl}/backups`, form, this);
+  }
+
+  async getBackups() {
+    return requestApi.get(`${this.serverUrl}/backups`, this);
+  }
+
+  async downloadBackup(backupUrl, writeStream) {
+    if (!this.instance) {
+      throw new Error('Method only for instance');
+    }
+    const response = await axios({
+      url: backupUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    response.data.pipe(writeStream);
+
+    return new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+  }
+
+  async getLatestGladysVersion(currentGladysVersion, params) {
+    return axios({
+      method: 'GET',
+      baseURL: this.serverUrl,
+      url: '/v1/api/gladys/version',
+      params,
+      headers: {
+        'user-agent': `Gladys/${currentGladysVersion}`,
+      },
+    });
+  }
 }
 
 module.exports = GladysGatewayJs;

@@ -927,7 +927,7 @@ class GladysGatewayJs {
   }
 
   async getLatestGladysVersion(currentGladysVersion, params) {
-    return axios({
+    const { data } = await axios({
       method: 'GET',
       baseURL: this.serverUrl,
       url: '/v1/api/gladys/version',
@@ -936,6 +936,7 @@ class GladysGatewayJs {
         'user-agent': `Gladys/${currentGladysVersion}`,
       },
     });
+    return data;
   }
 }
 

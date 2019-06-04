@@ -22,10 +22,9 @@ const defaultLogger = {
 };
 
 class GladysGatewayJs {
-  constructor({ cryptoLib, serverUrl, instance, logger = defaultLogger }) {
+  constructor({ cryptoLib, serverUrl, logger = defaultLogger }) {
     this.crypto = Crypto({ cryptoLib });
     this.serverUrl = serverUrl;
-    this.instance = instance;
     this.logger = logger;
     this.socket = null;
     this.refreshToken = null;
@@ -928,12 +927,11 @@ class GladysGatewayJs {
   }
 
   async getLatestGladysVersion(currentGladysVersion, params) {
-    if (!this.instance) {
-      throw new Error('Method only for instance');
-    }
     return axios({
       method: 'GET',
-      query: params,
+      baseURL: this.serverUrl,
+      url: '/v1/api/gladys/version',
+      params,
       headers: {
         'user-agent': `Gladys/${currentGladysVersion}`,
       },

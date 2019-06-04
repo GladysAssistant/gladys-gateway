@@ -22,9 +22,10 @@ const defaultLogger = {
 };
 
 class GladysGatewayJs {
-  constructor({ cryptoLib, serverUrl, logger = defaultLogger }) {
+  constructor({ cryptoLib, serverUrl, instance, logger = defaultLogger }) {
     this.crypto = Crypto({ cryptoLib });
     this.serverUrl = serverUrl;
+    this.instance = instance;
     this.logger = logger;
     this.socket = null;
     this.refreshToken = null;
@@ -906,6 +907,37 @@ class GladysGatewayJs {
 
   async getBackups() {
     return requestApi.get(`${this.serverUrl}/backups`, this);
+  }
+
+  async downloadBackup(backupUrl, writeStream) {
+    if (!this.instance) {
+      throw new Error('Method only for instance');
+    }
+    const response = await axios({
+      url: backupUrl,
+      method: 'GET',
+      responseType: 'stream',
+    });
+
+    response.data.pipe(writeStream);
+
+    return new Promise((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+    });
+  }
+
+  async getLatestGladysVersion(currentGladysVersion, params) {
+    if (!this.instance) {
+      throw new Error('Method only for instance');
+    }
+    return axios({
+      method: 'GET',
+      query: params,
+      headers: {
+        'user-agent': `Gladys/${currentGladysVersion}`,
+      },
+    });
   }
 }
 

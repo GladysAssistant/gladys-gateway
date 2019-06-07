@@ -3,26 +3,34 @@ const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 
-module.exports = function AccountModel(logger, db, redisClient, stripeService,
-  mailService, selzService, slackService) {
+module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, slackService) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'account_id'] },
+    );
 
     // get list of user with same account
-    const users = await db.t_user.find({
-      account_id: userWithAccount.account_id,
-      is_deleted: false,
-    }, { fields: ['id', 'name', 'profile_url', 'email', 'role', 'created_at'] });
+    const users = await db.t_user.find(
+      {
+        account_id: userWithAccount.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'profile_url', 'email', 'role', 'created_at'] },
+    );
 
-    const usersNotAccepted = await db.t_invitation.find({
-      account_id: userWithAccount.account_id,
-      revoked: false,
-      is_deleted: false,
-      accepted: false,
-    }, { field: ['id', 'email', 'account_id', 'role', 'created_at'] });
+    const usersNotAccepted = await db.t_invitation.find(
+      {
+        account_id: userWithAccount.account_id,
+        revoked: false,
+        is_deleted: false,
+        accepted: false,
+      },
+      { field: ['id', 'email', 'account_id', 'role', 'created_at'] },
+    );
 
     const allUsers = [];
 
@@ -83,7 +91,10 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
     // we hash the token in DB so it's not possible to get the token
     // if the DB is compromised in read-only
     // (due to SQL injection for example)
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
 
     await db.t_invitation.insert({
       email,
@@ -95,14 +106,8 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
     // we invite the user in slack if slack is enabled
     await slackService.inviteUser(email);
 
-    // we create a selz discount
-    const selzDiscount = await selzService.createDiscount(email);
-
-    const selzDiscountUrl = (selzDiscount && selzDiscount.data) ? selzDiscount.data.short_url : null;
-
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
-      selzDiscountUrl,
     });
 
     return insertedAccount;
@@ -110,14 +115,20 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
   async function subscribeMonthlyPlan(user, sourceId) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the account to verify the user has not already subscribed
-    const account = await db.t_account.findOne({
-      id: userWithAccount.account_id,
-    }, { fields: ['id', 'stripe_customer_id'] });
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id'] },
+    );
 
     // account with stripe_customer_id already exist, don't make him subscribe again!
     if (account.stripe_customer_id) {
@@ -154,14 +165,20 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
   async function updateCard(user, sourceId) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the account
-    const account = await db.t_account.findOne({
-      id: userWithAccount.account_id,
-    }, { fields: ['id', 'stripe_customer_id'] });
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id'] },
+    );
 
     // update the customer on stripe side
     const customer = await stripeService.updateCard(account.stripe_customer_id, sourceId);
@@ -171,14 +188,20 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
   async function getCard(user) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the account
-    const account = await db.t_account.findOne({
-      id: userWithAccount.account_id,
-    }, { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] });
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
+    );
 
     // get card
     const results = await Promise.all([
@@ -203,28 +226,40 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
   async function cancelMonthlySubscription(user) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the account
-    const account = await db.t_account.findOne({
-      id: userWithAccount.account_id,
-    }, { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] });
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
+    );
 
     return stripeService.cancelMonthlySubscription(account.stripe_subscription_id);
   }
 
   async function subscribeAgainToMonthlySubscription(user) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the account
-    const account = await db.t_account.findOne({
-      id: userWithAccount.account_id,
-    }, { fields: ['id', 'stripe_customer_id'] });
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id'] },
+    );
 
     // contact stripe to save the subscription id
     let subscription = await stripeService.subscribeToMonthlyPlan(account.stripe_customer_id);
@@ -275,11 +310,15 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
       const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
 
       // update current_period_end in DB
-      await db.t_account.update(account.id, {
-        current_period_end: new Date(currentPeriodEnd * 1000),
-      }, {
-        fields: ['id', 'current_period_end'],
-      });
+      await db.t_account.update(
+        account.id,
+        {
+          current_period_end: new Date(currentPeriodEnd * 1000),
+        },
+        {
+          fields: ['id', 'current_period_end'],
+        },
+      );
 
       break;
     }
@@ -329,9 +368,12 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
 
   async function revokeUser(user, userIdToRevoke) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'role', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'role', 'account_id'] },
+    );
 
     if (userWithAccount.role !== 'admin') {
       throw new ForbiddenError('You must be admin to perform this operation');
@@ -341,11 +383,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
       throw new ForbiddenError('You cannot remove yourself from an account');
     }
 
-    const userToRevoke = await db.t_user.findOne({
-      id: userIdToRevoke,
-      account_id: userWithAccount.account_id,
-      is_deleted: false,
-    }, { fields: ['id', 'role', 'account_id'] });
+    const userToRevoke = await db.t_user.findOne(
+      {
+        id: userIdToRevoke,
+        account_id: userWithAccount.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'role', 'account_id'] },
+    );
 
     if (userIdToRevoke === null) {
       throw new NotFoundError();
@@ -357,28 +402,37 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService,
     });
 
     // disonnect all connected devices
-    await db.t_device.update({
-      user_id: userIdToRevoke,
-      revoked: false,
-    }, {
-      revoked: true,
-    });
+    await db.t_device.update(
+      {
+        user_id: userIdToRevoke,
+        revoked: false,
+      },
+      {
+        revoked: true,
+      },
+    );
 
     return deletedUser;
   }
 
   async function getInvoices(user) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
 
     // get the invoices
-    const invoices = await db.t_account_payment_activity.find({
-      account_id: userWithAccount.account_id,
-      stripe_event: 'invoice.payment_succeeded',
-      closed: true,
-    }, { fields: ['id', 'hosted_invoice_url', 'invoice_pdf', 'amount_paid', 'created_at'] });
+    const invoices = await db.t_account_payment_activity.find(
+      {
+        account_id: userWithAccount.account_id,
+        stripe_event: 'invoice.payment_succeeded',
+        closed: true,
+      },
+      { fields: ['id', 'hosted_invoice_url', 'invoice_pdf', 'amount_paid', 'created_at'] },
+    );
 
     return invoices;
   }

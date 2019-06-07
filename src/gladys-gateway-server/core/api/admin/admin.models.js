@@ -3,7 +3,7 @@ const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function AdminModel(logger, db, redisClient, mailService, selzService, slackService) {
+module.exports = function AdminModel(logger, db, redisClient, mailService, slackService) {
   async function getAllAccounts() {
     const request = `
       SELECT t_account.*, COUNT(t_user.id) as user_count 
@@ -33,7 +33,10 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, selzS
 
     // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
     // (due to SQL injection for example)
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
 
     await db.t_invitation.insert({
       email,
@@ -45,14 +48,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, selzS
     // we invite the user in slack if slack is enabled
     await slackService.inviteUser(email);
 
-    // we create a selz discount
-    const selzDiscount = await selzService.createDiscount(email);
-
-    const selzDiscountUrl = (selzDiscount && selzDiscount.data) ? selzDiscount.data.short_url : null;
-
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
-      selzDiscountUrl,
     });
 
     return account;

@@ -13,7 +13,6 @@ const Mail = require('./service/mail');
 const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
-const Selz = require('./service/selz');
 const Stat = require('./service/stat');
 
 // Models
@@ -95,7 +94,6 @@ module.exports = async () => {
     jwtService: Jwt(),
     stripeService: Stripe(logger),
     slackService: Slack(logger),
-    selzService: Selz(logger),
     statsService: await Stat(logger),
   };
 
@@ -105,17 +103,9 @@ module.exports = async () => {
     socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.statsService),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: Invitation(logger, db, redisClient, services.mailService),
-    accountModel: Account(
-      logger,
-      db,
-      redisClient,
-      services.stripeService,
-      services.mailService,
-      services.selzService,
-      services.slackService,
-    ),
+    accountModel: Account(logger, db, redisClient, services.stripeService, services.mailService, services.slackService),
     deviceModel: Device(logger, db, redisClient),
-    adminModel: Admin(logger, db, redisClient, services.mailService, services.selzService, services.slackService),
+    adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService),
     openApiModel: OpenApi(logger, db),
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),

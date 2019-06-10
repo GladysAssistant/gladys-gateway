@@ -900,8 +900,8 @@ class GladysGatewayJs {
     return this.sendRequest('PATCH', path, query);
   }
 
-  async uploadBackup(form) {
-    return requestApi.upload(`${this.serverUrl}/backups`, form, this);
+  async uploadBackup(form, onUploadProgress) {
+    return requestApi.upload(`${this.serverUrl}/backups`, form, onUploadProgress, this);
   }
 
   async getBackups() {

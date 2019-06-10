@@ -78,13 +78,14 @@ function get(url, state) {
     });
 }
 
-function upload(url, form, state) {
+function upload(url, form, onUploadProgress, state) {
   return axios
     .post(url, form, {
       headers: {
         authorization: state.accessToken,
         'Content-Type': form.getHeaders()['content-type'],
       },
+      onUploadProgress,
     })
     .then((result) => result.data)
     .catch(async (err) => {

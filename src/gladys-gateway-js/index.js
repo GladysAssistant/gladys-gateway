@@ -908,14 +908,13 @@ class GladysGatewayJs {
     return requestApi.get(`${this.serverUrl}/backups`, this);
   }
 
-  async downloadBackup(backupUrl, writeStream) {
-    if (!this.instance) {
-      throw new Error('Method only for instance');
-    }
+  async downloadBackup(backupUrl, writeStream, onDownloadProgress) {
+    this.logger.debug(`Downloading backup ${backupUrl}...`);
     const response = await axios({
       url: backupUrl,
       method: 'GET',
       responseType: 'stream',
+      onDownloadProgress,
     });
 
     response.data.pipe(writeStream);

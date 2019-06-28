@@ -207,7 +207,6 @@ describe('crypto encrypt and decrypt with decrypted private key', () => {
     );
     const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, payload);
     const decrypted = await crypto.decryptMessage(decryptedKey, keys.ecdsaKeys.publicKey, encryptedData);
-    payload.timestamp = decrypted.timestamp;
     decrypted.should.deepEqual(payload);
   });
 });

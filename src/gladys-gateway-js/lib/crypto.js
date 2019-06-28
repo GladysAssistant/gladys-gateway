@@ -334,7 +334,10 @@ module.exports = ({ cryptoLib }) => {
 
   async function encryptMessage(publicKey, ecdsaPrivateKey, rawData) {
     // add timestamp to message to avoid replay attack
-    const dataWithTimestamp = Object.assign({}, rawData, { timestamp: new Date().getTime() });
+    const dataWithTimestamp = {
+      data: rawData,
+      timestamp: new Date().getTime(),
+    };
 
     // stringify data
     const data = JSON.stringify(dataWithTimestamp);
@@ -472,7 +475,7 @@ module.exports = ({ cryptoLib }) => {
       throw new Error('EXPIRED_MESSAGE');
     }
 
-    return jsonData;
+    return jsonData.data;
   }
 
   async function importKey(jwkKey, type, isPublic) {

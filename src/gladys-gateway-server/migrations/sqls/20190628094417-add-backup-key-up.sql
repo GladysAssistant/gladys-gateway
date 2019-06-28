@@ -1,0 +1,1 @@
+ALTER TABLE t_user ADD COLUMN encrypted_backup_key character varying;

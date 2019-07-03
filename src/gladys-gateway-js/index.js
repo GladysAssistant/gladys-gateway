@@ -234,6 +234,7 @@ class GladysGatewayJs {
       rsaPublicKeyFingerprint,
       ecdsaPublicKeyFingerprint,
       serializedKeys,
+      gladysUserId: loginData.gladys_4_user_id,
     };
   }
 

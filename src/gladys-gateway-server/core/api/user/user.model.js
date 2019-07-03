@@ -414,6 +414,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
           'rsa_public_key',
           'ecdsa_public_key',
           'encrypted_backup_key',
+          'gladys_4_user_id',
         ],
       },
     );
@@ -472,6 +473,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
         rsa_public_key: userWithSecret.rsa_public_key,
         ecdsa_public_key: userWithSecret.ecdsa_public_key,
         encrypted_backup_key: userWithSecret.encrypted_backup_key,
+        gladys_4_user_id: userWithSecret.gladys_4_user_id,
       };
     });
   }

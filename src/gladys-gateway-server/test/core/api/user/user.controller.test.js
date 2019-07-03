@@ -230,6 +230,7 @@ describe('POST /users/login-two-factor', () => {
         response.body.should.have.property('rsa_encrypted_private_key');
         response.body.should.have.property('ecdsa_encrypted_private_key');
         response.body.should.have.property('encrypted_backup_key');
+        response.body.should.have.property('gladys_4_user_id');
       });
   });
 

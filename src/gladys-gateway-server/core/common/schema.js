@@ -1,7 +1,9 @@
 const Joi = require('joi');
 
 const signupSchema = Joi.object().keys({
-  name: Joi.string().min(2).max(30),
+  name: Joi.string()
+    .min(2)
+    .max(30),
   email: Joi.string().email(),
   language: Joi.string().allow(['fr', 'en']),
   gladys_user_id: Joi.number().optional(),
@@ -11,6 +13,7 @@ const signupSchema = Joi.object().keys({
   rsa_encrypted_private_key: Joi.string(),
   ecdsa_public_key: Joi.string(),
   ecdsa_encrypted_private_key: Joi.string(),
+  encrypted_backup_key: Joi.string().optional(),
 });
 
 const invitationSchema = Joi.object().keys({

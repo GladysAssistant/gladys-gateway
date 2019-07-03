@@ -21,7 +21,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     const newUser = newUserParam;
     newUser.email = newUser.email.trim().toLowerCase();
 
-    const { error, value } = Joi.validate(newUser, schema.signupSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
+    const { error, value } = Joi.validate(newUser, schema.signupSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
 
     if (error) {
       logger.debug(error);
@@ -30,11 +34,14 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     return db.withTransaction(async (tx) => {
       // we check that one user with this confirmed email does not already exist
-      const userAlreadyExist = await tx.t_user.findOne({
-        email: newUser.email,
-        email_confirmed: true,
-        is_deleted: false,
-      }, { fields: ['id'] });
+      const userAlreadyExist = await tx.t_user.findOne(
+        {
+          email: newUser.email,
+          email_confirmed: true,
+          is_deleted: false,
+        },
+        { fields: ['id'] },
+      );
 
       if (userAlreadyExist !== null) {
         logger.warn(`A user with that email already exist (${userAlreadyExist.id})`);
@@ -54,13 +61,19 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
+      value.email_confirmation_token_hash = crypto
+        .createHash('sha256')
+        .update(emailConfirmationToken)
+        .digest('hex');
 
       // user signing up is admin
       value.role = 'admin';
 
       // set gravatar image for the user
-      const emailHash = crypto.createHash('md5').update(value.email).digest('hex');
+      const emailHash = crypto
+        .createHash('md5')
+        .update(value.email)
+        .digest('hex');
       value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
 
       if (process.env.DEFAULT_USER_PROFILE_URL) {
@@ -83,13 +96,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function getMySelf(user) {
-    const users = await db.query(`
+    const users = await db.query(
+      `
       SELECT t_user.id, t_user.name, t_user.email, t_user.role, t_user.language, 
       t_user.profile_url, t_user.gladys_user_id, t_user.account_id, t_account.current_period_end
       FROM t_user
       JOIN t_account ON t_user.account_id = t_account.id
       WHERE t_user.id = $1
-    `, [user.id]);
+    `,
+      [user.id],
+    );
 
     if (users.length === 0) {
       throw new NotFoundError('user_not_found');
@@ -97,13 +113,17 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     const currentUser = users[0];
 
-    currentUser.superAdmin = (currentUser.id === process.env.SUPER_ADMIN_USER_ID);
+    currentUser.superAdmin = currentUser.id === process.env.SUPER_ADMIN_USER_ID;
 
     return currentUser;
   }
 
   async function updateUser(user, data) {
-    const { error, value } = Joi.validate(data, schema.signupSchema, { stripUnknown: true, abortEarly: false, presence: 'optional' });
+    const { error, value } = Joi.validate(data, schema.signupSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'optional',
+    });
 
     if (error) {
       logger.debug(error);
@@ -111,9 +131,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     }
 
     // we get the current user to see if his email has changed
-    const currentUser = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'email'] });
+    const currentUser = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email'] },
+    );
 
     let emailConfirmationToken;
 
@@ -128,43 +151,61 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
         // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
         // (due to SQL injection for example)
-        value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
+        value.email_confirmation_token_hash = crypto
+          .createHash('sha256')
+          .update(emailConfirmationToken)
+          .digest('hex');
       }
     }
 
-    const updatedUser = await db.t_user.update(user.id, value, { fields: ['id', 'name', 'email', 'profile_url', 'email_confirmed', 'language'] });
+    const updatedUser = await db.t_user.update(user.id, value, {
+      fields: ['id', 'name', 'email', 'profile_url', 'email_confirmed', 'language'],
+    });
     updatedUser.email_confirmation_token = emailConfirmationToken;
     return updatedUser;
   }
 
   async function confirmEmail(emailConfirmationToken) {
     // we hash the token again
-    const confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
+    const confirmationTokenHash = crypto
+      .createHash('sha256')
+      .update(emailConfirmationToken)
+      .digest('hex');
 
     // search for a user with this hash in database
-    const user = await db.t_user.findOne({
-      is_deleted: false,
-      email_confirmation_token_hash: confirmationTokenHash,
-    }, { fields: ['id'] });
+    const user = await db.t_user.findOne(
+      {
+        is_deleted: false,
+        email_confirmation_token_hash: confirmationTokenHash,
+      },
+      { fields: ['id'] },
+    );
 
     // if user is not found, the token is wrong
     if (user === null) {
       throw new NotFoundError('Confirmation token not found');
     }
 
-    const userUpdated = await db.t_user.update(user.id, {
-      email_confirmed: true,
-    }, { fields: ['id', 'email', 'email_confirmed'] });
+    const userUpdated = await db.t_user.update(
+      user.id,
+      {
+        email_confirmed: true,
+      },
+      { fields: ['id', 'email', 'email_confirmed'] },
+    );
 
     return userUpdated;
   }
 
   async function loginGetSalt({ email }) {
-    const user = await db.t_user.findOne({
-      is_deleted: false,
-      email_confirmed: true,
-      email,
-    }, { fields: ['srp_salt'] });
+    const user = await db.t_user.findOne(
+      {
+        is_deleted: false,
+        email_confirmed: true,
+        email,
+      },
+      { fields: ['srp_salt'] },
+    );
 
     if (user === null) {
       throw new NotFoundError('Email not found');
@@ -175,11 +216,14 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
   async function loginGenerateEphemeralValuePair(data) {
     // we retrieve the verifier from the database
-    const user = await db.t_user.findOne({
-      is_deleted: false,
-      email_confirmed: true,
-      email: data.email,
-    }, { fields: ['id', 'email', 'srp_salt', 'srp_verifier', 'two_factor_enabled'] });
+    const user = await db.t_user.findOne(
+      {
+        is_deleted: false,
+        email_confirmed: true,
+        email: data.email,
+      },
+      { fields: ['id', 'email', 'srp_salt', 'srp_verifier', 'two_factor_enabled'] },
+    );
 
     if (user === null) {
       throw new NotFoundError('Email not found');
@@ -194,7 +238,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       clientEphemeralPublic: data.client_ephemeral_public,
     };
 
-    await redisClient.setAsync(`login_session:${loginSessionKey}`, JSON.stringify(loginSessionState), 'EX', redisLoginSessionExpiryInSecond);
+    await redisClient.setAsync(
+      `login_session:${loginSessionKey}`,
+      JSON.stringify(loginSessionState),
+      'EX',
+      redisLoginSessionExpiryInSecond,
+    );
 
     return {
       server_ephemeral_public: serverEphemeral.public,
@@ -273,9 +322,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function enableTwoFactor(user, twoFactorCode) {
-    const userWithSecret = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'two_factor_secret', 'two_factor_enabled'] });
+    const userWithSecret = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'two_factor_secret', 'two_factor_enabled'] },
+    );
 
     // two factor is already enabled
     if (userWithSecret.two_factor_enabled === true) {
@@ -293,9 +345,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ForbiddenError();
     }
 
-    await db.t_user.update({
-      id: user.id,
-    }, { two_factor_enabled: true });
+    await db.t_user.update(
+      {
+        id: user.id,
+      },
+      { two_factor_enabled: true },
+    );
 
     return {
       two_factor_enabled: true,
@@ -330,12 +385,15 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ForbiddenError();
     }
 
-    await db.t_user.update({
-      id: user.id,
-    }, {
-      two_factor_enabled: true,
-      two_factor_secret: twoFactorSecret,
-    });
+    await db.t_user.update(
+      {
+        id: user.id,
+      },
+      {
+        two_factor_enabled: true,
+        two_factor_secret: twoFactorSecret,
+      },
+    );
 
     return {
       two_factor_enabled: true,
@@ -343,9 +401,22 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent) {
-    const userWithSecret = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'two_factor_secret', 'rsa_encrypted_private_key', 'ecdsa_encrypted_private_key', 'rsa_public_key', 'ecdsa_public_key'] });
+    const userWithSecret = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      {
+        fields: [
+          'id',
+          'two_factor_secret',
+          'rsa_encrypted_private_key',
+          'ecdsa_encrypted_private_key',
+          'rsa_public_key',
+          'ecdsa_public_key',
+          'encrypted_backup_key',
+        ],
+      },
+    );
 
     const tokenValidates = speakeasy.totp.verify({
       secret: userWithSecret.two_factor_secret,
@@ -364,7 +435,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
 
     const scope = ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
-    const userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
+    const userAgentHash = crypto
+      .createHash('sha256')
+      .update(userAgent)
+      .digest('hex');
 
     const refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
     const accessToken = jwtService.generateAccessToken(user, scope);
@@ -372,7 +446,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     // we save a hash of the refresh token so we can invalidate it after.
     // We don't want to save the refresh token in clear text because if an attacker get read access
     // to the DB (ex: SQL injection) he could get the token and use it for write use
-    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    newDevice.refresh_token_hash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
 
     return db.withTransaction(async (tx) => {
       const insertedDevice = await tx.t_device.insert(newDevice);
@@ -394,12 +471,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
         ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key,
         rsa_public_key: userWithSecret.rsa_public_key,
         ecdsa_public_key: userWithSecret.ecdsa_public_key,
+        encrypted_backup_key: userWithSecret.encrypted_backup_key,
       };
     });
   }
 
   async function getAccessToken(user, refreshToken) {
-    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+    const refreshTokenHash = crypto
+      .createHash('sha256')
+      .update(refreshToken)
+      .digest('hex');
 
     // we are looking for devices not revoked with
     // this refresh_token_hash
@@ -442,18 +523,24 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function forgotPassword(email) {
-    const user = await db.t_user.findOne({
-      email,
-      email_confirmed: true,
-      is_deleted: false,
-    }, { fields: ['id', 'language', 'email', 'two_factor_enabled'] });
+    const user = await db.t_user.findOne(
+      {
+        email,
+        email_confirmed: true,
+        is_deleted: false,
+      },
+      { fields: ['id', 'language', 'email', 'two_factor_enabled'] },
+    );
 
     if (user === null) {
       throw new NotFoundError();
     }
 
     const resetPasswordToken = (await randomBytes(64)).toString('hex');
-    const tokenHash = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(resetPasswordToken)
+      .digest('hex');
 
     const resetPasswordInserted = await db.t_reset_password.insert({
       token_hash: tokenHash,
@@ -468,7 +555,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function getEmailResetPassword(forgotPasswordToken) {
-    const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(forgotPasswordToken)
+      .digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
       token_hash: tokenHash,
@@ -480,23 +570,33 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new NotFoundError();
     }
 
-    const userWithEmail = await db.t_user.findOne({
-      id: resetPasswordRequest.user_id,
-    }, { fields: ['id', 'email', 'two_factor_enabled'] });
+    const userWithEmail = await db.t_user.findOne(
+      {
+        id: resetPasswordRequest.user_id,
+      },
+      { fields: ['id', 'email', 'two_factor_enabled'] },
+    );
 
     return userWithEmail;
   }
 
   async function resetPassword(forgotPasswordToken, data) {
     // first, we validate the data sent
-    const { error } = Joi.validate(data, schema.resetPasswordSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
+    const { error } = Joi.validate(data, schema.resetPasswordSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
 
     if (error) {
       logger.debug(error);
       throw new ValidationError('resetPassword', error);
     }
 
-    const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(forgotPasswordToken)
+      .digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
       token_hash: tokenHash,
@@ -508,8 +608,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new NotFoundError();
     }
 
-    const tokenExpirationTime = new Date(resetPasswordRequest.created_at).getTime()
-                                + resetPasswordTokenExpiryInMilliSeconds;
+    const resetPasswordTimeMilli = new Date(resetPasswordRequest.created_at).getTime();
+
+    const tokenExpirationTime = resetPasswordTimeMilli + resetPasswordTokenExpiryInMilliSeconds;
     const now = new Date().getTime();
 
     // if token has been issued to much in the past
@@ -518,9 +619,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new NotFoundError();
     }
 
-    const userWithSecret = await db.t_user.findOne({
-      id: resetPasswordRequest.user_id,
-    }, { fields: ['id', 'two_factor_secret', 'two_factor_enabled', 'account_id'] });
+    const userWithSecret = await db.t_user.findOne(
+      {
+        id: resetPasswordRequest.user_id,
+      },
+      { fields: ['id', 'two_factor_secret', 'two_factor_enabled', 'account_id'] },
+    );
 
     // user need its two factor token to reset password if enabled
     if (userWithSecret.two_factor_enabled === true) {
@@ -538,21 +642,29 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     return db.withTransaction(async (tx) => {
       // now update user password
-      const newUser = await tx.t_user.update(resetPasswordRequest.user_id, {
-        srp_salt: data.srp_salt,
-        srp_verifier: data.srp_verifier,
-        rsa_public_key: data.rsa_public_key,
-        rsa_encrypted_private_key: data.rsa_encrypted_private_key,
-        ecdsa_public_key: data.ecdsa_public_key,
-        ecdsa_encrypted_private_key: data.ecdsa_encrypted_private_key,
-      }, { fields: ['id', 'email', 'account_id'] });
+      const newUser = await tx.t_user.update(
+        resetPasswordRequest.user_id,
+        {
+          srp_salt: data.srp_salt,
+          srp_verifier: data.srp_verifier,
+          rsa_public_key: data.rsa_public_key,
+          rsa_encrypted_private_key: data.rsa_encrypted_private_key,
+          ecdsa_public_key: data.ecdsa_public_key,
+          ecdsa_encrypted_private_key: data.ecdsa_encrypted_private_key,
+        },
+        { fields: ['id', 'email', 'account_id'] },
+      );
 
       // invalidate all current sessions
-      const sessionsInvalidated = await tx.t_device.update({
-        user_id: resetPasswordRequest.user_id,
-        revoked: false,
-        is_deleted: false,
-      }, { revoked: true }, { fields: ['id'] });
+      const sessionsInvalidated = await tx.t_device.update(
+        {
+          user_id: resetPasswordRequest.user_id,
+          revoked: false,
+          is_deleted: false,
+        },
+        { revoked: true },
+        { fields: ['id'] },
+      );
 
       // mark reset password token as used
       await tx.t_reset_password.update(resetPasswordRequest.id, {
@@ -566,9 +678,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function getSetupState(user) {
-    const fullUser = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'account_id', 'gladys_user_id'] });
+    const fullUser = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'account_id', 'gladys_user_id'] },
+    );
 
     const account = await db.t_account.findOne({
       id: fullUser.account_id,
@@ -579,9 +694,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     });
 
     return {
-      billing_setup: (account.stripe_customer_id !== null),
-      gladys_instance_setup: (instances.length > 0),
-      user_gladys_acccount_linked: (fullUser.gladys_user_id !== null),
+      billing_setup: account.stripe_customer_id !== null,
+      gladys_instance_setup: instances.length > 0,
+      user_gladys_acccount_linked: fullUser.gladys_user_id !== null,
     };
   }
 

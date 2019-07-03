@@ -29,7 +29,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   };
 
   function getInstanceSocketId(instanceId) {
-    return new Promise(((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const roomName = `instance:${instanceId}`;
 
       io.in(roomName).clients((err, clients) => {
@@ -39,11 +39,11 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           resolve(clients[0]);
         }
       });
-    }));
+    });
   }
 
   async function getUserSocketId(userId) {
-    return new Promise(((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const roomName = `user:${userId}`;
 
       io.in(roomName).clients((err, clients) => {
@@ -53,11 +53,11 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           resolve(clients[0]);
         }
       });
-    }));
+    });
   }
 
   async function isUserConnected(userId) {
-    return new Promise(((resolve, reject) => {
+    return new Promise((resolve, reject) => {
       const roomName = `user:${userId}`;
 
       io.in(roomName).clients((err, clients) => {
@@ -67,7 +67,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           resolve(true);
         }
       });
-    }));
+    });
   }
 
   async function authenticateUser(accessToken, socketId) {
@@ -78,13 +78,20 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     });
 
     if (decoded.scope.includes('dashboard:write') === false) {
-      throw new Error(`Unauthorized: The user "${decoded.user_id}" does not have the scope "dashboard:write" which is required to connect in websocket`);
+      throw new Error(
+        `Unauthorized: The user "${
+          decoded.user_id
+        }" does not have the scope "dashboard:write" which is required to connect in websocket`,
+      );
     }
 
     // we get the user and his account_id
-    const user = await db.t_user.findOne({
-      id: decoded.user_id,
-    }, { fields: ['id', 'account_id'] });
+    const user = await db.t_user.findOne(
+      {
+        id: decoded.user_id,
+      },
+      { fields: ['id', 'account_id', 'gladys_4_user_id'] },
+    );
 
     return user;
   }
@@ -97,9 +104,12 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     });
 
     // we get the instance and his account_id
-    const instance = await db.t_instance.findOne({
-      id: decoded.instance_id,
-    }, { fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key'] });
+    const instance = await db.t_instance.findOne(
+      {
+        id: decoded.instance_id,
+      },
+      { fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key'] },
+    );
 
     return instance;
   }
@@ -115,6 +125,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
     // add sender_id to message
     message.sender_id = user.id;
+
+    // add local gladys id
+    message.local_user_id = user.gladys_4_user_id;
+
     try {
       const socketId = await getInstanceSocketId(message.instance_id);
 

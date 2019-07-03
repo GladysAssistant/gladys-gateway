@@ -861,7 +861,7 @@ class GladysGatewayJs {
           response,
         );
 
-        if (decryptedMessage && decryptedMessage.status && decryptedMessage.error_code) {
+        if (decryptedMessage && decryptedMessage.status && decryptedMessage.status >= 400) {
           return reject(decryptedMessage);
         }
         return resolve(decryptedMessage);

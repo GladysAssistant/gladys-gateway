@@ -1,0 +1,1 @@
+ALTER TABLE t_user ADD COLUMN gladys_4_user_id uuid;

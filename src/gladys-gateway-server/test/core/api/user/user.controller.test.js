@@ -42,16 +42,15 @@ describe('POST /users/signup', () => {
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
     .expect(422)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/verify', () => {
   it('should verify one user email', () => request(TEST_BACKEND_APP)
     .post('/users/verify')
     .send({
-      email_confirmation_token: '0fbb7645bf4e9f6ed9f767b9957a57dc79fd828792374d3c91359054e1858e067f498e4479369e4b4fee4514be6ba14699805a33dbc6fb6f9b264d02772eacf9',
+      email_confirmation_token:
+          '0fbb7645bf4e9f6ed9f767b9957a57dc79fd828792374d3c91359054e1858e067f498e4479369e4b4fee4514be6ba14699805a33dbc6fb6f9b264d02772eacf9',
     })
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
@@ -87,9 +86,7 @@ describe('POST /users/login-salt', () => {
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
     .expect(404)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/login-generate-ephemeral', () => {
@@ -114,9 +111,7 @@ describe('POST /users/login-generate-ephemeral', () => {
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
     .expect(404)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/login-finalize', () => {
@@ -143,9 +138,7 @@ describe('POST /users/login-finalize', () => {
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
     .expect(403)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/two-factor-configure', () => {
@@ -164,9 +157,7 @@ describe('POST /users/two-factor-configure', () => {
     .set('Accept', 'application/json')
     .expect('Content-Type', /json/)
     .expect(401)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/two-factor-enable', () => {
@@ -208,9 +199,7 @@ describe('POST /users/two-factor-enable', () => {
       })
       .expect('Content-Type', /json/)
       .expect(403)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 });
 
@@ -240,6 +229,7 @@ describe('POST /users/login-two-factor', () => {
         response.body.should.have.property('device_id');
         response.body.should.have.property('rsa_encrypted_private_key');
         response.body.should.have.property('ecdsa_encrypted_private_key');
+        response.body.should.have.property('encrypted_backup_key');
       });
   });
 
@@ -260,9 +250,7 @@ describe('POST /users/login-two-factor', () => {
       })
       .expect('Content-Type', /json/)
       .expect(403)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 
   it('should return 401 error, unauthorized (no jwt)', () => {
@@ -281,9 +269,7 @@ describe('POST /users/login-two-factor', () => {
       })
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 });
 
@@ -313,9 +299,7 @@ describe('GET /users/access-token', () => {
       .set('user-agent', userAgent)
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 
   it('should return 401, wrong jwt', () => {
@@ -328,9 +312,7 @@ describe('GET /users/access-token', () => {
       .set('user-agent', userAgent)
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 });
 
@@ -341,6 +323,7 @@ describe('PATCH /users/me', () => {
     .set('Authorization', configTest.jwtAccessTokenDashboard)
     .send({
       name: 'my new name',
+      encrypted_backup_key: 'ENCRYPTED_BACKUP_KEY',
     })
     .expect('Content-Type', /json/)
     .expect(200)
@@ -371,19 +354,19 @@ describe('GET /users/me', () => {
     .expect('Content-Type', /json/)
     .expect(200)
     .then((response) => {
-      should.deepEqual(response.body,
-        {
-          id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
-          name: 'Tony',
-          email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
-          account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-          role: 'admin',
-          superAdmin: false,
-          language: 'en',
-          profile_url: null,
-          gladys_user_id: null,
-          current_period_end: null,
-        });
+      should.deepEqual(response.body, {
+        id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+        name: 'Tony',
+        email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+        account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+        role: 'admin',
+        superAdmin: false,
+        language: 'en',
+        profile_url: null,
+        gladys_user_id: null,
+        gladys_4_user_id: null,
+        current_period_end: null,
+      });
     }));
 });
 
@@ -410,9 +393,7 @@ describe('POST /users/forgot-password', () => {
     })
     .expect('Content-Type', /json/)
     .expect(404)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /users/reset-password', () => {
@@ -426,7 +407,8 @@ describe('POST /users/reset-password', () => {
     .post('/users/reset-password')
     .set('Accept', 'application/json')
     .send({
-      token: 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
+      token:
+          'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
       srp_salt: 'salt',
       srp_verifier: 'verifier',
       rsa_public_key: 'pubkey',
@@ -447,7 +429,8 @@ describe('POST /users/reset-password', () => {
     .post('/users/reset-password')
     .set('Accept', 'application/json')
     .send({
-      token: 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
+      token:
+          'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
       srp_verifier: 'verifier',
       rsa_public_key: 'pubkey',
       ecdsa_public_key: 'pubkey',
@@ -457,15 +440,14 @@ describe('POST /users/reset-password', () => {
     })
     .expect('Content-Type', /json/)
     .expect(422)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 
   it('should return 404, token expired', () => request(TEST_BACKEND_APP)
     .post('/users/reset-password')
     .set('Accept', 'application/json')
     .send({
-      token: '237078dab6815cf2a13b8af3c97d979394b928e5be7b2e9fcb1ac1a8645acf33d9ed9965560ea90cc1e1fde5fedd5041fec41b0e2a986d50cfa9314f183d740b',
+      token:
+          '237078dab6815cf2a13b8af3c97d979394b928e5be7b2e9fcb1ac1a8645acf33d9ed9965560ea90cc1e1fde5fedd5041fec41b0e2a986d50cfa9314f183d740b',
       srp_salt: 'salt',
       srp_verifier: 'verifier',
       rsa_public_key: 'pubkey',
@@ -476,9 +458,7 @@ describe('POST /users/reset-password', () => {
     })
     .expect('Content-Type', /json/)
     .expect(404)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 
   it('should return 404, wrong token', () => request(TEST_BACKEND_APP)
     .post('/users/reset-password')
@@ -495,11 +475,8 @@ describe('POST /users/reset-password', () => {
     })
     .expect('Content-Type', /json/)
     .expect(404)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
-
 
 describe('GET /users/reset-password/:token', () => {
   const token = 'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07';

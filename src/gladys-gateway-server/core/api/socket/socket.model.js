@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const sizeof = require('object-sizeof');
 const { NotFoundError } = require('../../common/error');
 
 module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, statsService) {
@@ -119,6 +120,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
     statsService.track('MESSAGE_TO_INSTANCE', {
       user_id: user.id,
+      message_size: sizeof(messageParam),
     });
 
     const message = messageParam;
@@ -159,6 +161,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
     statsService.track('MESSAGE_TO_USER', {
       instance_id: instance.id,
+      message_size: sizeof(messageParam),
     });
 
     const message = messageParam;

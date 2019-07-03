@@ -364,6 +364,7 @@ describe('GET /users/me', () => {
         language: 'en',
         profile_url: null,
         gladys_user_id: null,
+        gladys_4_user_id: null,
         current_period_end: null,
       });
     }));

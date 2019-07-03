@@ -414,6 +414,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
           'rsa_public_key',
           'ecdsa_public_key',
           'encrypted_backup_key',
+          'gladys_4_user_id',
         ],
       },
     );
@@ -472,6 +473,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
         rsa_public_key: userWithSecret.rsa_public_key,
         ecdsa_public_key: userWithSecret.ecdsa_public_key,
         encrypted_backup_key: userWithSecret.encrypted_backup_key,
+        gladys_4_user_id: userWithSecret.gladys_4_user_id,
       };
     });
   }
@@ -682,7 +684,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       {
         id: user.id,
       },
-      { fields: ['id', 'account_id', 'gladys_user_id'] },
+      { fields: ['id', 'account_id', 'gladys_4_user_id'] },
     );
 
     const account = await db.t_account.findOne({
@@ -696,7 +698,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return {
       billing_setup: account.stripe_customer_id !== null,
       gladys_instance_setup: instances.length > 0,
-      user_gladys_acccount_linked: fullUser.gladys_user_id !== null,
+      user_gladys_acccount_linked: fullUser.gladys_4_user_id !== null,
     };
   }
 

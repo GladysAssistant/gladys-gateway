@@ -405,7 +405,7 @@ module.exports = ({ cryptoLib }) => {
     };
   }
 
-  async function decryptMessage(privateKey, ecdsaPublicKey, data) {
+  async function decryptMessage(privateKey, ecdsaPublicKey, data, options) {
     data.iv = Uint8Array.from(data.iv);
 
     const encryptedDataArrayBuffer = hexToArrayBuffer(data.encryptedData);
@@ -471,7 +471,7 @@ module.exports = ({ cryptoLib }) => {
 
     const now = new Date().getTime();
 
-    if (jsonData.timestamp + MESSAGE_MAX_LIFETIME < now) {
+    if (jsonData.timestamp + MESSAGE_MAX_LIFETIME < now && options.disableTimestampCheck) {
       throw new Error('EXPIRED_MESSAGE');
     }
 

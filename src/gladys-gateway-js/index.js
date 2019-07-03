@@ -394,10 +394,35 @@ class GladysGatewayJs {
     return requestApi.patch(
       `${this.serverUrl}/users/me`,
       {
-        gladys_user_id: userIdInGladys,
+        gladys_4_user_id: userIdInGladys,
       },
       this,
     );
+  }
+
+  async updateBackupKey(backupKey) {
+    const encryptedBackupKey = await this.crypto.encryptMessage(
+      this.rsaKeys.public_key,
+      this.ecdsaKeys.private_key,
+      backupKey,
+    );
+    return requestApi.patch(
+      `${this.serverUrl}/users/me`,
+      {
+        encrypted_backup_key: encryptedBackupKey,
+      },
+      this,
+    );
+  }
+
+  async decryptBackupKey(encryptedBackupKey) {
+    const decryptedBackupKey = await this.crypto.decryptMessage(
+      this.rsaKeys.private_key,
+      this.ecdsaKeys.public_key,
+      encryptedBackupKey,
+      { disableTimestampCheck: true },
+    );
+    return decryptedBackupKey;
   }
 
   async forgotPassword(email) {

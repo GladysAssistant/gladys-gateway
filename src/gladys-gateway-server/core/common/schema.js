@@ -7,6 +7,7 @@ const signupSchema = Joi.object().keys({
   email: Joi.string().email(),
   language: Joi.string().allow(['fr', 'en']),
   gladys_user_id: Joi.number().optional(),
+  gladys_4_user_id: Joi.string().optional(),
   srp_salt: Joi.string(),
   srp_verifier: Joi.string(),
   rsa_public_key: Joi.string(),

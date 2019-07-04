@@ -926,6 +926,10 @@ class GladysGatewayJs {
     return this.sendRequest('PATCH', path, query);
   }
 
+  async sendRequestDelete(path, query) {
+    return this.sendRequest('DELETE', path, query);
+  }
+
   async uploadBackup(form, onUploadProgress) {
     return requestApi.upload(`${this.serverUrl}/backups`, form, onUploadProgress, this);
   }

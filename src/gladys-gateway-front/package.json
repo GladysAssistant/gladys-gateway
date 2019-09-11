@@ -39,7 +39,7 @@
     "preact-compat": "^3.17.0",
     "preact-router": "^2.5.7",
     "qrcode": "^1.2.2",
-    "react-stripe-elements": "^2.0.1"
+    "react-stripe-elements": "^5.0.0"
   },
   "jest": {
     "verbose": true,

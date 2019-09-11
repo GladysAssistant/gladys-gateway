@@ -74,7 +74,7 @@
     "socket.io-client": "^2.1.1",
     "socket.io-redis": "^5.2.0",
     "speakeasy": "^2.0.0",
-    "stripe": "^6.12.1",
+    "stripe": "^7.9.0",
     "tracer": "^0.9.1",
     "uuid": "^3.3.2"
   }

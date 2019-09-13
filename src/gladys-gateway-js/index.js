@@ -681,6 +681,7 @@ class GladysGatewayJs {
         this.keysDictionnary[user.id] = {
           id: user.id,
           connected: user.connected,
+          gladys_4_user_id: user.gladys_4_user_id,
           ecdsaPublicKey: await this.crypto.importKey(JSON.parse(user.ecdsa_public_key), 'ECDSA', true),
           rsaPublicKey: await this.crypto.importKey(JSON.parse(user.rsa_public_key), 'RSA-OEAP', true),
           ecdsaPublicKeyRaw: user.ecdsa_public_key,
@@ -793,6 +794,53 @@ class GladysGatewayJs {
         }
       });
     });
+  }
+
+  async getUserByGladys4Id(gladys4UserId) {
+    // we look in the existing key dictionnary
+    const user = Object.values(this.keysDictionnary).find((oneUser) => oneUser.gladys_4_user_id === gladys4UserId);
+    if (user) {
+      return user;
+    }
+    // if not present, we refresh the list
+    await this.refreshUsersList();
+    // and look again
+    return Object.values(this.keysDictionnary).find((oneUser) => oneUser.gladys_4_user_id === gladys4UserId);
+  }
+
+  async sendMessageUser(gladys4UserId, data) {
+    if (this.socket === null) {
+      throw new Error('Not connected to socket, cannot send message');
+    }
+
+    const user = await this.getUserByGladys4Id(gladys4UserId);
+
+    // user not found
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    if (!user.connected) {
+      // user is not connected, resolving
+      return null;
+    }
+
+    // encrypt the message
+    const encryptedMessage = await this.crypto.encryptMessage(
+      user.rsaPublicKey,
+      this.ecdsaKeys.private_key,
+      data,
+    );
+
+    // compose the payload
+    const payload = {
+      user_id: user.id,
+      encryptedMessage,
+    };
+
+    // send the message
+    this.socket.emit('message', payload);
+    return null;
   }
 
   async sendMessageAllUsers(data) {

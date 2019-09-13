@@ -169,7 +169,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // adding sending instance_id
     message.instance_id = instance.id;
 
-    const roomName = `connected_user:${message.user_id}`;
+    const roomName = `user:${message.user_id}`;
 
     io.to(roomName).emit('message', message);
   }

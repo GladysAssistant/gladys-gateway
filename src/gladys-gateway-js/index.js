@@ -883,6 +883,15 @@ class GladysGatewayJs {
     });
   }
 
+  async newEventInstanceUser(event, gladys4UserId, data) {
+    return this.sendMessageUser(gladys4UserId, {
+      version: '1.0',
+      type: 'gladys-event',
+      event,
+      data,
+    });
+  }
+
   async calculateLatency() {
     if (this.socket === null) {
       throw new Error('Not connected to socket, cannot send message');

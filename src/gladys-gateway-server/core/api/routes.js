@@ -38,6 +38,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.get('/ping', asyncMiddleware(controllers.pingController.ping));
 
+  // stats
+  app.get('/stats', asyncMiddleware(controllers.statController.getStats));
+
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
   app.post('/users/verify', middlewares.rateLimiter, asyncMiddleware(controllers.userController.confirmEmail));

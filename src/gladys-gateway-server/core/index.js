@@ -27,6 +27,7 @@ const Admin = require('./api/admin/admin.models');
 const OpenApi = require('./api/openapi/openapi.model.js');
 const Version = require('./api/version/version.model.js');
 const Backup = require('./api/backup/backup.model');
+const StatModel = require('./api/stat/stat.model.js');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -40,6 +41,7 @@ const AdminController = require('./api/admin/admin.controller');
 const OpenApiController = require('./api/openapi/openapi.controller');
 const VersionController = require('./api/version/version.controller');
 const BackupController = require('./api/backup/backup.controller');
+const StatController = require('./api/stat/stat.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -109,6 +111,7 @@ module.exports = async () => {
     openApiModel: OpenApi(logger, db),
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),
+    statModel: StatModel(logger, db, redisClient),
   };
 
   const controllers = {
@@ -123,6 +126,7 @@ module.exports = async () => {
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
     versionController: VersionController(models.versionModel),
     backupController: BackupController(models.backupModel, logger),
+    statController: StatController(models.statModel),
   };
 
   const middlewares = {

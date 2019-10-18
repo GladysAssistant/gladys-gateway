@@ -23,6 +23,12 @@ module.exports = function BackupModel(logger, db) {
       {
         offset,
         limit,
+        order: [
+          {
+            field: 'created_at',
+            direction: 'desc',
+          },
+        ],
       },
     );
     return backups;

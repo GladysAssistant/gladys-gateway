@@ -28,7 +28,12 @@ module.exports = function UserController(userModel, mailService, socketModel) {
 
     // send confirmation email to user
     mailService.send(user, 'confirmation', {
-      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${encodeURI(user.email_confirmation_token)}`,
+      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${encodeURI(
+        user.email_confirmation_token,
+      )}`,
+      confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/confirm-email/${encodeURI(
+        user.email_confirmation_token,
+      )}`,
     });
 
     res.status(201).json({
@@ -70,6 +75,7 @@ module.exports = function UserController(userModel, mailService, socketModel) {
       // send confirmation email to user
       mailService.send(user, 'confirmation', {
         confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${user.email_confirmation_token}`,
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/confirm-email/${user.email_confirmation_token}`,
       });
     }
 
@@ -246,7 +252,12 @@ module.exports = function UserController(userModel, mailService, socketModel) {
    * }
    */
   async function loginTwoFactor(req, res, next) {
-    const tokens = await userModel.loginTwoFactor(req.user, req.body.two_factor_code, req.body.device_name, req.headers['user-agent']);
+    const tokens = await userModel.loginTwoFactor(
+      req.user,
+      req.body.two_factor_code,
+      req.body.device_name,
+      req.headers['user-agent'],
+    );
     res.json(tokens);
   }
 

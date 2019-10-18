@@ -9,7 +9,11 @@ const schema = require('../../common/schema');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailService) {
   async function inviteUser(user, newInvitation) {
-    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
+    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
 
     if (error) {
       logger.debug(error);
@@ -22,9 +26,12 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
       const { role } = value;
 
       // first we get the user to see if he is allowed to do that
-      const userWithAccount = await tx.t_user.findOne({
-        id: user.id,
-      }, { fields: ['id', 'name', 'language', 'account_id', 'role'] });
+      const userWithAccount = await tx.t_user.findOne(
+        {
+          id: user.id,
+        },
+        { fields: ['id', 'name', 'language', 'account_id', 'role'] },
+      );
 
       // only admin can send invite
       if (userWithAccount.role !== 'admin') {
@@ -46,7 +53,10 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      const tokenHash = crypto
+        .createHash('sha256')
+        .update(token)
+        .digest('hex');
 
       const insertedInvitation = await tx.t_invitation.insert({
         email,
@@ -57,6 +67,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
 
       await mailService.send({ email, language: userWithAccount.language }, 'invitation', {
         invitationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
+        invitationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
         nameOfAdminInviting: userWithAccount.name,
       });
 
@@ -66,7 +77,10 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
 
   async function accept(dataParam) {
     const data = dataParam;
-    const tokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(data.token)
+      .digest('hex');
 
     // we look if for the token hash in the db
     const invitation = await db.t_invitation.findOne({
@@ -82,7 +96,11 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
 
     data.email = invitation.email;
 
-    const { error, value } = Joi.validate(data, schema.signupSchema, { stripUnknown: true, abortEarly: false, presence: 'required' });
+    const { error, value } = Joi.validate(data, schema.signupSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
 
     if (error) {
       logger.debug(error);
@@ -97,7 +115,10 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
       value.role = invitation.role;
 
       // set gravatar image for the user
-      const emailHash = crypto.createHash('md5').update(value.email).digest('hex');
+      const emailHash = crypto
+        .createHash('md5')
+        .update(value.email)
+        .digest('hex');
       value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
 
       if (process.env.DEFAULT_USER_PROFILE_URL) {
@@ -122,15 +143,21 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
   }
 
   async function getInvitation(token) {
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
 
     // we look if for the token hash in the db
-    const invitation = await db.t_invitation.findOne({
-      token_hash: tokenHash,
-      revoked: false,
-      accepted: false,
-      is_deleted: false,
-    }, { fields: ['id', 'email'] });
+    const invitation = await db.t_invitation.findOne(
+      {
+        token_hash: tokenHash,
+        revoked: false,
+        accepted: false,
+        is_deleted: false,
+      },
+      { fields: ['id', 'email'] },
+    );
 
     if (invitation === null) {
       throw new NotFoundError();
@@ -141,23 +168,29 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
 
   async function revokeInvitation(user, invitationId) {
     // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'role', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'role', 'account_id'] },
+    );
 
     if (userWithAccount.role !== 'admin') {
       throw new ForbiddenError('You must be admin to perform this operation');
     }
 
-    await db.t_invitation.update({
-      id: invitationId,
-      account_id: userWithAccount.account_id,
-      revoked: false,
-      accepted: false,
-      is_deleted: false,
-    }, {
-      revoked: true,
-    });
+    await db.t_invitation.update(
+      {
+        id: invitationId,
+        account_id: userWithAccount.account_id,
+        revoked: false,
+        accepted: false,
+        is_deleted: false,
+      },
+      {
+        revoked: true,
+      },
+    );
   }
 
   return {

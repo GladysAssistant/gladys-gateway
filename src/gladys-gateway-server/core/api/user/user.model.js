@@ -551,6 +551,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     await mailService.send(user, 'password_reset', {
       resetPasswordUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/reset-password/${encodeURI(resetPasswordToken)}`,
+      resetPasswordUrlGladys4: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/reset-password/${encodeURI(
+        resetPasswordToken,
+      )}`,
     });
 
     return resetPasswordInserted;

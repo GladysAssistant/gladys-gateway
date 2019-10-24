@@ -91,6 +91,26 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
   }
 
   /**
+   * @api {post} /v1/api/owntracks/:open-api-key Create owntracks location Open API
+   * @apiName createOwntracksLocation
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  async function createOwntracksLocation(req, res, next) {
+    const message = await openApiModel.createOwntrackLocation(req.user, req.primaryInstance, req.headers, req.body);
+    await socketModel.sendMessageOpenApi(req.user, message);
+    return res.json({
+      status: 200,
+    });
+  }
+
+  /**
    * @api {post} /v1/api/message/:open-api-key Create message Open API
    * @apiName createMessage
    * @apiGroup OpenAPI
@@ -117,6 +137,7 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
     revokeApiKey,
     updateApiKeyName,
     createEvent,
+    createOwntracksLocation,
     createMessage,
   };
 };

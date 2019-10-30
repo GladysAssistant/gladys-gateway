@@ -306,62 +306,62 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     }
 
     switch (event.type) {
-      case 'charge.succeeded': {
-        // get currentPeriodEnd threw the API
-        const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
+    case 'charge.succeeded': {
+      // get currentPeriodEnd threw the API
+      const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
 
-        // update current_period_end in DB
-        await db.t_account.update(
-          account.id,
-          {
-            current_period_end: new Date(currentPeriodEnd * 1000),
-          },
-          {
-            fields: ['id', 'current_period_end'],
-          },
-        );
+      // update current_period_end in DB
+      await db.t_account.update(
+        account.id,
+        {
+          current_period_end: new Date(currentPeriodEnd * 1000),
+        },
+        {
+          fields: ['id', 'current_period_end'],
+        },
+      );
 
-        break;
-      }
+      break;
+    }
 
-      case 'invoice.payment_succeeded': {
-        const invoicePaymentSucceededActivity = {
-          stripe_event: event.type,
-          account_id: account.id,
-          hosted_invoice_url: event.data.object.hosted_invoice_url,
-          invoice_pdf: event.data.object.invoice_pdf,
-          amount_paid: event.data.object.amount_paid,
-          closed: event.data.object.closed,
-          currency: event.data.object.currency,
-          params: event,
-        };
+    case 'invoice.payment_succeeded': {
+      const invoicePaymentSucceededActivity = {
+        stripe_event: event.type,
+        account_id: account.id,
+        hosted_invoice_url: event.data.object.hosted_invoice_url,
+        invoice_pdf: event.data.object.invoice_pdf,
+        amount_paid: event.data.object.amount_paid,
+        closed: event.data.object.closed,
+        currency: event.data.object.currency,
+        params: event,
+      };
 
-        await db.t_account_payment_activity.insert(invoicePaymentSucceededActivity);
-        break;
-      }
+      await db.t_account_payment_activity.insert(invoicePaymentSucceededActivity);
+      break;
+    }
 
-      case 'invoice.payment_failed': {
-        const activity = {
-          stripe_event: event.type,
-          account_id: account.id,
-          hosted_invoice_url: event.data.object.hosted_invoice_url,
-          invoice_pdf: event.data.object.invoice_pdf,
-          amount_paid: event.data.object.amount_paid,
-          closed: event.data.object.closed,
-          currency: event.data.object.currency,
-          params: event,
-        };
+    case 'invoice.payment_failed': {
+      const activity = {
+        stripe_event: event.type,
+        account_id: account.id,
+        hosted_invoice_url: event.data.object.hosted_invoice_url,
+        invoice_pdf: event.data.object.invoice_pdf,
+        amount_paid: event.data.object.amount_paid,
+        closed: event.data.object.closed,
+        currency: event.data.object.currency,
+        params: event,
+      };
 
-        await db.t_account_payment_activity.insert(activity);
-        break;
-      }
+      await db.t_account_payment_activity.insert(activity);
+      break;
+    }
 
-      case 'customer.subscription.deleted':
-        // subscription is canceled, remove the client
-        break;
+    case 'customer.subscription.deleted':
+      // subscription is canceled, remove the client
+      break;
 
-      default:
-        break;
+    default:
+      break;
     }
 
     return Promise.resolve();

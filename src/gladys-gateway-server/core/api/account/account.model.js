@@ -432,7 +432,15 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
         stripe_event: 'invoice.payment_succeeded',
         closed: true,
       },
-      { fields: ['id', 'hosted_invoice_url', 'invoice_pdf', 'amount_paid', 'created_at'] },
+      {
+        fields: ['id', 'hosted_invoice_url', 'invoice_pdf', 'amount_paid', 'created_at'],
+        order: [
+          {
+            field: 'created_at',
+            direction: 'desc',
+          },
+        ],
+      },
     );
 
     return invoices;

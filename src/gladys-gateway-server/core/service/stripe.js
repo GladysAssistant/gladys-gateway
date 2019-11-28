@@ -31,9 +31,12 @@ module.exports = function StripeService(logger) {
     // subscribe customer to monthly plan
     const result = await stripe.subscriptions.create({
       customer: stripeCustomerId,
-      items: [{
-        plan: process.env.STRIPE_MONTHLY_PLAN_ID,
-      }],
+      items: [
+        {
+          plan: process.env.STRIPE_MONTHLY_PLAN_ID,
+        },
+      ],
+      coupon: '40zbTNGA',
     });
 
     return result;

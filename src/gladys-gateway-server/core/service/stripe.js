@@ -36,7 +36,6 @@ module.exports = function StripeService(logger) {
           plan: process.env.STRIPE_MONTHLY_PLAN_ID,
         },
       ],
-      coupon: '40zbTNGA',
     });
 
     return result;

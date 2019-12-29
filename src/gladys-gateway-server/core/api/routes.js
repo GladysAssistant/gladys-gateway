@@ -216,6 +216,8 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount),
   );
 
+  app.post('/accounts/payments/sessions', asyncMiddleware(controllers.accountController.createPaymentSession));
+
   // admin
   app.post(
     '/admin/accounts/:id/resend',

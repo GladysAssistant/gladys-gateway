@@ -40,7 +40,7 @@ class ValidationError extends Error {
     return {
       status: this.code,
       error_code: 'UNPROCESSABLE_ENTITY',
-      details: this.joiError.details,
+      details: this.joiError && this.joiError.details,
     };
   }
 

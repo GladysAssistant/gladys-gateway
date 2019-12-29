@@ -1,7 +1,9 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const { AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
+const {
+  AlreadyExistError, ForbiddenError, NotFoundError, ValidationError,
+} = require('../../common/error');
 
 module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, slackService) {
   async function getUsers(user) {
@@ -49,9 +51,21 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     return allUsers;
   }
 
-  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language, sourceId) {
-    const email = rawEmail.trim().toLowerCase();
+  async function createAccountFromStripeSession(session) {
+    if (!session.customer || !session.subscription) {
+      throw new ValidationError('Customer and subscription are required');
+    }
+
     const role = 'admin';
+    const language = session.locale ? session.locale.substr(0, 2).toLowerCase() : 'en';
+
+    // we get subscription from stripe side
+    const [subscription, customer] = await Promise.all([
+      stripeService.getSubscription(session.subscription),
+      stripeService.getCustomer(session.customer),
+    ]);
+
+    const { email } = customer;
 
     // we first test if an account already exist with this email
     const account = await db.t_account.findOne({ name: email });
@@ -59,21 +73,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     // it means an account already exist with this email
     if (account !== null) {
       throw new AlreadyExistError();
-    }
-
-    // create the customer on stripe side
-    const customer = await stripeService.createCustomer(email, sourceId);
-
-    // contact stripe to save the subscription id
-    let subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
-
-    // it means stripe is disabled
-    // so we add to the account 100 years of life
-    if (subscription === null) {
-      subscription = {
-        id: 'stripe-subcription-sample',
-        current_period_end: new Date().getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
-      };
     }
 
     const newAccount = {
@@ -162,6 +161,71 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     });
 
     return accountUpdated;
+  }
+
+  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language, sourceId) {
+    const email = rawEmail.trim().toLowerCase();
+    const role = 'admin';
+
+    // we first test if an account already exist with this email
+    const account = await db.t_account.findOne({ name: email });
+
+    // it means an account already exist with this email
+    if (account !== null) {
+      throw new AlreadyExistError();
+    }
+
+    // create the customer on stripe side
+    const customer = await stripeService.createCustomer(email, sourceId);
+
+    // contact stripe to save the subscription id
+    let subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
+
+    // it means stripe is disabled
+    // so we add to the account 100 years of life
+    if (subscription === null) {
+      subscription = {
+        id: 'stripe-subcription-sample',
+        current_period_end: new Date().getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
+      };
+    }
+
+    const newAccount = {
+      name: email,
+      stripe_customer_id: customer.id,
+      stripe_subscription_id: subscription.id,
+      current_period_end: new Date(subscription.current_period_end * 1000),
+    };
+
+    const insertedAccount = await db.t_account.insert(newAccount);
+
+    // generate email confirmation token
+    const token = (await randomBytes(64)).toString('hex');
+
+    // we hash the token in DB so it's not possible to get the token
+    // if the DB is compromised in read-only
+    // (due to SQL injection for example)
+    const tokenHash = crypto
+      .createHash('sha256')
+      .update(token)
+      .digest('hex');
+
+    await db.t_invitation.insert({
+      email,
+      role,
+      token_hash: tokenHash,
+      account_id: insertedAccount.id,
+    });
+
+    // we invite the user in slack if slack is enabled
+    await slackService.inviteUser(email);
+
+    await mailService.send({ email, language }, 'welcome', {
+      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
+      confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+    });
+
+    return insertedAccount;
   }
 
   async function updateCard(user, sourceId) {
@@ -300,12 +364,15 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       return Promise.resolve();
     }
 
-    if (!account) {
+    if (!account && event.type !== 'checkout.session.completed') {
       logger.warn(`Stripe Webhook : Account with stripe customer "${event.data.object.customer}" not found.`);
       return Promise.resolve();
     }
 
     switch (event.type) {
+    case 'checkout.session.completed':
+      await createAccountFromStripeSession(event.data.object);
+      break;
     case 'charge.succeeded': {
       // get currentPeriodEnd threw the API
       const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
@@ -446,6 +513,16 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     return invoices;
   }
 
+  async function createPaymentSession(locale) {
+    if (['en', 'fr'].indexOf(locale) === -1) {
+      throw new ValidationError('Locale can only be en or fr');
+    }
+    const session = await stripeService.createSession(locale);
+    return {
+      id: session.id,
+    };
+  }
+
   return {
     getUsers,
     updateCard,
@@ -457,5 +534,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     stripeEvent,
     getCard,
     getInvoices,
+    createPaymentSession,
   };
 };

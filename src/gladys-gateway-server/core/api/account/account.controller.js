@@ -34,7 +34,9 @@ module.exports = function AccountController(accountModel, socketModel) {
    */
   async function subscribeMonthlyPlan(req, res, next) {
     const account = await accountModel.subscribeMonthlyPlan(req.user, req.body.stripe_source_id);
-    res.json({ current_period_end: account.current_period_end });
+    res.json({
+      current_period_end: account.current_period_end,
+    });
   }
 
   /**
@@ -59,7 +61,9 @@ module.exports = function AccountController(accountModel, socketModel) {
       req.body.language,
       req.body.stripe_source_id,
     );
-    res.json({ current_period_end: account.current_period_end });
+    res.json({
+      current_period_end: account.current_period_end,
+    });
   }
 
   /**
@@ -152,7 +156,9 @@ module.exports = function AccountController(accountModel, socketModel) {
    */
   async function subscribeAgainToMonthlySubscription(req, res, next) {
     const account = await accountModel.subscribeAgainToMonthlySubscription(req.user);
-    res.json({ current_period_end: account.current_period_end });
+    res.json({
+      current_period_end: account.current_period_end,
+    });
   }
 
   /**
@@ -196,6 +202,24 @@ module.exports = function AccountController(accountModel, socketModel) {
     res.json(invoices);
   }
 
+  /**
+   * @api {post} /accounts/payments/sessions Create new payment session
+   * @apiName Create new payment session
+   * @apiGroup Account
+   *
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "unique-id"
+   * }
+   */
+  async function createPaymentSession(req, res, next) {
+    const session = await accountModel.createPaymentSession(req.body.locale || 'en');
+    res.json(session);
+  }
+
   return {
     getUsers,
     subscribeMonthlyPlan,
@@ -207,5 +231,6 @@ module.exports = function AccountController(accountModel, socketModel) {
     cancelMonthlySubscription,
     stripeEvent,
     getInvoices,
+    createPaymentSession,
   };
 };

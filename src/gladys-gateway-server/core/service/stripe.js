@@ -110,6 +110,26 @@ module.exports = function StripeService(logger) {
     return stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_ENDPOINT_SECRET);
   }
 
+  function createSession(locale) {
+    return stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      subscription_data: {
+        items: [
+          {
+            plan: process.env.STRIPE_MONTHLY_PLAN_ID,
+          },
+        ],
+      },
+      locale,
+      success_url: `${process.env.GLADYS_WEBSITE_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.GLADYS_WEBSITE_URL}/pricing`,
+    });
+  }
+
+  function getCustomer(customerId) {
+    return stripe.customers.retrieve(customerId);
+  }
+
   return {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
@@ -119,5 +139,7 @@ module.exports = function StripeService(logger) {
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,
     getSubscription,
+    createSession,
+    getCustomer,
   };
 };

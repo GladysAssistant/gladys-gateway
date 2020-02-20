@@ -54,5 +54,5 @@ script:
 
 after_success:
   - docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
-  - docker build -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+  - docker build --build-arg MAX_MIND_LICENSE_KEY="$MAX_MIND_LICENSE_KEY" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
   - if [[ $TRAVIS_BRANCH = master ]]; then docker push gladysassistant/gladys-gateway-server:latest; else true; fi

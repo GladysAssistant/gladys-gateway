@@ -1,5 +1,4 @@
 const jwt = require('jsonwebtoken');
-const crypto = require('crypto');
 const { UnauthorizedError } = require('../common/error');
 
 module.exports = function RefreshTokenAuthMiddleware(logger) {
@@ -9,12 +8,6 @@ module.exports = function RefreshTokenAuthMiddleware(logger) {
         audience: 'user',
         issuer: 'gladys-gateway',
       });
-
-      const userAgentHash = crypto.createHash('sha256').update(req.headers['user-agent']).digest('hex');
-
-      if (decoded.fingerprint !== userAgentHash) {
-        throw new Error('User agent has changed, user not authorized');
-      }
 
       req.user = {
         id: decoded.user_id,

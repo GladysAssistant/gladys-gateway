@@ -290,19 +290,6 @@ describe('GET /users/access-token', () => {
       });
   });
 
-  it('should return 401, wrong user agent', () => {
-    const userAgent = 'my-user-agent-is-wrong';
-
-    return request(TEST_BACKEND_APP)
-      .get('/users/access-token')
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtRefreshToken)
-      .set('user-agent', userAgent)
-      .expect('Content-Type', /json/)
-      .expect(401)
-      .then((response) => {});
-  });
-
   it('should return 401, wrong jwt', () => {
     const userAgent = 'my-user-agent-is-wrong';
 

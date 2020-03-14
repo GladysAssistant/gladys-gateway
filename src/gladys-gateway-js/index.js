@@ -132,15 +132,19 @@ class GladysGatewayJs {
     const clientEphemeral = srpClient.generateEphemeral();
 
     // We ask the server for the salt
-    const loginSaltResult = (await axios.post(`${this.serverUrl}/users/login-salt`, {
-      email,
-    })).data;
+    const loginSaltResult = (
+      await axios.post(`${this.serverUrl}/users/login-salt`, {
+        email,
+      })
+    ).data;
 
     // Then send our clientEphemeral public + email, and retrieve the server ephemeral public
-    const serverEphemeralResult = (await axios.post(`${this.serverUrl}/users/login-generate-ephemeral`, {
-      email,
-      client_ephemeral_public: clientEphemeral.public,
-    })).data;
+    const serverEphemeralResult = (
+      await axios.post(`${this.serverUrl}/users/login-generate-ephemeral`, {
+        email,
+        client_ephemeral_public: clientEphemeral.public,
+      })
+    ).data;
 
     // We generate the key and wait
     const srpPrivateKey = arrayBufferToHex(
@@ -161,10 +165,12 @@ class GladysGatewayJs {
     );
 
     // finally, we send the proof to the server
-    const serverFinalLoginResult = (await axios.post(`${this.serverUrl}/users/login-finalize`, {
-      login_session_key: serverEphemeralResult.login_session_key,
-      client_session_proof: clientSession.proof,
-    })).data;
+    const serverFinalLoginResult = (
+      await axios.post(`${this.serverUrl}/users/login-finalize`, {
+        login_session_key: serverEphemeralResult.login_session_key,
+        client_session_proof: clientSession.proof,
+      })
+    ).data;
 
     // we verify that the server have derived the correct strong session key
     srpClient.verifySession(clientEphemeral.public, clientSession, serverFinalLoginResult.server_session_proof);
@@ -239,15 +245,17 @@ class GladysGatewayJs {
   }
 
   async loginInstance(twoFactorToken, twoFactorCode) {
-    const loginData = (await axios.post(
-      `${this.serverUrl}/users/login-two-factor`,
-      { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' },
-      {
-        headers: {
-          authorization: twoFactorToken,
+    const loginData = (
+      await axios.post(
+        `${this.serverUrl}/users/login-two-factor`,
+        { two_factor_code: twoFactorCode, device_name: 'Gladys Instance' },
+        {
+          headers: {
+            authorization: twoFactorToken,
+          },
         },
-      },
-    )).data;
+      )
+    ).data;
 
     this.accessToken = loginData.access_token;
     this.refreshToken = loginData.refreshToken;
@@ -274,11 +282,13 @@ class GladysGatewayJs {
       ecdsa_public_key: JSON.stringify(ecdsaPublicKeyJwk),
     };
 
-    const createdInstance = (await axios.post(`${this.serverUrl}/instances`, instance, {
-      headers: {
-        authorization: this.accessToken,
-      },
-    })).data;
+    const createdInstance = (
+      await axios.post(`${this.serverUrl}/instances`, instance, {
+        headers: {
+          authorization: this.accessToken,
+        },
+      })
+    ).data;
 
     this.gladysInstance = createdInstance;
     this.gladysInstanceRsaKeys = rsaKeys;
@@ -294,49 +304,59 @@ class GladysGatewayJs {
   }
 
   async configureTwoFactor(accessToken) {
-    return (await axios.post(
-      `${this.serverUrl}/users/two-factor-configure`,
-      {},
-      {
-        headers: {
-          authorization: accessToken,
+    return (
+      await axios.post(
+        `${this.serverUrl}/users/two-factor-configure`,
+        {},
+        {
+          headers: {
+            authorization: accessToken,
+          },
         },
-      },
-    )).data;
+      )
+    ).data;
   }
 
   async enableTwoFactor(accessToken, twoFactorCode) {
-    return (await axios.post(
-      `${this.serverUrl}/users/two-factor-enable`,
-      { two_factor_code: twoFactorCode },
-      {
-        headers: {
-          authorization: accessToken,
+    return (
+      await axios.post(
+        `${this.serverUrl}/users/two-factor-enable`,
+        { two_factor_code: twoFactorCode },
+        {
+          headers: {
+            authorization: accessToken,
+          },
         },
-      },
-    )).data;
+      )
+    ).data;
   }
 
   async confirmEmail(token) {
-    return (await axios.post(`${this.serverUrl}/users/verify`, {
-      email_confirmation_token: token,
-    })).data;
+    return (
+      await axios.post(`${this.serverUrl}/users/verify`, {
+        email_confirmation_token: token,
+      })
+    ).data;
   }
 
   async getAccessToken(refreshToken) {
-    return (await axios.get(`${this.serverUrl}/users/access-token`, {
-      headers: {
-        authorization: refreshToken,
-      },
-    })).data.access_token;
+    return (
+      await axios.get(`${this.serverUrl}/users/access-token`, {
+        headers: {
+          authorization: refreshToken,
+        },
+      })
+    ).data.access_token;
   }
 
   async getAccessTokenInstance(refreshToken) {
-    return (await axios.get(`${this.serverUrl}/instances/access-token`, {
-      headers: {
-        authorization: refreshToken,
-      },
-    })).data.access_token;
+    return (
+      await axios.get(`${this.serverUrl}/instances/access-token`, {
+        headers: {
+          authorization: refreshToken,
+        },
+      })
+    ).data.access_token;
   }
 
   /**
@@ -597,9 +617,7 @@ class GladysGatewayJs {
           this.accessToken = await this.getAccessToken(refreshToken);
         } catch (err) {
           // refresh token is not good anymore
-          if (err && err.response && err.response.data && err.response.data.status === 401) {
-            reject(new Error('invalid-refresh-token'));
-          }
+          reject(err);
 
           throw err;
         }
@@ -612,7 +630,7 @@ class GladysGatewayJs {
             this.logger.info('Gladys Gateway, connected in websocket');
             resolve();
           } else {
-            reject(new Error('invalid-access-token'));
+            reject(res);
           }
         });
       });
@@ -826,11 +844,7 @@ class GladysGatewayJs {
     }
 
     // encrypt the message
-    const encryptedMessage = await this.crypto.encryptMessage(
-      user.rsaPublicKey,
-      this.ecdsaKeys.private_key,
-      data,
-    );
+    const encryptedMessage = await this.crypto.encryptMessage(user.rsaPublicKey, this.ecdsaKeys.private_key, data);
 
     // compose the payload
     const payload = {

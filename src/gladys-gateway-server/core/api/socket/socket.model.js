@@ -80,9 +80,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
     if (decoded.scope.includes('dashboard:write') === false) {
       throw new Error(
-        `Unauthorized: The user "${
-          decoded.user_id
-        }" does not have the scope "dashboard:write" which is required to connect in websocket`,
+        `Unauthorized: The user "${decoded.user_id}" does not have the scope "dashboard:write" which is required to connect in websocket`,
       );
     }
 
@@ -118,9 +116,13 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function handleNewMessageFromUser(user, messageParam, callback) {
     logger.debug(`Received message from user ${user.id}`);
 
+    const receivedAt = new Date().getTime();
+
     statsService.track('MESSAGE_TO_INSTANCE', {
       user_id: user.id,
       message_size: sizeof(messageParam),
+      sent_at: messageParam.sent_at,
+      received_at: receivedAt,
     });
 
     const message = messageParam;
@@ -141,12 +143,23 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
         }
 
         // remove null response from other instances
-        const filteredReplies = replies.filter(reply => reply !== null);
+        const filteredReplies = replies.filter((reply) => reply !== null);
 
         if (filteredReplies.length === 0) {
+          statsService.track('NO_INSTANCE_FOUND', {
+            user_id: user.id,
+          });
           const notFound = new NotFoundError('NO_INSTANCE_FOUND');
           return callback(notFound.jsonError());
         }
+
+        statsService.track('MESSAGE_TO_INSTANCE_RESPONSE', {
+          user_id: user.id,
+          message_size: sizeof(filteredReplies[0]),
+          sent_at: messageParam.sent_at,
+          received_at: receivedAt,
+          response_received_at: new Date().getTime(),
+        });
 
         return callback(filteredReplies[0]);
       });
@@ -162,6 +175,8 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     statsService.track('MESSAGE_TO_USER', {
       instance_id: instance.id,
       message_size: sizeof(messageParam),
+      sent_at: messageParam.sent_at,
+      received_at: new Date().getTime(),
     });
 
     const message = messageParam;

@@ -143,7 +143,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
         }
 
         // remove null response from other instances
-        const filteredReplies = replies.filter((reply) => reply !== null);
+        const filteredReplies = replies.filter(reply => reply !== null);
 
         if (filteredReplies.length === 0) {
           statsService.track('NO_INSTANCE_FOUND', {

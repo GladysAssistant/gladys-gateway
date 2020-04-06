@@ -84,10 +84,7 @@ class GladysGatewayJs {
   async signup(rawName, rawEmail, rawPassword, rawLanguage, invitationToken) {
     // first, we clean email and language
     const name = rawName.trim();
-    const language = rawLanguage
-      .trim()
-      .substr(0, 2)
-      .toLowerCase();
+    const language = rawLanguage.trim().substr(0, 2).toLowerCase();
 
     // we generate the srp verifier and keys
     const {
@@ -370,10 +367,7 @@ class GladysGatewayJs {
   async updateMyself(rawName, rawEmail, rawPassword, rawLanguage) {
     const email = rawEmail.trim().toLowerCase();
     const name = rawName.trim();
-    const language = rawLanguage
-      .trim()
-      .substr(0, 2)
-      .toLowerCase();
+    const language = rawLanguage.trim().substr(0, 2).toLowerCase();
 
     const newUser = {
       name,
@@ -875,6 +869,7 @@ class GladysGatewayJs {
       const payload = {
         user_id: userId,
         encryptedMessage,
+        sent_at: new Date().getTime(),
       };
 
       this.socket.emit('message', payload);
@@ -945,6 +940,7 @@ class GladysGatewayJs {
     const payload = {
       instance_id: this.gladysInstance.id,
       encryptedMessage,
+      sent_at: new Date().getTime(),
     };
 
     return new Promise((resolve, reject) => {

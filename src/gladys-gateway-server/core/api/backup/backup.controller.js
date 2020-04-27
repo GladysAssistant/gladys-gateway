@@ -67,7 +67,8 @@ module.exports = function BackupController(backupModel, logger) {
       }
       try {
         const file = req.files[0];
-        await backupModel.createBackup(req.instance.id, file.location, file.size);
+        const url = file.location.startsWith('https://') ? file.location : `https://${file.location}`;
+        await backupModel.createBackup(req.instance.id, url, file.size);
         return res.json({ status: 200 });
       } catch (e) {
         logger.warn(e);

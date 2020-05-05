@@ -90,10 +90,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     // we hash the token in DB so it's not possible to get the token
     // if the DB is compromised in read-only
     // (due to SQL injection for example)
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     await db.t_invitation.insert({
       email,
@@ -205,10 +202,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     // we hash the token in DB so it's not possible to get the token
     // if the DB is compromised in read-only
     // (due to SQL injection for example)
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     await db.t_invitation.insert({
       email,
@@ -269,21 +263,19 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     );
 
     // get card
-    const results = await Promise.all([
+    const [card, subscription] = await Promise.all([
       stripeService.getCard(account.stripe_customer_id),
       stripeService.getSubscription(account.stripe_subscription_id),
     ]);
 
-    const card = results[0];
-
     // we add subscription cancellation
-    if (results[1]) {
-      if (results[1].canceled_at) {
-        card.canceled_at = new Date(results[1].canceled_at * 1000);
+    if (card && subscription) {
+      if (subscription.canceled_at) {
+        card.canceled_at = new Date(subscription.canceled_at * 1000);
       } else {
         card.canceled_at = null;
       }
-      card.current_period_end = new Date(results[1].current_period_end * 1000);
+      card.current_period_end = new Date(subscription.current_period_end * 1000);
     }
 
     return card;

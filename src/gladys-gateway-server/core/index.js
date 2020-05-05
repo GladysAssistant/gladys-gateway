@@ -127,7 +127,7 @@ module.exports = async () => {
   const controllers = {
     pingController: PingController(models.pingModel),
     userController: UserController(models.userModel, services.mailService, models.socketModel),
-    socketController: SocketController(logger, models.socketModel, io),
+    socketController: SocketController(logger, models.socketModel, io, models.instanceModel),
     instanceController: InstanceController(models.instanceModel, models.socketModel),
     invitationController: InvitationController(models.invitationModel),
     accountController: AccountController(models.accountModel, models.socketModel),

@@ -1,4 +1,4 @@
-module.exports = function SocketController(logger, socketModel, io) {
+module.exports = function SocketController(logger, socketModel, io, instanceModel) {
   async function connection(socket) {
     logger.debug(`New socket joined, socket_id = ${socket.id}`);
 
@@ -51,6 +51,8 @@ module.exports = function SocketController(logger, socketModel, io) {
       try {
         // we first authenticate the instance thanks to his access token
         const instance = await socketModel.authenticateInstance(data.access_token, socket.id);
+        // This instance is the primary instance
+        await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
 
         // then he can join two new rooms
         socket.join(`instance:${instance.id}`);

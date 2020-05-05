@@ -19,9 +19,12 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     }
 
     // get the account id of the user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'account_id'] },
+    );
 
     value.id = uuid.v4();
     value.account_id = userWithAccount.account_id;
@@ -35,11 +38,14 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     value.primary_instance = true;
 
     // set all other instances in account as secondary instance
-    await db.t_instance.update({
-      account_id: userWithAccount.account_id,
-    }, {
-      primary_instance: false,
-    });
+    await db.t_instance.update(
+      {
+        account_id: userWithAccount.account_id,
+      },
+      {
+        primary_instance: false,
+      },
+    );
 
     const insertedInstance = await db.t_instance.insert(value);
 
@@ -53,31 +59,43 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
 
   async function getInstances(user) {
     // get the account id of the user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'account_id'] },
+    );
 
     // get all instances in this account
-    const instances = await db.t_instance.find({
-      account_id: userWithAccount.account_id,
-      is_deleted: false,
-    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] });
+    const instances = await db.t_instance.find(
+      {
+        account_id: userWithAccount.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] },
+    );
 
     return instances;
   }
 
   async function getInstanceById(user, instanceId) {
     // get the account id of the user
-    const userWithAccount = await db.t_user.findOne({
-      id: user.id,
-    }, { fields: ['id', 'account_id'] });
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'account_id'] },
+    );
 
     // get instance
-    const instance = await db.t_instance.findOne({
-      account_id: userWithAccount.account_id,
-      id: instanceId,
-      is_deleted: false,
-    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] });
+    const instance = await db.t_instance.findOne(
+      {
+        account_id: userWithAccount.account_id,
+        id: instanceId,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] },
+    );
 
     if (instance === null) {
       throw new NotFoundError('Instance not found');
@@ -113,30 +131,59 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
   }
 
   async function getUsers(instance) {
-    const users = await db.query(`
+    const users = await db.query(
+      `
       SELECT t_user.id, t_user.name, t_user.rsa_public_key, t_user.ecdsa_public_key, t_user.gladys_4_user_id
       FROM t_user
       JOIN t_instance ON t_instance.account_id = t_user.account_id
       WHERE t_user.is_deleted = false
       AND t_user.email_confirmed = true
       AND t_instance.id = $1
-    `, [instance.id]);
+    `,
+      [instance.id],
+    );
 
     return users;
   }
 
   async function getPrimaryInstanceByAccount(accountId) {
-    const instance = await db.t_instance.findOne({
-      account_id: accountId,
-      is_deleted: false,
-      primary_instance: true,
-    }, { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] });
+    const instance = await db.t_instance.findOne(
+      {
+        account_id: accountId,
+        is_deleted: false,
+        primary_instance: true,
+      },
+      { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] },
+    );
 
     if (instance === null) {
       throw new NotFoundError('Instance not found');
     }
 
     return instance;
+  }
+
+  async function setInstanceAsPrimaryInstance(accountId, instanceId) {
+    return db.withTransaction(async (tx) => {
+      // set all other instances in account as secondary instance
+      await tx.t_instance.update(
+        {
+          account_id: accountId,
+        },
+        {
+          primary_instance: false,
+        },
+      );
+      // set this instance as primary instance
+      await tx.t_instance.update(
+        {
+          id: instanceId,
+        },
+        {
+          primary_instance: true,
+        },
+      );
+    });
   }
 
   return {
@@ -146,5 +193,6 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     getAccessToken,
     getUsers,
     getPrimaryInstanceByAccount,
+    setInstanceAsPrimaryInstance,
   };
 };

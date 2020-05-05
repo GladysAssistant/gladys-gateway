@@ -14,6 +14,7 @@ const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
 const Stat = require('./service/stat');
+const ErrorService = require('./service/error');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -90,13 +91,22 @@ module.exports = async () => {
     password: process.env.POSTGRESQL_PASSWORD,
   });
 
+  const statDb = await massive({
+    host: process.env.POSTGRESQL_HOST,
+    port: process.env.POSTGRESQL_PORT,
+    database: process.env.POSTGRESQL_STAT_DATABASE,
+    user: process.env.POSTGRESQL_USER,
+    password: process.env.POSTGRESQL_PASSWORD,
+  });
+
   const services = {
     fingerprint: Fingerprint(logger),
     mailService: Mail(logger),
     jwtService: Jwt(),
     stripeService: Stripe(logger),
     slackService: Slack(logger),
-    statsService: await Stat(logger),
+    statsService: await Stat(logger, statDb),
+    errorService: await ErrorService(logger, statDb),
   };
 
   const models = {
@@ -135,7 +145,7 @@ module.exports = async () => {
     refreshTokenAuth: RefreshTokenAuthMiddleware(logger),
     refreshTokenInstanceAuth: RefreshTokenInstanceAuthMiddleware(logger),
     accessTokenInstanceAuth: AccessTokenInstanceAuthMiddleware(logger),
-    errorMiddleware: ErrorMiddleware,
+    errorMiddleware: ErrorMiddleware(services.errorService),
     rateLimiter: RateLimiterMiddleware(redisClient),
     isSuperAdmin: IsSuperAdminMiddleware(logger),
     openApiKeyAuth: OpenApiKeyAuthMiddleware(

@@ -1,21 +1,8 @@
-const massive = require('massive');
-
-module.exports = async function StatService(logger) {
-  let db = null;
-  if (process.env.POSTGRESQL_STAT_DATABASE) {
-    db = await massive({
-      host: process.env.POSTGRESQL_HOST,
-      port: process.env.POSTGRESQL_PORT,
-      database: process.env.POSTGRESQL_STAT_DATABASE,
-      user: process.env.POSTGRESQL_USER,
-      password: process.env.POSTGRESQL_PASSWORD,
-    });
-  }
-
+module.exports = async function StatService(logger, statDb) {
   async function track(eventName, data) {
-    if (db !== null) {
+    if (statDb) {
       try {
-        await db.t_stat.insert({
+        await statDb.t_stat.insert({
           event_type: eventName,
           payload: data,
         });

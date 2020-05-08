@@ -103,7 +103,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     await slackService.inviteUser(email);
 
     await mailService.send({ email, language }, 'welcome', {
-      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });
 
@@ -215,7 +214,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     await slackService.inviteUser(email);
 
     await mailService.send({ email, language }, 'welcome', {
-      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });
 

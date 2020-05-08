@@ -28,9 +28,6 @@ module.exports = function UserController(userModel, mailService, socketModel) {
 
     // send confirmation email to user
     mailService.send(user, 'confirmation', {
-      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${encodeURI(
-        user.email_confirmation_token,
-      )}`,
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/confirm-email/${encodeURI(
         user.email_confirmation_token,
       )}`,
@@ -74,7 +71,6 @@ module.exports = function UserController(userModel, mailService, socketModel) {
     if (user.email_confirmed === false) {
       // send confirmation email to user
       mailService.send(user, 'confirmation', {
-        confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/confirm-email/${user.email_confirmation_token}`,
         confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/confirm-email/${user.email_confirmation_token}`,
       });
     }

@@ -61,19 +61,13 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
       // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
       // (due to SQL injection for example)
-      value.email_confirmation_token_hash = crypto
-        .createHash('sha256')
-        .update(emailConfirmationToken)
-        .digest('hex');
+      value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
 
       // user signing up is admin
       value.role = 'admin';
 
       // set gravatar image for the user
-      const emailHash = crypto
-        .createHash('md5')
-        .update(value.email)
-        .digest('hex');
+      const emailHash = crypto.createHash('md5').update(value.email).digest('hex');
       value.profile_url = `https://www.gravatar.com/avatar/${emailHash}`;
 
       if (process.env.DEFAULT_USER_PROFILE_URL) {
@@ -151,10 +145,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
         // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
         // (due to SQL injection for example)
-        value.email_confirmation_token_hash = crypto
-          .createHash('sha256')
-          .update(emailConfirmationToken)
-          .digest('hex');
+        value.email_confirmation_token_hash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
       }
     }
 
@@ -167,10 +158,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
   async function confirmEmail(emailConfirmationToken) {
     // we hash the token again
-    const confirmationTokenHash = crypto
-      .createHash('sha256')
-      .update(emailConfirmationToken)
-      .digest('hex');
+    const confirmationTokenHash = crypto.createHash('sha256').update(emailConfirmationToken).digest('hex');
 
     // search for a user with this hash in database
     const user = await db.t_user.findOne(
@@ -436,10 +424,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
 
     const scope = ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
-    const userAgentHash = crypto
-      .createHash('sha256')
-      .update(userAgent)
-      .digest('hex');
+    const userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
 
     const refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
     const accessToken = jwtService.generateAccessToken(user, scope);
@@ -447,10 +432,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     // we save a hash of the refresh token so we can invalidate it after.
     // We don't want to save the refresh token in clear text because if an attacker get read access
     // to the DB (ex: SQL injection) he could get the token and use it for write use
-    newDevice.refresh_token_hash = crypto
-      .createHash('sha256')
-      .update(refreshToken)
-      .digest('hex');
+    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     return db.withTransaction(async (tx) => {
       const insertedDevice = await tx.t_device.insert(newDevice);
@@ -479,10 +461,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function getAccessToken(user, refreshToken) {
-    const refreshTokenHash = crypto
-      .createHash('sha256')
-      .update(refreshToken)
-      .digest('hex');
+    const refreshTokenHash = crypto.createHash('sha256').update(refreshToken).digest('hex');
 
     // we are looking for devices not revoked with
     // this refresh_token_hash
@@ -539,10 +518,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     }
 
     const resetPasswordToken = (await randomBytes(64)).toString('hex');
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(resetPasswordToken)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(resetPasswordToken).digest('hex');
 
     const resetPasswordInserted = await db.t_reset_password.insert({
       token_hash: tokenHash,
@@ -550,8 +526,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     });
 
     await mailService.send(user, 'password_reset', {
-      resetPasswordUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/reset-password/${encodeURI(resetPasswordToken)}`,
-      resetPasswordUrlGladys4: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/reset-password/${encodeURI(
+      resetPasswordUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/reset-password?token=${encodeURI(
         resetPasswordToken,
       )}`,
     });
@@ -560,10 +535,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function getEmailResetPassword(forgotPasswordToken) {
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(forgotPasswordToken)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
       token_hash: tokenHash,
@@ -598,10 +570,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ValidationError('resetPassword', error);
     }
 
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(forgotPasswordToken)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
       token_hash: tokenHash,

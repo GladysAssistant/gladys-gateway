@@ -33,10 +33,7 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
 
     // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
     // (due to SQL injection for example)
-    const tokenHash = crypto
-      .createHash('sha256')
-      .update(token)
-      .digest('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
 
     await db.t_invitation.insert({
       email,
@@ -49,7 +46,6 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     await slackService.inviteUser(email);
 
     await mailService.send({ email, language }, 'welcome', {
-      confirmationUrl: `${process.env.GLADYS_GATEWAY_FRONTEND_URL}/signup?token=${encodeURI(token)}`,
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });
 

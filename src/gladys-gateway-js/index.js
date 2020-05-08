@@ -728,11 +728,15 @@ class GladysGatewayJs {
       this.socket = io(this.serverUrl);
 
       this.socket.on('connect', async () => {
-        // we are connected, we get an access token
-        this.accessToken = await this.getAccessTokenInstance(this.refreshToken);
+        try {
+          // we are connected, we get an access token
+          this.accessToken = await this.getAccessTokenInstance(this.refreshToken);
 
-        // refresh user list
-        await this.refreshUsersList();
+          // refresh user list
+          await this.refreshUsersList();
+        } catch (e) {
+          return reject(e);
+        }
 
         this.socket.emit('instance-authentication', { access_token: this.accessToken }, async (res) => {
           if (res.authenticated) {
@@ -787,6 +791,7 @@ class GladysGatewayJs {
             fn(encryptedResponse);
           });
         });
+        return null;
       });
 
       // it means one user has updated his keys, so clearing key cache

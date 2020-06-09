@@ -12,3 +12,11 @@ CREATE TABLE t_error (
   created_at timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE INDEX ix_t_stat_created_at ON t_stat USING btree (created_at);
+
+CREATE INDEX ix_t_stat_event_type ON t_stat USING btree (event_type);
+
+CREATE INDEX ix_t_error_created_at ON t_error USING btree (created_at);
+
+CREATE INDEX ix_t_error_event_type ON t_stat USING btree (event_type);
+

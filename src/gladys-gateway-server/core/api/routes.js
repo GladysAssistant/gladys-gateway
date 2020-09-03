@@ -296,7 +296,17 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     }),
   );
 
-  app.use(Sentry.Handlers.errorHandler());
+  app.use(
+    Sentry.Handlers.errorHandler({
+      shouldHandleError(error) {
+        // Stop capturing 404 erros
+        if (error.status === 404) {
+          return false;
+        }
+        return true;
+      },
+    }),
+  );
 
   // error
   app.use(middlewares.errorMiddleware);

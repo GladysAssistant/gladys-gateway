@@ -1,5 +1,6 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
+const beforeSendSentry = require('../service/beforeSendSentry');
 const asyncMiddleware = require('../middleware/asyncMiddleware.js');
 const { NotFoundError } = require('../common/error.js');
 
@@ -8,7 +9,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.enable('trust proxy');
 
   // Sentry
-  Sentry.init({ dsn: process.env.SENTRY_DSN });
+  Sentry.init({
+    dsn: process.env.SENTRY_DSN,
+    beforeSend: beforeSendSentry,
+  });
+
   app.use(Sentry.Handlers.requestHandler());
 
   // parse application/x-www-form-urlencoded

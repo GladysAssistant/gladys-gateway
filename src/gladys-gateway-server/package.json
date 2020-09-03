@@ -46,12 +46,12 @@
     "supertest": "^3.3.0"
   },
   "dependencies": {
-    "@sentry/node": "^4.5.3",
+    "@sentry/node": "^5.22.3",
     "aws-sdk": "^2.463.0",
-    "axios": "^0.18.0",
+    "axios": "^0.18.1",
     "bluebird": "^3.5.3",
     "body-parser": "^1.18.3",
-    "db-migrate": "^0.11.3",
+    "db-migrate": "^0.11.11",
     "db-migrate-pg": "^0.4.0",
     "dotenv": "^6.2.0",
     "ejs": "^2.6.1",

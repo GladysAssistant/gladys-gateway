@@ -305,7 +305,10 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     Sentry.Handlers.errorHandler({
       shouldHandleError(error) {
         // Stop capturing 404 erros
-        if (error.status === 404) {
+        if (error instanceof NotFoundError) {
+          return false;
+        }
+        if (error && error.status === 404) {
           return false;
         }
         return true;

@@ -6,7 +6,7 @@ const uuid = require('uuid');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware.js');
 
-const MAX_FILE_SIZE_IN_BYTES = 100 * 1024 * 1024; // 100 MB
+const MAX_FILE_SIZE_IN_BYTES = 250 * 1024 * 1024; // 250 MB
 
 module.exports = function BackupController(backupModel, logger) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);

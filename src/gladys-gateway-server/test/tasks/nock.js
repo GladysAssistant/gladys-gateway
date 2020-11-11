@@ -31,3 +31,8 @@ nock('https://api.stripe.com:443', { encodedQueryParams: true })
     current_period_end: 1289482682000, // in 2010
   })
   .persist();
+
+nock('https://test.test-endpoint.com')
+  .delete('/un-backup.enc', () => true)
+  .reply(200, '<xml></xml>')
+  .persist();

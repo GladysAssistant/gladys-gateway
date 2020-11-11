@@ -20,6 +20,8 @@ before(async function Before() {
   process.env.STORAGE_ENDPOINT = 'test-endpoint.com';
   process.env.STORAGE_BUCKET = 'test';
   process.env.STRIPE_SECRET_KEY = 'test';
+  process.env.AWS_ACCESS_KEY_ID = 'test';
+  process.env.AWS_SECRET_ACCESS_KEY = 'test';
   const { app, db, redisClient } = await server();
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);

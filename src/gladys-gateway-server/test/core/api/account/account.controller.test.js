@@ -61,9 +61,7 @@ describe('POST /accounts/subscribe/new', () => {
     .set('Authorization', configTest.jwtAccessTokenDashboard)
     .expect('Content-Type', /json/)
     .expect(409)
-    .then((response) => {
-
-    }));
+    .then((response) => {}));
 });
 
 describe('POST /accounts/users/:id/revoke', () => {
@@ -86,12 +84,14 @@ describe('GET /accounts/invoices', () => {
     .expect('Content-Type', /json/)
     .expect(200)
     .then((response) => {
-      should.deepEqual(response.body, [{
-        id: '88b4b295-deae-4452-a5f0-e67f18cf6abe',
-        hosted_invoice_url: 'test',
-        invoice_pdf: 'test',
-        amount_paid: 999,
-        created_at: '2018-10-16T02:21:25.901Z',
-      }]);
+      should.deepEqual(response.body, [
+        {
+          id: '88b4b295-deae-4452-a5f0-e67f18cf6abe',
+          hosted_invoice_url: 'test',
+          invoice_pdf: 'test',
+          amount_paid: 999,
+          created_at: '2018-10-16T02:21:25.901Z',
+        },
+      ]);
     }));
 });

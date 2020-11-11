@@ -117,7 +117,7 @@ module.exports = async () => {
     invitationModel: Invitation(logger, db, redisClient, services.mailService),
     accountModel: Account(logger, db, redisClient, services.stripeService, services.mailService, services.slackService),
     deviceModel: Device(logger, db, redisClient),
-    adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService),
+    adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService, services.stripeService),
     openApiModel: OpenApi(logger, db),
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),

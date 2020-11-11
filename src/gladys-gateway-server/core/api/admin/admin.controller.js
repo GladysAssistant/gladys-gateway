@@ -36,8 +36,26 @@ module.exports = function AdminController(adminModel) {
     res.json(accounts);
   }
 
+  /**
+   * @api {delete} /admin/accounts/:id Delete account
+   * @apiName Delete account
+   * @apiGroup Admin
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  async function deleteAccount(req, res, next) {
+    await adminModel.deleteAccount(req.params.id);
+    return res.json({ status: 200 });
+  }
+
   return {
     resendConfirmationEmail,
     getAllAccounts,
+    deleteAccount,
   };
 };

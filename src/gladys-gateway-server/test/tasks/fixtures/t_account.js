@@ -6,5 +6,7 @@ module.exports = [
   {
     id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
     name: 'new-account-lost@gladysassistant.com',
+    stripe_customer_id: 'cus',
+    stripe_subscription_id: 'sub',
   },
 ];

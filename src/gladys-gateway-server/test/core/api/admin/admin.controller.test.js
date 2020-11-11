@@ -19,6 +19,22 @@ describe('POST /admin/accounts/:id/resend', () => {
   });
 });
 
+describe('DELETE /admin/accounts/:id', () => {
+  it('should delete account', function Test() {
+    this.timeout(5000);
+    process.env.SUPER_ADMIN_USER_ID = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
+    return request(TEST_BACKEND_APP)
+      .delete('/admin/accounts/be2b9666-5c72-451e-98f4-efca76ffef54')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        response.body.should.have.property('status', 200);
+      });
+  });
+});
+
 describe('GET /admin/accounts', () => {
   it('should return all accounts', () => {
     process.env.SUPER_ADMIN_USER_ID = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
@@ -44,8 +60,6 @@ describe('GET /admin/accounts', () => {
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {
-
-      });
+      .then((response) => {});
   });
 });

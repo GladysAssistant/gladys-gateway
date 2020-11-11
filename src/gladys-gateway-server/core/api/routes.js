@@ -236,6 +236,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     middlewares.isSuperAdmin,
     asyncMiddleware(controllers.adminController.getAllAccounts),
   );
+  app.delete(
+    '/admin/accounts/:id',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.adminController.deleteAccount),
+  );
 
   // stripe webhook
   app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));

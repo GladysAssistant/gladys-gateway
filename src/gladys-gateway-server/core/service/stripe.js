@@ -3,11 +3,10 @@ const Stripe = require('stripe');
 
 let stripe = null;
 
-if (process.env.STRIPE_SECRET_KEY) {
-  stripe = Stripe(process.env.STRIPE_SECRET_KEY);
-}
-
 module.exports = function StripeService(logger) {
+  if (process.env.STRIPE_SECRET_KEY) {
+    stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+  }
   async function createCustomer(email, source) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');

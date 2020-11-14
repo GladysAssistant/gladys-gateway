@@ -216,10 +216,6 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     asyncMiddleware(controllers.accountController.getInvoices),
   );
-  app.post(
-    '/accounts/subscribe/new',
-    asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount),
-  );
 
   app.post('/accounts/payments/sessions', asyncMiddleware(controllers.accountController.createPaymentSession));
 

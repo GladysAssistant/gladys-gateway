@@ -32,38 +32,6 @@ describe('POST /accounts/subscribe', () => {
     }));
 });
 
-describe('POST /accounts/subscribe/new', () => {
-  it('should subscribe a new email to account', () => request(TEST_BACKEND_APP)
-    .post('/accounts/subscribe/new')
-    .send({
-      email: 'tony.stark@gladysassistant.com',
-      language: 'fr',
-      stripe_source_id: 'stripe-source-id-sample',
-    })
-    .set('Accept', 'application/json')
-    .set('Authorization', configTest.jwtAccessTokenDashboard)
-    .expect('Content-Type', /json/)
-    .expect(200)
-    .then((response) => {
-      response.body.should.have.property('current_period_end');
-    }));
-});
-
-describe('POST /accounts/subscribe/new', () => {
-  it('should return already exist error', () => request(TEST_BACKEND_APP)
-    .post('/accounts/subscribe/new')
-    .send({
-      email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
-      language: 'fr',
-      stripe_source_id: 'stripe-source-id-sample',
-    })
-    .set('Accept', 'application/json')
-    .set('Authorization', configTest.jwtAccessTokenDashboard)
-    .expect('Content-Type', /json/)
-    .expect(409)
-    .then((response) => {}));
-});
-
 describe('POST /accounts/users/:id/revoke', () => {
   it('should revoke a user', () => request(TEST_BACKEND_APP)
     .post('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4/revoke')

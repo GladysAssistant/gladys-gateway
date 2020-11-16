@@ -129,6 +129,12 @@ module.exports = function StripeService(logger) {
     return stripe.customers.retrieve(customerId);
   }
 
+  function addTaxRate(subscriptionId) {
+    return stripe.subscriptions.update(subscriptionId, {
+      default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
+    });
+  }
+
   return {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
@@ -140,5 +146,6 @@ module.exports = function StripeService(logger) {
     getSubscription,
     createSession,
     getCustomer,
+    addTaxRate,
   };
 };

@@ -65,6 +65,9 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripeService.getCustomer(session.customer),
     ]);
 
+    // we update the tax rate
+    await stripeService.addTaxRate(subscription.id);
+
     const { email } = customer;
 
     // we first test if an account already exist with this email

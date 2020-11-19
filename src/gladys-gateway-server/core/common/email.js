@@ -32,6 +32,16 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/password_reset.ejs`, 'utf8')),
     },
   },
+  payment_failed: {
+    en: {
+      subject: 'Payment failed on Gladys Plus',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/payment_failed.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Le paiement a échoué sur Gladys Plus',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/payment_failed.ejs`, 'utf8')),
+    },
+  },
   welcome: {
     en: {
       subject: 'Gladys Plus - Confirm your email address',

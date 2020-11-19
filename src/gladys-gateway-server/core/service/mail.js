@@ -28,9 +28,9 @@ module.exports = function MailService(logger) {
 
   function send(userParam, template, scope) {
     const user = userParam;
-    // default language = en
+    // default language = fr
     if (SUPPORTED_LANGUAGE.indexOf(user.language) === -1) {
-      user.language = 'en';
+      user.language = 'fr';
     }
 
     if (!emails[template] || !emails[template][user.language]) {

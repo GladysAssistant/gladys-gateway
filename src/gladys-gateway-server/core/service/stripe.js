@@ -125,6 +125,15 @@ module.exports = function StripeService(logger) {
     });
   }
 
+  async function createBillingPortalSession(stripeCustomerId) {
+    const session = await stripe.billingPortal.sessions.create({
+      customer: stripeCustomerId,
+      return_url: process.env.GLADYS_PLUS_FRONTEND_URL,
+    });
+
+    return session.url;
+  }
+
   function getCustomer(customerId) {
     return stripe.customers.retrieve(customerId);
   }
@@ -147,5 +156,6 @@ module.exports = function StripeService(logger) {
     createSession,
     getCustomer,
     addTaxRate,
+    createBillingPortalSession,
   };
 };

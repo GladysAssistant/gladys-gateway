@@ -220,6 +220,20 @@ module.exports = function AccountController(accountModel, socketModel) {
     res.json(session);
   }
 
+  /**
+   * @api {get} /accounts/stripe_customer_portal/:stripe_customer_id Redirect to stripe customer portal
+   * @apiName Redirect to stripe customer portal
+   * @apiGroup Account
+   *
+   *
+   * @apiSuccessExample {text} Success-Response:
+   * HTTP/1.1 302 REDIRECT
+   */
+  async function redirectToStripeCustomerPortal(req, res, next) {
+    const url = await accountModel.createBillingPortalSession(req.params.stripe_customer_id);
+    res.redirect(url);
+  }
+
   return {
     getUsers,
     subscribeMonthlyPlan,
@@ -232,5 +246,6 @@ module.exports = function AccountController(accountModel, socketModel) {
     stripeEvent,
     getInvoices,
     createPaymentSession,
+    redirectToStripeCustomerPortal,
   };
 };

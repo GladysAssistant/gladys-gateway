@@ -32,6 +32,19 @@ nock('https://api.stripe.com:443', { encodedQueryParams: true })
   })
   .persist();
 
+nock('https://api.stripe.com:443', { encodedQueryParams: true })
+  .post('/v1/billing_portal/sessions')
+  .reply(200, {
+    id: 'pts_1G8ZkbClCIKljWvsk5O2fhg6',
+    object: 'billing_portal.session',
+    created: 1580854809,
+    customer: 'cus_IQ3EZdskEYMlCQ',
+    livemode: false,
+    return_url: 'https://example.com/account',
+    url: 'https://billing.stripe.com/session/SESSION_SECRET',
+  })
+  .persist();
+
 nock('https://test.test-endpoint.com')
   .delete('/un-backup.enc', () => true)
   .reply(200, '<xml></xml>')

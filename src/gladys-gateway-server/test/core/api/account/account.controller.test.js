@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 
 describe('GET /accounts/users', () => {
@@ -62,4 +63,15 @@ describe('GET /accounts/invoices', () => {
         },
       ]);
     }));
+});
+
+describe('GET /accounts/stripe_customer_portal/toto', () => {
+  it('should redirect to stripe customer portal', async () => {
+    await request(TEST_BACKEND_APP)
+      .get('/accounts/stripe_customer_portal/toto')
+      .expect(302)
+      .then((response) => {
+        expect(response.text).to.equal('Found. Redirecting to https://billing.stripe.com/session/SESSION_SECRET');
+      });
+  });
 });

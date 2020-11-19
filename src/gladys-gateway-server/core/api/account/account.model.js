@@ -515,6 +515,10 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     };
   }
 
+  async function createBillingPortalSession(customerId) {
+    return stripeService.createBillingPortalSession(customerId);
+  }
+
   return {
     getUsers,
     updateCard,
@@ -527,5 +531,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     getCard,
     getInvoices,
     createPaymentSession,
+    createBillingPortalSession,
   };
 };

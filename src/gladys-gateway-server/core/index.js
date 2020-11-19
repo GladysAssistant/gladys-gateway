@@ -66,6 +66,7 @@ module.exports = async () => {
     level: process.env.LOG_LEVEL || 'debug',
   });
   const app = express();
+  app.enable('trust proxy');
   const server = http.Server(app);
   const io = socketIo(server);
 

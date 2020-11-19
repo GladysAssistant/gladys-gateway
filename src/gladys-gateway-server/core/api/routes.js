@@ -220,7 +220,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post('/accounts/payments/sessions', asyncMiddleware(controllers.accountController.createPaymentSession));
 
   app.get(
-    '/accounts/stripe_customer_portal/:stripe_customer_id',
+    '/accounts/stripe_customer_portal/:stripe_portal_key',
     middlewares.rateLimiter,
     asyncMiddleware(controllers.accountController.redirectToStripeCustomerPortal),
   );

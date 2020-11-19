@@ -515,8 +515,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     };
   }
 
-  async function createBillingPortalSession(customerId) {
-    return stripeService.createBillingPortalSession(customerId);
+  async function createBillingPortalSession(stripePortalKey) {
+    const account = await db.t_account.findOne({
+      stripe_portal_key: stripePortalKey,
+    });
+    if (account === null) {
+      throw new NotFoundError('Account not found');
+    }
+    return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 
   return {

@@ -423,7 +423,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
       if (language && email) {
         await mailService.send({ email, language }, 'payment_failed', {
-          updateCardLink: `${process.env.GLADYS_PLUS_FRONTEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+          updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
         });
       }
 

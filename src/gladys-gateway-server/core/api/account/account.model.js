@@ -1,5 +1,6 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
+const get = require('get-value');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const {
   AlreadyExistError, ForbiddenError, NotFoundError, ValidationError,
@@ -413,6 +414,19 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       };
 
       await db.t_account_payment_activity.insert(activity);
+
+      const language = get(event, 'data.object.account_country')
+        ? event.data.object.account_country.substr(0, 2).toLowerCase()
+        : 'fr';
+
+      const email = get(event, 'data.customer_email');
+
+      if (language && email) {
+        await mailService.send({ email, language }, 'payment_failed', {
+          updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+        });
+      }
+
       break;
     }
 
@@ -515,8 +529,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     };
   }
 
-  async function createBillingPortalSession(customerId) {
-    return stripeService.createBillingPortalSession(customerId);
+  async function createBillingPortalSession(stripePortalKey) {
+    const account = await db.t_account.findOne({
+      stripe_portal_key: stripePortalKey,
+    });
+    if (account === null) {
+      throw new NotFoundError('Account not found');
+    }
+    return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 
   return {

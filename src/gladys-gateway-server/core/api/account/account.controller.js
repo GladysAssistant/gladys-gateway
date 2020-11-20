@@ -221,7 +221,7 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
-   * @api {get} /accounts/stripe_customer_portal/:stripe_customer_id Redirect to stripe customer portal
+   * @api {get} /accounts/stripe_customer_portal/:stripe_portal_key Redirect to stripe customer portal
    * @apiName Redirect to stripe customer portal
    * @apiGroup Account
    *
@@ -230,7 +230,7 @@ module.exports = function AccountController(accountModel, socketModel) {
    * HTTP/1.1 302 REDIRECT
    */
   async function redirectToStripeCustomerPortal(req, res, next) {
-    const url = await accountModel.createBillingPortalSession(req.params.stripe_customer_id);
+    const url = await accountModel.createBillingPortalSession(req.params.stripe_portal_key);
     res.redirect(url);
   }
 

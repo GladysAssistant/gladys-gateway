@@ -65,13 +65,18 @@ describe('GET /accounts/invoices', () => {
     }));
 });
 
-describe('GET /accounts/stripe_customer_portal/toto', () => {
+describe('GET /accounts/stripe_customer_portal/:id', () => {
   it('should redirect to stripe customer portal', async () => {
     await request(TEST_BACKEND_APP)
-      .get('/accounts/stripe_customer_portal/toto')
+      .get('/accounts/stripe_customer_portal/5959fcac-71b7-4a0e-8d67-5ab3f616f703')
       .expect(302)
       .then((response) => {
         expect(response.text).to.equal('Found. Redirecting to https://billing.stripe.com/session/SESSION_SECRET');
       });
+  });
+  it('should return 404 not found', async () => {
+    await request(TEST_BACKEND_APP)
+      .get('/accounts/stripe_customer_portal/a70ada04-3362-4e6f-b79f-c827d3604354')
+      .expect(404);
   });
 });

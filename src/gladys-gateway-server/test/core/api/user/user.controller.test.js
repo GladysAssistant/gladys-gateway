@@ -493,6 +493,7 @@ describe('GET /users/setup', () => {
     .then((response) => {
       should.deepEqual(response.body, {
         billing_setup: false,
+        stripe_portal_key: 'fee71731-5928-4f2f-a74b-c7858d39372f',
         gladys_instance_setup: true,
         user_gladys_acccount_linked: false,
       });

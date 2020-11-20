@@ -669,6 +669,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     return {
       billing_setup: account.stripe_customer_id !== null,
+      stripe_portal_key: account.stripe_portal_key,
       gladys_instance_setup: instances.length > 0,
       user_gladys_acccount_linked: fullUser.gladys_user_id !== null,
     };

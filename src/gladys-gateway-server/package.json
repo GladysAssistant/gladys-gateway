@@ -43,6 +43,7 @@
     "eslint-plugin-import": "^2.16.0",
     "mocha": "^5.2.0",
     "nock": "^10.0.0",
+    "nodemon": "^2.0.6",
     "should": "^13.2.3",
     "supertest": "^3.3.0"
   },

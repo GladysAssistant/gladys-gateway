@@ -16,6 +16,8 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.use(Sentry.Handlers.requestHandler());
 
+  app.use(middlewares.requestExecutionTime);
+
   // parse application/x-www-form-urlencoded
   app.use(
     bodyParser.urlencoded({

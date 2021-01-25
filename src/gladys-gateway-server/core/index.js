@@ -15,6 +15,7 @@ const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
 const Stat = require('./service/stat');
 const ErrorService = require('./service/error');
+const InstrumentalAgentService = require('./service/instrumentalAgent');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -55,6 +56,7 @@ const RateLimiterMiddleware = require('./middleware/rateLimiter');
 const IsSuperAdminMiddleware = require('./middleware/isSuperAdmin');
 const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
 const gladysUsageMiddleware = require('./middleware/gladysUsage');
+const requestExecutionTime = require('./middleware/requestExecutionTime');
 
 // Routes
 const routes = require('./api/routes');
@@ -108,6 +110,7 @@ module.exports = async () => {
     slackService: Slack(logger),
     statsService: await Stat(logger, statDb),
     errorService: await ErrorService(logger, statDb),
+    instrumentalAgentService: InstrumentalAgentService(logger),
   };
 
   const models = {
@@ -156,6 +159,7 @@ module.exports = async () => {
       services.statsService,
     ),
     gladysUsage: gladysUsageMiddleware(logger, db),
+    requestExecutionTime: requestExecutionTime(logger, services.instrumentalAgentService),
   };
 
   routes.load(app, io, controllers, middlewares);

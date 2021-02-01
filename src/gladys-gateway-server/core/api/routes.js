@@ -284,6 +284,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.openApiController.createOwntracksLocation),
   );
   app.post(
+    '/v1/api/netatmo/:open_api_key',
+    asyncMiddleware(middlewares.openApiKeyAuth),
+    asyncMiddleware(controllers.openApiController.handleNetatmoWebhook),
+  );
+  app.post(
     '/v1/api/message/:open_api_key',
     asyncMiddleware(middlewares.openApiKeyAuth),
     asyncMiddleware(controllers.openApiController.createMessage),

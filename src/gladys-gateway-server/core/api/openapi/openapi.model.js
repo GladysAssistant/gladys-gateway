@@ -20,10 +20,7 @@ module.exports = function OpenApiModel(logger, db) {
     }
 
     const apiKey = (await randomBytes(40)).toString('hex');
-    const apiKeyHash = crypto
-      .createHash('sha256')
-      .update(apiKey)
-      .digest('hex');
+    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
 
     const newApiKey = {
       name,
@@ -71,10 +68,7 @@ module.exports = function OpenApiModel(logger, db) {
   }
 
   async function findOpenApiKey(apiKey) {
-    const apiKeyHash = crypto
-      .createHash('sha256')
-      .update(apiKey)
-      .digest('hex');
+    const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
     return db.t_open_api_key.findOne(
       {
         api_key_hash: apiKeyHash,
@@ -132,6 +126,23 @@ module.exports = function OpenApiModel(logger, db) {
     return message;
   }
 
+  async function createNetatmoWebhookMessage(user, primaryInstance, body) {
+    const data = {
+      user_id: user.gladys_4_user_id,
+      netatmo_data: body,
+    };
+
+    const message = {
+      version: '1.0',
+      type: 'gladys-open-api',
+      action: 'netatmo-webhook',
+      instance_id: primaryInstance.id,
+      data,
+    };
+
+    return message;
+  }
+
   async function createMessage(user, primaryInstance, text) {
     const message = {
       version: '1.0',
@@ -156,6 +167,7 @@ module.exports = function OpenApiModel(logger, db) {
     updateLastUsed,
     createEvent,
     createOwntrackLocation,
+    createNetatmoWebhookMessage,
     createMessage,
   };
 };

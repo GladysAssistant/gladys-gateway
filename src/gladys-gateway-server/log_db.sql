@@ -1,3 +1,7 @@
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
+
 CREATE TABLE t_stat (
   id uuid DEFAULT uuid_generate_v4 () NOT NULL,
   event_type character varying(255) NOT NULL,

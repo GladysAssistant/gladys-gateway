@@ -707,6 +707,10 @@ class GladysGatewayJs {
   }
 
   async instanceConnect(refreshToken, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk, callbackMessage) {
+    // if a connection already exist, we disconnect it first
+    if (this.socket && this.socket.disconnect) {
+      this.socket.disconnect();
+    }
     // clean current this
     this.socket = null;
     this.accessToken = null;

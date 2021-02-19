@@ -2,7 +2,15 @@ const jwt = require('jsonwebtoken');
 const sizeof = require('object-sizeof');
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, statsService) {
+module.exports = function SocketModel(
+  logger,
+  db,
+  redisClient,
+  io,
+  fingerprint,
+  statsService,
+  instrumentalAgentService,
+) {
   const ioAdapter = io;
   // handle messages from different nodes
   ioAdapter.of('/').adapter.customHook = (data, cb) => {
@@ -118,12 +126,16 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
     const receivedAt = new Date().getTime();
 
+    const messageSize = sizeof(messageParam);
+
     statsService.track('MESSAGE_TO_INSTANCE', {
       user_id: user.id,
-      message_size: sizeof(messageParam),
+      message_size: messageSize,
       sent_at: messageParam.sent_at,
       received_at: receivedAt,
     });
+
+    instrumentalAgentService.sendMetric('backend.requests.message-to-instance.message-size', messageSize);
 
     const message = messageParam;
 
@@ -153,13 +165,17 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           return callback(notFound.jsonError());
         }
 
+        const replySize = sizeof(filteredReplies[0]);
+
         statsService.track('MESSAGE_TO_INSTANCE_RESPONSE', {
           user_id: user.id,
-          message_size: sizeof(filteredReplies[0]),
+          message_size: replySize,
           sent_at: messageParam.sent_at,
           received_at: receivedAt,
           response_received_at: new Date().getTime(),
         });
+
+        instrumentalAgentService.sendMetric('backend.requests.message-to-instance-response.message-size', replySize);
 
         return callback(filteredReplies[0]);
       });
@@ -172,12 +188,16 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function handleNewMessageFromInstance(instance, messageParam) {
     logger.debug(`New message from instance ${instance.id}`);
 
+    const messageSize = sizeof(messageParam);
+
     statsService.track('MESSAGE_TO_USER', {
       instance_id: instance.id,
-      message_size: sizeof(messageParam),
+      message_size: messageSize,
       sent_at: messageParam.sent_at,
       received_at: new Date().getTime(),
     });
+
+    instrumentalAgentService.sendMetric('backend.requests.message-to-user.message-size', messageSize);
 
     const message = messageParam;
 

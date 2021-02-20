@@ -116,7 +116,15 @@ module.exports = async () => {
   const models = {
     pingModel: Ping(logger, db, redisClient),
     userModel: User(logger, db, redisClient, services.jwtService, services.mailService),
-    socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.statsService),
+    socketModel: Socket(
+      logger,
+      db,
+      redisClient,
+      io,
+      services.fingerprint,
+      services.statsService,
+      services.instrumentalAgentService,
+    ),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: Invitation(logger, db, redisClient, services.mailService),
     accountModel: Account(logger, db, redisClient, services.stripeService, services.mailService, services.slackService),

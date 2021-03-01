@@ -113,6 +113,7 @@ module.exports = function StripeService(logger) {
     return stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       subscription_data: {
+        default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
         items: [
           {
             plan: process.env.STRIPE_MONTHLY_PLAN_ID,

@@ -28,12 +28,12 @@
   },
   "devDependencies": {
     "dotenv": "^6.0.0",
-    "eslint": "^5.16.0",
+    "eslint": "^7.22.0",
     "eslint-config-airbnb": "^17.1.0",
     "eslint-config-prettier": "^4.3.0",
-    "eslint-plugin-import": "^2.17.3",
-    "mocha": "^5.2.0",
-    "nock": "^10.0.0",
+    "eslint-plugin-import": "^2.22.1",
+    "mocha": "^8.3.2",
+    "nock": "^13.0.11",
     "node-webcrypto-ossl": "^1.0.48",
     "should": "^13.2.3",
     "speakeasy": "^2.0.0"

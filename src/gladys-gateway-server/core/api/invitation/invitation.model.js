@@ -38,13 +38,30 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
         throw new ForbiddenError();
       }
 
-      const emailAlreadyExist = await tx.t_invitation.findOne({
+      const invitationAlreadyExist = await tx.t_invitation.findOne({
         email,
         account_id: userWithAccount.account_id,
+        revoked: false,
+        accepted: false,
+        is_deleted: false,
       });
 
       // email already exist in this account
-      if (emailAlreadyExist !== null) {
+      if (invitationAlreadyExist !== null) {
+        throw new AlreadyExistError();
+      }
+
+      const userAlreadyExist = await tx.t_user.findOne(
+        {
+          email,
+          account_id: userWithAccount.account_id,
+          is_deleted: false,
+        },
+        { fields: ['id', 'name'] },
+      );
+
+      // user with this email already exist in this account
+      if (userAlreadyExist !== null) {
         throw new AlreadyExistError();
       }
 

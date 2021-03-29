@@ -801,7 +801,7 @@ class GladysGatewayJs {
 
       // it means one user has updated his keys, so clearing key cache
       this.socket.on('clear-key-cache', async () => {
-        this.logger.info('gladys-gateway-js: Clearing key cache');
+        this.logger.debug('gladys-gateway-js: Clearing key cache');
         this.keysDictionnary = {};
         await this.refreshUsersList();
       });
@@ -809,7 +809,7 @@ class GladysGatewayJs {
       // if a user connects, or disconnects, we receive this event
       // and can update the list of user connected
       this.socket.on('clear-connected-users-list', async () => {
-        this.logger.info('gladys-gateway-js: Updating connected user list');
+        this.logger.debug('gladys-gateway-js: Updating connected user list');
         await this.refreshUsersList();
       });
 

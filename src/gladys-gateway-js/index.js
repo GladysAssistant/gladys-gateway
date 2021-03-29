@@ -683,6 +683,7 @@ class GladysGatewayJs {
   }
 
   async refreshUsersList() {
+    this.lastRefreshUserList = Date.now();
     // first, we get all users in instance
     const users = await this.getUsersInstance();
 
@@ -805,6 +806,13 @@ class GladysGatewayJs {
         await this.refreshUsersList();
       });
 
+      // if a user connects, or disconnects, we receive this event
+      // and can update the list of user connected
+      this.socket.on('clear-connected-users-list', async () => {
+        this.logger.info('gladys-gateway-js: Updating connected user list');
+        await this.refreshUsersList();
+      });
+
       this.socket.on('disconnect', async (reason) => {
         if (reason === 'io server disconnect') {
           // the disconnection was initiated by the server, you need to reconnect manually
@@ -864,8 +872,6 @@ class GladysGatewayJs {
     if (this.socket === null) {
       throw new Error('Not connected to socket, cannot send message');
     }
-
-    await this.refreshUsersList();
 
     const allUsers = Object.keys(this.keysDictionnary);
 

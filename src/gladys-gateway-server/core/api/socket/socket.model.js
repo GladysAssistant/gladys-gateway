@@ -121,6 +121,10 @@ module.exports = function SocketModel(
     return instance;
   }
 
+  function askInstanceToRefreshConnectedUsers(accountId) {
+    io.to(`account:instances:${accountId}`).emit('clear-connected-users-list');
+  }
+
   async function handleNewMessageFromUser(user, messageParam, callback) {
     logger.debug(`Received message from user ${user.id}`);
 
@@ -260,5 +264,6 @@ module.exports = function SocketModel(
     askInstanceToClearKeyCache,
     isUserConnected,
     sendMessageOpenApi,
+    askInstanceToRefreshConnectedUsers,
   };
 };

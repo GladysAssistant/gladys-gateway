@@ -29,6 +29,9 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
           cb(startTime);
         });
 
+        // we ask connected instance to refresh it's user list as a new user is connected
+        socketModel.askInstanceToRefreshConnectedUsers(user.account_id);
+
         isClientAuthenticated = true;
 
         logger.info(`User ${user.id} connected in websockets`);
@@ -38,6 +41,8 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
 
         socket.on('disconnect', () => {
           // socket disconnected
+          // we ask connected instance to refresh it's user list as user is diconnected
+          socketModel.askInstanceToRefreshConnectedUsers(user.account_id);
         });
       } catch (e) {
         fn({ authenticated: false });

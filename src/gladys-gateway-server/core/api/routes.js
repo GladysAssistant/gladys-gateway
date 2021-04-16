@@ -12,7 +12,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   Sentry.init({
     dsn: process.env.SENTRY_DSN,
     beforeSend: beforeSendSentry,
-    ignoreErrors: ['Unauthorized', 'Forbidden'],
+    ignoreErrors: ['Unauthorized', 'Forbidden', 'NO_INSTANCE_FOUND'],
     denyUrls: ['/instances/access-token', '/v1/api/owntracks/'],
   });
 

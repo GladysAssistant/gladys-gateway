@@ -4,13 +4,13 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
 
     let isClientAuthenticated = false;
 
-    // the client has 10 seconds to authenticate
+    // the client has 90 seconds to authenticate
     // if not, he is disconnected
     setTimeout(() => {
       if (isClientAuthenticated === false) {
         socket.disconnect();
       }
-    }, 10000);
+    }, 90 * 1000);
 
     socket.on('user-authentication', async (data, fn) => {
       try {

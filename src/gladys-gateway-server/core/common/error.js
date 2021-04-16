@@ -80,7 +80,7 @@ class AlreadyExistError extends Error {
 class ForbiddenError extends Error {
   constructor(message) {
     super(message || 'Forbidden');
-    this.message = message;
+    this.message = message || 'Forbidden';
     this.code = 403;
 
     // the next line is important so that the ValidationError constructor is not part

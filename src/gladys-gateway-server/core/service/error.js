@@ -1,6 +1,6 @@
 const { Batcher } = require('bottleneck');
-
 const omitDeep = require('omit-deep');
+const { ForbiddenError, UnauthorizedError } = require('../common/error');
 
 const PROPERTIES_TO_OMIT = [
   'password',
@@ -33,12 +33,14 @@ module.exports = async function ErrorService(logger, statDb) {
   });
   async function track(eventName, data) {
     try {
-      const cleanPayload = omitDeep(data, PROPERTIES_TO_OMIT);
-      logger.error(cleanPayload);
-      batcher.add({
-        event_type: eventName,
-        payload: cleanPayload,
-      });
+      if (data.error && !(data.error instanceof ForbiddenError) && !(data.error instanceof UnauthorizedError)) {
+        const cleanPayload = omitDeep(data, PROPERTIES_TO_OMIT);
+        logger.error(cleanPayload);
+        batcher.add({
+          event_type: eventName,
+          payload: cleanPayload,
+        });
+      }
     } catch (e) {
       logger.warn('Unable to add error to batcher');
       logger.warn(e);

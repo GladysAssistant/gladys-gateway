@@ -740,6 +740,8 @@ class GladysGatewayJs {
           // refresh user list
           await this.refreshUsersList();
         } catch (e) {
+          this.logger.warn('Gladys Gateway: Unable to get new access token or refresh user list.');
+          this.logger.warn(e);
           return reject(e);
         }
 
@@ -748,6 +750,7 @@ class GladysGatewayJs {
             this.logger.info('Gladys Gateway: connected in websockets');
             resolve();
           } else {
+            this.logger.warn('Gladys Gateway: instance authentication failed.');
             reject();
           }
         });

@@ -732,6 +732,51 @@ class GladysGatewayJs {
     return new Promise((resolve, reject) => {
       this.socket = io(this.serverUrl);
 
+      // Open API message
+      // By definition, those messages cannot be E2E encrypted
+      // because the recipient is a third-party
+      this.socket.on('open-api-message', async (data, fn) => {
+        callbackMessage(data, data, async (response) => {
+          fn(response);
+        });
+      });
+
+      this.socket.on('message', async (data, fn) => {
+        let ecdsaPublicKey = null;
+        let rsaPublicKey = null;
+
+        // if we don't have the key in RAM, we refresh the user list
+        if (!this.keysDictionnary[data.sender_id]) {
+          await this.refreshUsersList();
+        }
+
+        if (this.keysDictionnary[data.sender_id]) {
+          ecdsaPublicKey = this.keysDictionnary[data.sender_id].ecdsaPublicKey; // eslint-disable-line
+          rsaPublicKey = this.keysDictionnary[data.sender_id].rsaPublicKey; // eslint-disable-line
+          data.ecdsaPublicKeyRaw = this.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
+          data.rsaPublicKeyRaw = this.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
+        }
+
+        if (ecdsaPublicKey == null || rsaPublicKey == null) {
+          throw new Error('User not found');
+        }
+
+        const decryptedMessage = await this.crypto.decryptMessage(
+          this.rsaKeys.private_key,
+          ecdsaPublicKey,
+          data.encryptedMessage,
+        );
+
+        callbackMessage(decryptedMessage, data, async (response) => {
+          const encryptedResponse = await this.crypto.encryptMessage(
+            rsaPublicKey,
+            this.ecdsaKeys.private_key,
+            response,
+          );
+          fn(encryptedResponse);
+        });
+      });
+
       this.socket.on('connect', async () => {
         try {
           // we are connected, we get an access token
@@ -753,51 +798,6 @@ class GladysGatewayJs {
             this.logger.warn('Gladys Gateway: instance authentication failed.');
             reject();
           }
-        });
-
-        // Open API message
-        // By definition, those messages cannot be E2E encrypted
-        // because the recipient is a third-party
-        this.socket.on('open-api-message', async (data, fn) => {
-          callbackMessage(data, data, async (response) => {
-            fn(response);
-          });
-        });
-
-        this.socket.on('message', async (data, fn) => {
-          let ecdsaPublicKey = null;
-          let rsaPublicKey = null;
-
-          // if we don't have the key in RAM, we refresh the user list
-          if (!this.keysDictionnary[data.sender_id]) {
-            await this.refreshUsersList();
-          }
-
-          if (this.keysDictionnary[data.sender_id]) {
-            ecdsaPublicKey = this.keysDictionnary[data.sender_id].ecdsaPublicKey; // eslint-disable-line
-            rsaPublicKey = this.keysDictionnary[data.sender_id].rsaPublicKey; // eslint-disable-line
-            data.ecdsaPublicKeyRaw = this.keysDictionnary[data.sender_id].ecdsaPublicKeyRaw;
-            data.rsaPublicKeyRaw = this.keysDictionnary[data.sender_id].rsaPublicKeyRaw;
-          }
-
-          if (ecdsaPublicKey == null || rsaPublicKey == null) {
-            throw new Error('User not found');
-          }
-
-          const decryptedMessage = await this.crypto.decryptMessage(
-            this.rsaKeys.private_key,
-            ecdsaPublicKey,
-            data.encryptedMessage,
-          );
-
-          callbackMessage(decryptedMessage, data, async (response) => {
-            const encryptedResponse = await this.crypto.encryptMessage(
-              rsaPublicKey,
-              this.ecdsaKeys.private_key,
-              response,
-            );
-            fn(encryptedResponse);
-          });
         });
         return null;
       });

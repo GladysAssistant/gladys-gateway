@@ -151,6 +151,27 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
     return res.json({ status: 200 });
   }
 
+  /**
+   * @api {post} /v1/api/device/state/:open-api-key Create device state Open API
+   * @apiName createDeviceState
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  async function createDeviceState(req, res, next) {
+    const message = await openApiModel.createDeviceState(req.user, req.primaryInstance, req.body);
+    const response = await socketModel.sendMessageOpenApi(req.user, message);
+    if (response.status && response.status >= 400) {
+      return res.status(response.status).json(response);
+    }
+    return res.json({ status: 200 });
+  }
+
   return {
     createNewApiKey,
     getApiKeys,
@@ -159,6 +180,7 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
     createEvent,
     createOwntracksLocation,
     createMessage,
+    createDeviceState,
     handleNetatmoWebhook,
   };
 };

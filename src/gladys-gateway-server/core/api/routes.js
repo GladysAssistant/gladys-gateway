@@ -295,6 +295,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.openApiKeyAuth),
     asyncMiddleware(controllers.openApiController.createMessage),
   );
+  app.post(
+    '/v1/api/device/state/:open_api_key',
+    asyncMiddleware(middlewares.openApiKeyAuth),
+    asyncMiddleware(controllers.openApiController.createDeviceState),
+  );
 
   // Gladys version
   app.get(

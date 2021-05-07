@@ -158,6 +158,18 @@ module.exports = function OpenApiModel(logger, db) {
     return message;
   }
 
+  async function createDeviceState(user, primaryInstance, data) {
+    const message = {
+      version: '1.0',
+      type: 'gladys-open-api',
+      action: 'create-device-state',
+      instance_id: primaryInstance.id,
+      data,
+    };
+
+    return message;
+  }
+
   return {
     createNewApiKey,
     getApiKeys,
@@ -169,5 +181,6 @@ module.exports = function OpenApiModel(logger, db) {
     createOwntrackLocation,
     createNetatmoWebhookMessage,
     createMessage,
+    createDeviceState,
   };
 };

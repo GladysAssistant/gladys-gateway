@@ -103,9 +103,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       account_id: insertedAccount.id,
     });
 
-    // we invite the user in slack if slack is enabled
-    await slackService.inviteUser(email);
-
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });
@@ -213,9 +210,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       token_hash: tokenHash,
       account_id: insertedAccount.id,
     });
-
-    // we invite the user in slack if slack is enabled
-    await slackService.inviteUser(email);
 
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,

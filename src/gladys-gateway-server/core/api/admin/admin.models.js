@@ -48,9 +48,6 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       account_id: account.id,
     });
 
-    // we invite the user in slack if slack is enabled
-    await slackService.inviteUser(email);
-
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });

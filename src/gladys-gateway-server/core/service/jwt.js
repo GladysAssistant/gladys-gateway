@@ -19,14 +19,47 @@ module.exports = function JwtService() {
   }
 
   function generateRefreshToken(user, scope, deviceId, userAgentHash) {
-    return jwt.sign({
-      user_id: user.id, scope, device_id: deviceId, fingerprint: userAgentHash,
-    }, process.env.JWT_REFRESH_TOKEN_SECRET, {
+    return jwt.sign(
+      {
+        user_id: user.id,
+        scope,
+        device_id: deviceId,
+        fingerprint: userAgentHash,
+      },
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      {
+        algorithm: 'HS256',
+        audience: 'user',
+        issuer: 'gladys-gateway',
+        expiresIn: 100 * 365 * 24 * 60 * 60, // refresh token basically never expires, they are invalidated server side
+      },
+    );
+  }
+
+  function generateAccessTokenOauth(user, scope, audience) {
+    return jwt.sign({ user_id: user.id, scope }, process.env.JWT_ACCESS_TOKEN_SECRET, {
       algorithm: 'HS256',
-      audience: 'user',
+      audience,
       issuer: 'gladys-gateway',
-      expiresIn: 100 * 365 * 24 * 60 * 60, // refresh token basically never expires, they are invalidated server side
+      expiresIn: 1 * 60 * 60, // access token is valid 1 hour
     });
+  }
+
+  function generateRefreshTokenOauth(user, scope, deviceId, audience) {
+    return jwt.sign(
+      {
+        user_id: user.id,
+        scope,
+        device_id: deviceId,
+      },
+      process.env.JWT_REFRESH_TOKEN_SECRET,
+      {
+        algorithm: 'HS256',
+        audience,
+        issuer: 'gladys-gateway',
+        expiresIn: 100 * 365 * 24 * 60 * 60, // refresh token basically never expires, they are invalidated server side
+      },
+    );
   }
 
   function generateRefreshTokenInstance(instance) {
@@ -54,5 +87,7 @@ module.exports = function JwtService() {
     generateRefreshToken,
     generateRefreshTokenInstance,
     generateAccessTokenInstance,
+    generateAccessTokenOauth,
+    generateRefreshTokenOauth,
   };
 };

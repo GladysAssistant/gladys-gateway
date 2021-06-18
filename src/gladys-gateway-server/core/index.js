@@ -159,6 +159,7 @@ module.exports = async () => {
       models.socketModel,
       models.instanceModel,
       models.userModel,
+      models.deviceModel,
       services.instrumentalAgentService,
     ),
   };

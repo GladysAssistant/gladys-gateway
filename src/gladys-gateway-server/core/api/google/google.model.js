@@ -34,7 +34,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     };
 
     const refreshToken = jwtService.generateRefreshTokenOauth(user, SCOPE, newDevice.id, JWT_AUDIENCE);
-    const accessToken = jwtService.generateAccessTokenOauth(user, SCOPE, JWT_AUDIENCE);
+    const accessToken = jwtService.generateAccessTokenOauth(user, newDevice, SCOPE, JWT_AUDIENCE);
     newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     await db.t_device.insert(newDevice);
     return {
@@ -85,7 +85,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
       throw new ForbiddenError();
     }
 
-    const accessToken = jwtService.generateAccessTokenOauth(fullUser, SCOPE, JWT_AUDIENCE);
+    const accessToken = jwtService.generateAccessTokenOauth(fullUser, device, SCOPE, JWT_AUDIENCE);
 
     return {
       accessToken,

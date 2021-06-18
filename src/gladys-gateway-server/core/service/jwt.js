@@ -36,8 +36,8 @@ module.exports = function JwtService() {
     );
   }
 
-  function generateAccessTokenOauth(user, scope, audience) {
-    return jwt.sign({ user_id: user.id, scope }, process.env.JWT_ACCESS_TOKEN_SECRET, {
+  function generateAccessTokenOauth(user, device, scope, audience) {
+    return jwt.sign({ user_id: user.id, device_id: device.id, scope }, process.env.JWT_ACCESS_TOKEN_SECRET, {
       algorithm: 'HS256',
       audience,
       issuer: 'gladys-gateway',

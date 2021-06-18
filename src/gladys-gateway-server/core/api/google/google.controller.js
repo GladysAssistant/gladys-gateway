@@ -1,6 +1,7 @@
 /* eslint-disable function-paren-newline */
 /* eslint-disable implicit-arrow-linebreak */
 /* eslint-disable arrow-parens */
+const get = require('get-value');
 const { BadRequestError } = require('../../common/error');
 
 const VALID_REDIRECT_URIS = [
@@ -14,6 +15,7 @@ module.exports = function GoogleController(
   socketModel,
   instanceModel,
   userModel,
+  deviceModel,
   instrumentalAgentService,
 ) {
   /**
@@ -25,6 +27,7 @@ module.exports = function GoogleController(
     instrumentalAgentService.increment('backend.requests.google-home.smart-home');
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
+    const firstOrderIntent = get(req.body, 'inputs.0.intent');
     const message = {
       version: '1.0',
       type: 'gladys-open-api',
@@ -32,6 +35,16 @@ module.exports = function GoogleController(
       instance_id: primaryInstance.id,
       data: req.body,
     };
+    // try to revoke device if exist
+    if (firstOrderIntent === 'action.devices.DISCONNECT' && req.device && req.device.id) {
+      try {
+        logger.info(`Google Home: Receiving unlink request, revoking Google Home session for device ${req.device.id}`);
+        await deviceModel.revokeDevice(req.user, req.device.id);
+      } catch (e) {
+        logger.warn(e);
+      }
+    }
+    // then, we sent the request to the local Gladys instance
     const response = await socketModel.sendMessageOpenApi(user, message);
     if (response.status && response.status >= 400) {
       res.status(response.status);

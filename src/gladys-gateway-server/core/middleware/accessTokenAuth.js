@@ -22,6 +22,12 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
           id: decoded.user_id,
         };
 
+        if (decoded.device_id) {
+          req.device = {
+            id: decoded.device_id,
+          };
+        }
+
         next();
       } catch (e) {
         logger.debug(req.headers.authorization);

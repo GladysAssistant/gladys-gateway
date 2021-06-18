@@ -24,7 +24,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
       instance_id: primaryInstance.id,
       data: req.body,
     };
-    const response = await socketModel.sendMessageOpenApi(req.user, message);
+    const response = await socketModel.sendMessageOpenApi(user, message);
     if (response.status && response.status >= 400) {
       res.status(response.status);
     }

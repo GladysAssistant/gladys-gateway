@@ -553,6 +553,10 @@ class GladysGatewayJs {
     return requestApi.delete(`${this.serverUrl}/open-api-keys/${id}`, this);
   }
 
+  async googleHomeAuthorize(body) {
+    return requestApi.post(`${this.serverUrl}/google/authorize`, body ,this);
+  }
+
   async getInstance() {
     const instances = await requestApi.get(`${this.serverUrl}/instances`, this);
 

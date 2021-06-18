@@ -300,13 +300,19 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.openApiKeyAuth),
     asyncMiddleware(controllers.openApiController.createDeviceState),
   );
-  // google home actions
+  // google home internal route
+  app.post(
+    '/google/authorize',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.googleController.authorize),
+  );
+  //  google home actions
   app.post(
     '/v1/api/google/smart_home',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'google-home', audience: 'google-home-oauth' })),
     asyncMiddleware(controllers.googleController.smartHome),
   );
-  app.get('/v1/api/google/connect', asyncMiddleware(controllers.googleController.connect));
+  
   app.post('/v1/api/google/token', asyncMiddleware(controllers.googleController.token));
 
   // Gladys version

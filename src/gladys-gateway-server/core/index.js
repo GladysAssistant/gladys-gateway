@@ -153,7 +153,13 @@ module.exports = async () => {
     versionController: VersionController(models.versionModel),
     backupController: BackupController(models.backupModel, logger),
     statController: StatController(models.statModel),
-    googleController: GoogleController(models.googleModel, models.socketModel, models.instanceModel, models.userModel),
+    googleController: GoogleController(
+      logger,
+      models.googleModel,
+      models.socketModel,
+      models.instanceModel,
+      models.userModel,
+    ),
   };
 
   const middlewares = {

@@ -10,6 +10,8 @@ const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
 
+const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
+
 module.exports = function AdminModel(logger, db, redisClient, jwtService) {
   async function getRefreshTokenAndAccessToken(code) {
     const userId = await redisClient.getAsync(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
@@ -27,6 +29,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     const newDevice = {
       id: uuid.v4(),
       name: 'Google Home',
+      client_id: GOOGLE_HOME_OAUTH_CLIENT_ID,
       user_id: user.id,
     };
 

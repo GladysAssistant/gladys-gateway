@@ -3,8 +3,6 @@
 /* eslint-disable arrow-parens */
 const { BadRequestError } = require('../../common/error');
 
-const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_OAUTH_CLIENT_SECRET } = process.env;
-
 const VALID_REDIRECT_URIS = [
   'https://oauth-redirect.googleusercontent.com',
   'https://oauth-redirect-sandbox.googleusercontent.com',
@@ -38,6 +36,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
    * @apiGroup Google Home
    */
   async function authorize(req, res) {
+    const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
     if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
     }
@@ -59,6 +58,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
    * @apiGroup Google Home
    */
   async function token(req, res, next) {
+    const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_OAUTH_CLIENT_SECRET } = process.env;
     try {
       if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
         throw new BadRequestError('client_id is not matching');
@@ -66,8 +66,6 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
       if (req.body.client_secret !== GOOGLE_HOME_OAUTH_CLIENT_SECRET) {
         throw new BadRequestError('client_secret is not matching');
       }
-      console.log(req.body);
-      console.log(req.query);
       if (req.body.grant_type === 'authorization_code') {
         const { accessToken, refreshToken } = await googleModel.getRefreshTokenAndAccessToken(req.body.code);
         res.json({

@@ -8,7 +8,6 @@ const server = require('./core/index');
     env: process.env.NODE_ENV === 'production' ? 'production' : 'dev',
   });
   await dbmigrate.up();
-  console.log('starting server');
   // then, we start server
   server();
 })();

@@ -1,7 +1,7 @@
 /* eslint-disable function-paren-newline */
 /* eslint-disable implicit-arrow-linebreak */
 /* eslint-disable arrow-parens */
-const { UnauthorizedError } = require('../../common/error');
+const { BadRequestError } = require('../../common/error');
 
 const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_OAUTH_CLIENT_SECRET } = process.env;
 
@@ -39,13 +39,13 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
    */
   async function authorize(req, res) {
     if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
-      throw new UnauthorizedError('client_id is not matching');
+      throw new BadRequestError('client_id is not matching');
     }
-    const baseUrlFound = VALID_REDIRECT_URIS.find((redirectUriBaseUrl) =>
-      req.body.redirect_uri.startsWith(redirectUriBaseUrl),
+    const baseUrlFound = VALID_REDIRECT_URIS.find(
+      (redirectUriBaseUrl) => req.body.redirect_uri && req.body.redirect_uri.startsWith(redirectUriBaseUrl),
     );
     if (!baseUrlFound) {
-      throw new UnauthorizedError('invalid redirect_uri');
+      throw new BadRequestError('invalid redirect_uri');
     }
     const code = await googleModel.getCode(req.user.id);
     const redirectUrl = `${req.body.redirect_uri}?state=${req.body.state}&code=${code}`;
@@ -61,10 +61,10 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
   async function token(req, res, next) {
     try {
       if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
-        throw new UnauthorizedError('client_id is not matching');
+        throw new BadRequestError('client_id is not matching');
       }
       if (req.body.client_secret !== GOOGLE_HOME_OAUTH_CLIENT_SECRET) {
-        throw new UnauthorizedError('client_secret is not matching');
+        throw new BadRequestError('client_secret is not matching');
       }
       console.log(req.body);
       console.log(req.query);
@@ -84,7 +84,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
           expires_in: 3600,
         });
       } else {
-        throw new UnauthorizedError('wrong grand_type');
+        throw new BadRequestError('wrong grand_type');
       }
     } catch (e) {
       logger.error(e);

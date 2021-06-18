@@ -312,7 +312,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'google-home', audience: 'google-home-oauth' })),
     asyncMiddleware(controllers.googleController.smartHome),
   );
-  
+
   app.post('/v1/api/google/token', asyncMiddleware(controllers.googleController.token));
 
   // Gladys version

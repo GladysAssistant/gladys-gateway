@@ -23,6 +23,31 @@ class NotFoundError extends Error {
   }
 }
 
+class BadRequestError extends Error {
+  constructor(errorMessage) {
+    super(errorMessage);
+    this.errorMessage = errorMessage;
+    this.code = 400;
+
+    // the next line is important so that the ValidationError constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, NotFoundError);
+  }
+
+  // we can also define custom methods on this class
+  jsonError() {
+    return {
+      status: this.code,
+      error_code: 'BAD_REQUEST',
+      error_message: this.errorMessage,
+    };
+  }
+
+  getStatus() {
+    return this.code;
+  }
+}
+
 class ValidationError extends Error {
   constructor(objectName, joiError) {
     const errorMessage = `ValidationError: ${objectName} object.`;
@@ -180,6 +205,7 @@ class PaymentRequiredError extends Error {
 }
 
 module.exports.ValidationError = ValidationError;
+module.exports.BadRequestError = BadRequestError;
 module.exports.AlreadyExistError = AlreadyExistError;
 module.exports.NotFoundError = NotFoundError;
 module.exports.ForbiddenError = ForbiddenError;

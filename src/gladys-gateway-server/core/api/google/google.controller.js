@@ -8,13 +8,21 @@ const VALID_REDIRECT_URIS = [
   'https://oauth-redirect-sandbox.googleusercontent.com',
 ];
 
-module.exports = function GoogleController(logger, googleModel, socketModel, instanceModel, userModel) {
+module.exports = function GoogleController(
+  logger,
+  googleModel,
+  socketModel,
+  instanceModel,
+  userModel,
+  instrumentalAgentService,
+) {
   /**
    * @api {post} /v1/api/google/smart_home Entrypoint for google smart home
    * @apiName Get data/control home
    * @apiGroup Google Home
    */
-  async function smartHome(req, res, next) {
+  async function smartHome(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.smart-home');
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
     const message = {
@@ -36,6 +44,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
    * @apiGroup Google Home
    */
   async function authorize(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.authorize');
     const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
     if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
@@ -58,6 +67,7 @@ module.exports = function GoogleController(logger, googleModel, socketModel, ins
    * @apiGroup Google Home
    */
   async function token(req, res, next) {
+    instrumentalAgentService.increment('backend.requests.google-home.token');
     const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_OAUTH_CLIENT_SECRET } = process.env;
     try {
       if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {

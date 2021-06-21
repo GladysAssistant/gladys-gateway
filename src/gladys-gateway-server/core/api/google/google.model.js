@@ -12,10 +12,14 @@ const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
 
 module.exports = function AdminModel(logger, db, redisClient, jwtService) {
-  const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_JWT } = process.env;
+  const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL, GOOGLE_HOME_ACCOUNT_PRIVATE_KEY } =
+    process.env;
 
   const smartHomeApp = smarthome({
-    jwt: JSON.parse(GOOGLE_HOME_JWT),
+    jwt: {
+      private_key: GOOGLE_HOME_ACCOUNT_PRIVATE_KEY,
+      client_email: GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL,
+    },
   });
 
   async function getRefreshTokenAndAccessToken(code) {

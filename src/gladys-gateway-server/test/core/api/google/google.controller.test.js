@@ -192,17 +192,17 @@ describe('POST /v1/api/google/token', () => {
 describe('POST /google/request_sync', () => {
   it('should request a sync', async () => {
     nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:requestSync', { agent_user_id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' })
+      .post('/v1/devices:requestSync', { agent_user_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' })
       .reply(200, {
         status: 200,
       });
     const response = await request(TEST_BACKEND_APP)
       .post('/google/request_sync')
       .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .set('Authorization', configTest.jwtAccessTokenInstance)
       .expect('Content-Type', /json/)
       .expect(200);
-    expect(response.body).to.deep.equal({ status: 200 });
+    expect(response.body).to.deep.equal('{"status":200}');
   });
 });
 
@@ -219,9 +219,9 @@ describe('POST /google/report_state', () => {
         toto: 'test',
       })
       .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .set('Authorization', configTest.jwtAccessTokenInstance)
       .expect('Content-Type', /json/)
       .expect(200);
-    expect(response.body).to.have.property({ status: 200 });
+    expect(response.body).to.deep.equal('{"status":200}');
   });
 });

@@ -308,12 +308,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
   app.post(
     '/google/request_sync',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.googleController.requestSync),
   );
   app.post(
     '/google/report_state',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.googleController.reportState),
   );
   //  google home actions

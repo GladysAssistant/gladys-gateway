@@ -110,14 +110,14 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     return code;
   }
 
-  async function requestSync(userId) {
-    return smartHomeApp.requestSync(userId);
+  async function requestSync(instanceId) {
+    return smartHomeApp.requestSync(instanceId);
   }
 
-  async function reportState(userId, payload) {
+  async function reportState(instanceId, payload) {
     const request = {
       requestId: uuid.v4(),
-      agentUserId: userId,
+      agentUserId: instanceId,
       payload,
     };
     return smartHomeApp.reportState(request);

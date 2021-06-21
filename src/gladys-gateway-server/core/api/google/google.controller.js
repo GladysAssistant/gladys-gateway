@@ -49,10 +49,10 @@ module.exports = function GoogleController(
     if (response.status && response.status >= 400) {
       res.status(response.status);
     }
-    // override agentUserId, it's the instance user id
+    // override agentUserId, it's the user id
     // and it shouldn't be sent by the client for security purposes.
     if (response.payload && response.payload.agentUserId) {
-      response.payload.agentUserId = primaryInstance.id;
+      response.payload.agentUserId = req.user.id;
     }
     return res.json(response);
   }
@@ -124,8 +124,10 @@ module.exports = function GoogleController(
    */
   async function requestSync(req, res) {
     instrumentalAgentService.increment('backend.requests.google-home.request-sync');
-    const response = await googleModel.requestSync(req.instance.id);
-    res.json(response);
+    await googleModel.requestSync(req.instance.id);
+    res.json({
+      status: 200,
+    });
   }
   /**
    * @api {post} /google/report_state Report State
@@ -134,8 +136,10 @@ module.exports = function GoogleController(
    */
   async function reportState(req, res) {
     instrumentalAgentService.increment('backend.requests.google-home.report-state');
-    const response = await googleModel.reportState(req.instance.id, req.body);
-    res.json(response);
+    await googleModel.reportState(req.instance.id, req.body);
+    res.json({
+      status: 200,
+    });
   }
   return {
     smartHome,

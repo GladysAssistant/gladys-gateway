@@ -114,17 +114,42 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     return code;
   }
 
+  const getUsersWithGoogleActivatedQuery = `
+      SELECT DISTINCT t_user.id
+      FROM t_user
+      INNER JOIN t_device ON t_user.id = t_device.user_id
+      INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
+      WHERE t_instance.id = $1
+      AND t_device.revoked = false
+      AND t_device.is_deleted = false
+      AND t_device.client_id = $2;
+    `;
+
   async function requestSync(instanceId) {
-    return smartHomeApp.requestSync(instanceId);
+    const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
+    await Promise.map(
+      users,
+      async (user) => {
+        await smartHomeApp.requestSync(user.id);
+      },
+      { concurrency: 1 },
+    );
   }
 
   async function reportState(instanceId, payload) {
-    const request = {
-      requestId: uuid.v4(),
-      agentUserId: instanceId,
-      payload,
-    };
-    return smartHomeApp.reportState(request);
+    const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
+    await Promise.map(
+      users,
+      async (user) => {
+        const request = {
+          requestId: uuid.v4(),
+          agentUserId: user.id,
+          payload,
+        };
+        await smartHomeApp.reportState(request);
+      },
+      { concurrency: 1 },
+    );
   }
 
   return {

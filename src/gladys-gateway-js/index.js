@@ -264,14 +264,8 @@ class GladysGatewayJs {
   }
 
   async createInstance(name) {
-    const {
-      rsaKeys,
-      ecdsaKeys,
-      rsaPublicKeyJwk,
-      ecdsaPublicKeyJwk,
-      rsaPrivateKeyJwk,
-      ecdsaPrivateKeyJwk,
-    } = await this.crypto.generateKeyPair();
+    const { rsaKeys, ecdsaKeys, rsaPublicKeyJwk, ecdsaPublicKeyJwk, rsaPrivateKeyJwk, ecdsaPrivateKeyJwk } =
+      await this.crypto.generateKeyPair();
 
     const instance = {
       name,
@@ -554,7 +548,15 @@ class GladysGatewayJs {
   }
 
   async googleHomeAuthorize(body) {
-    return requestApi.post(`${this.serverUrl}/google/authorize`, body ,this);
+    return requestApi.post(`${this.serverUrl}/google/authorize`, body, this);
+  }
+
+  async googleHomeRequestSync() {
+    return requestApi.post(`${this.serverUrl}/google/request_sync`, {}, this);
+  }
+
+  async googleHomeReportState(body) {
+    return requestApi.post(`${this.serverUrl}/google/report_state`, body, this);
   }
 
   async getInstance() {

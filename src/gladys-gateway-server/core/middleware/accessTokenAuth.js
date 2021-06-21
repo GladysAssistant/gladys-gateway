@@ -2,12 +2,16 @@ const jwt = require('jsonwebtoken');
 const { UnauthorizedError } = require('../common/error');
 
 module.exports = function AccessTokenAuthMiddleware(logger) {
-  return function AccessTokenAuthMiddlewareGenerator({ scope }) {
+  return function AccessTokenAuthMiddlewareGenerator({ scope, audience = 'user' }) {
     return async function AccessTokenAuth(req, res, next) {
       try {
-        const decoded = jwt.verify(req.headers.authorization, process.env.JWT_ACCESS_TOKEN_SECRET, {
+        let jwtToken = req.headers.authorization;
+        if (jwtToken.startsWith('Bearer ')) {
+          jwtToken = jwtToken.substr(7);
+        }
+        const decoded = jwt.verify(jwtToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
           issuer: 'gladys-gateway',
-          audience: 'user',
+          audience,
         });
 
         if (decoded.scope.includes(scope) === false) {
@@ -18,8 +22,16 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
           id: decoded.user_id,
         };
 
+        if (decoded.device_id) {
+          req.device = {
+            id: decoded.device_id,
+          };
+        }
+
         next();
       } catch (e) {
+        logger.debug(req.headers.authorization);
+        logger.debug(e);
         throw new UnauthorizedError();
       }
     };

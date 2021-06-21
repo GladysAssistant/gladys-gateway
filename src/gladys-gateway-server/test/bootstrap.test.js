@@ -12,9 +12,12 @@ before(async function Before() {
   Dotenv.config();
 
   // we force this so JWT are always signed with the same secret in tests
-  process.env.JWT_TWO_FACTOR_SECRET = 'twofactortesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
-  process.env.JWT_ACCESS_TOKEN_SECRET = 'accesstokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
-  process.env.JWT_REFRESH_TOKEN_SECRET = 'refreshtokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
+  process.env.JWT_TWO_FACTOR_SECRET =
+    'twofactortesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
+  process.env.JWT_ACCESS_TOKEN_SECRET =
+    'accesstokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
+  process.env.JWT_REFRESH_TOKEN_SECRET =
+    'refreshtokentesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest';
   process.env.POSTGRESQL_DATABASE = process.env.POSTGRESQL_DATABASE_TEST;
   process.env.POSTGRESQL_STAT_DATABASE = process.env.POSTGRESQL_DATABASE_TEST;
   process.env.STORAGE_ENDPOINT = 'test-endpoint.com';
@@ -22,6 +25,7 @@ before(async function Before() {
   process.env.STRIPE_SECRET_KEY = 'test';
   process.env.AWS_ACCESS_KEY_ID = 'test';
   process.env.AWS_SECRET_ACCESS_KEY = 'test';
+
   const { app, db, redisClient } = await server();
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);

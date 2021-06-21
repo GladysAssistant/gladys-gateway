@@ -12,7 +12,15 @@ module.exports = function InstrumentalAgentService(logger) {
       logger.warn(e);
     }
   }
+  async function increment(name) {
+    try {
+      I.increment(name);
+    } catch (e) {
+      logger.warn(e);
+    }
+  }
   return {
     sendMetric,
+    increment,
   };
 };

@@ -30,6 +30,7 @@ const OpenApi = require('./api/openapi/openapi.model.js');
 const Version = require('./api/version/version.model.js');
 const Backup = require('./api/backup/backup.model');
 const StatModel = require('./api/stat/stat.model.js');
+const GoogleModel = require('./api/google/google.model.js');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -44,6 +45,7 @@ const OpenApiController = require('./api/openapi/openapi.controller');
 const VersionController = require('./api/version/version.controller');
 const BackupController = require('./api/backup/backup.controller');
 const StatController = require('./api/stat/stat.controller');
+const GoogleController = require('./api/google/google.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -67,6 +69,7 @@ module.exports = async () => {
   const logger = tracer.colorConsole({
     level: process.env.LOG_LEVEL || 'debug',
   });
+
   const app = express();
   app.enable('trust proxy');
   const server = http.Server(app);
@@ -134,6 +137,7 @@ module.exports = async () => {
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),
     statModel: StatModel(logger, db, redisClient),
+    googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
   };
 
   const controllers = {
@@ -149,6 +153,15 @@ module.exports = async () => {
     versionController: VersionController(models.versionModel),
     backupController: BackupController(models.backupModel, logger),
     statController: StatController(models.statModel),
+    googleController: GoogleController(
+      logger,
+      models.googleModel,
+      models.socketModel,
+      models.instanceModel,
+      models.userModel,
+      models.deviceModel,
+      services.instrumentalAgentService,
+    ),
   };
 
   const middlewares = {

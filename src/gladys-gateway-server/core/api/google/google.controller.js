@@ -118,6 +118,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function requestSync(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.request-sync');
     const response = await googleModel.requestSync(req.user.id);
     res.json(response);
   }
@@ -127,6 +128,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function reportState(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.report-state');
     const response = await googleModel.reportState(req.user.id, req.body);
     res.json(response);
   }

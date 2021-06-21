@@ -49,6 +49,11 @@ module.exports = function GoogleController(
     if (response.status && response.status >= 400) {
       res.status(response.status);
     }
+    // override agentUserId, it's the instance user id
+    // and it shouldn't be sent by the client for security purposes.
+    if (response.payload && response.payload.agentUserId) {
+      response.payload.agentUserId = primaryInstance.id;
+    }
     return res.json(response);
   }
   /**

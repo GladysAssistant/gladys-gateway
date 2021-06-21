@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@sentry/node": "^5.22.3",
+    "actions-on-google": "^2.14.0",
     "aws-sdk": "^2.463.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.3",

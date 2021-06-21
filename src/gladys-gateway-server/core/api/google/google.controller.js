@@ -52,7 +52,7 @@ module.exports = function GoogleController(
     return res.json(response);
   }
   /**
-   * @api {post} /v1/api/google/authorize Get authorization code
+   * @api {post} /google/authorize Get authorization code
    * @apiName Get authorization code
    * @apiGroup Google Home
    */
@@ -112,9 +112,29 @@ module.exports = function GoogleController(
       res.status(400).json({ error: 'invalid_grant' });
     }
   }
+  /**
+   * @api {post} /google/request_sync Request Sync
+   * @apiName Request Sync
+   * @apiGroup Google Home
+   */
+  async function requestSync(req, res) {
+    const response = await googleModel.requestSync(req.user.id);
+    res.json(response);
+  }
+  /**
+   * @api {post} /google/report_state Report State
+   * @apiName Report State
+   * @apiGroup Google Home
+   */
+  async function reportState(req, res) {
+    const response = await googleModel.reportState(req.user.id, req.body);
+    res.json(response);
+  }
   return {
     smartHome,
     authorize,
     token,
+    requestSync,
+    reportState,
   };
 };

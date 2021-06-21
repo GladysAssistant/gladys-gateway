@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
+const { smarthome } = require('actions-on-google');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
@@ -10,9 +11,13 @@ const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
 
-const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
-
 module.exports = function AdminModel(logger, db, redisClient, jwtService) {
+  const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_JWT } = process.env;
+
+  const smartHomeApp = smarthome({
+    jwt: JSON.parse(GOOGLE_HOME_JWT),
+  });
+
   async function getRefreshTokenAndAccessToken(code) {
     const userId = await redisClient.getAsync(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
     if (userId === null) {
@@ -105,9 +110,24 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     return code;
   }
 
+  async function requestSync(userId) {
+    return smartHomeApp.requestSync(userId);
+  }
+
+  async function reportState(userId, payload) {
+    const request = {
+      requestId: uuid.v4(),
+      agentUserId: userId,
+      payload,
+    };
+    return smartHomeApp.reportState(request);
+  }
+
   return {
     getRefreshTokenAndAccessToken,
     getAccessToken,
     getCode,
+    requestSync,
+    reportState,
   };
 };

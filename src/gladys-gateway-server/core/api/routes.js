@@ -306,6 +306,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.googleController.authorize),
   );
+  app.post(
+    '/google/request_sync',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.googleController.requestSync),
+  );
+  app.post(
+    '/google/report_state',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.googleController.reportState),
+  );
   //  google home actions
   app.post(
     '/v1/api/google/smart_home',

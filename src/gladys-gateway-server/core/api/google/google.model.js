@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
+const { smarthome } = require('actions-on-google');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
@@ -10,9 +11,17 @@ const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
 
-const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
-
 module.exports = function AdminModel(logger, db, redisClient, jwtService) {
+  const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL, GOOGLE_HOME_ACCOUNT_PRIVATE_KEY } =
+    process.env;
+
+  const smartHomeApp = smarthome({
+    jwt: {
+      private_key: GOOGLE_HOME_ACCOUNT_PRIVATE_KEY,
+      client_email: GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL,
+    },
+  });
+
   async function getRefreshTokenAndAccessToken(code) {
     const userId = await redisClient.getAsync(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
     if (userId === null) {
@@ -105,9 +114,49 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     return code;
   }
 
+  const getUsersWithGoogleActivatedQuery = `
+      SELECT DISTINCT t_user.id
+      FROM t_user
+      INNER JOIN t_device ON t_user.id = t_device.user_id
+      INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
+      WHERE t_instance.id = $1
+      AND t_device.revoked = false
+      AND t_device.is_deleted = false
+      AND t_device.client_id = $2;
+    `;
+
+  async function requestSync(instanceId) {
+    const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
+    await Promise.map(
+      users,
+      async (user) => {
+        await smartHomeApp.requestSync(user.id);
+      },
+      { concurrency: 1 },
+    );
+  }
+
+  async function reportState(instanceId, payload) {
+    const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
+    await Promise.map(
+      users,
+      async (user) => {
+        const request = {
+          requestId: uuid.v4(),
+          agentUserId: user.id,
+          payload,
+        };
+        await smartHomeApp.reportState(request);
+      },
+      { concurrency: 1 },
+    );
+  }
+
   return {
     getRefreshTokenAndAccessToken,
     getAccessToken,
     getCode,
+    requestSync,
+    reportState,
   };
 };

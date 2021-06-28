@@ -49,10 +49,15 @@ module.exports = function GoogleController(
     if (response.status && response.status >= 400) {
       res.status(response.status);
     }
+    // override agentUserId, it's the user id
+    // and it shouldn't be sent by the client for security purposes.
+    if (response.payload && response.payload.agentUserId) {
+      response.payload.agentUserId = req.user.id;
+    }
     return res.json(response);
   }
   /**
-   * @api {post} /v1/api/google/authorize Get authorization code
+   * @api {post} /google/authorize Get authorization code
    * @apiName Get authorization code
    * @apiGroup Google Home
    */
@@ -112,9 +117,35 @@ module.exports = function GoogleController(
       res.status(400).json({ error: 'invalid_grant' });
     }
   }
+  /**
+   * @api {post} /google/request_sync Request Sync
+   * @apiName Request Sync
+   * @apiGroup Google Home
+   */
+  async function requestSync(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.request-sync');
+    await googleModel.requestSync(req.instance.id);
+    res.json({
+      status: 200,
+    });
+  }
+  /**
+   * @api {post} /google/report_state Report State
+   * @apiName Report State
+   * @apiGroup Google Home
+   */
+  async function reportState(req, res) {
+    instrumentalAgentService.increment('backend.requests.google-home.report-state');
+    await googleModel.reportState(req.instance.id, req.body);
+    res.json({
+      status: 200,
+    });
+  }
   return {
     smartHome,
     authorize,
     token,
+    requestSync,
+    reportState,
   };
 };

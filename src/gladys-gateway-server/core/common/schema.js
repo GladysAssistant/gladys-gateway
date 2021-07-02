@@ -1,9 +1,7 @@
 const Joi = require('joi');
 
 const signupSchema = Joi.object().keys({
-  name: Joi.string()
-    .min(2)
-    .max(30),
+  name: Joi.string().min(2).max(30),
   email: Joi.string().email(),
   language: Joi.string().allow(['fr', 'en']),
   gladys_user_id: Joi.number().optional().allow(null),

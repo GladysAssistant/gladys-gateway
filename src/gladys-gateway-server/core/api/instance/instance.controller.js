@@ -101,11 +101,11 @@ module.exports = function InstanceController(instanceModel, socketModel) {
   async function getUsers(req, res, next) {
     const users = await instanceModel.getUsers(req.instance);
 
-    const usersWithConnectedStatus = await Promise.map(users, (async (userParam) => {
+    const usersWithConnectedStatus = await Promise.map(users, async (userParam) => {
       const user = userParam;
       user.connected = await socketModel.isUserConnected(user.id);
       return user;
-    }));
+    });
 
     res.json(usersWithConnectedStatus);
   }

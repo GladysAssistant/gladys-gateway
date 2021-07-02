@@ -39,6 +39,9 @@
     "implicit-arrow-linebreak": "off",
     "operator-linebreak": "off",
     "no-mixed-spaces-and-tabs": "error",
+    "object-curly-newline": "off",
+    "function-paren-newline": "off",
+    "arrow-parens": "off",
     "no-eval": "error",
     "block-spacing": ["error", "always"],
     "comma-spacing": [
@@ -48,7 +51,7 @@
         "after": true
       }
     ],
-    "indent": ["error", 2],
+    "indent": "off",
     "camelcase": [
       "error",
       {

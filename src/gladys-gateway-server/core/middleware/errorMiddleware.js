@@ -13,12 +13,12 @@ module.exports = function getErrorMiddleware(errorService) {
   return function ErrorMiddleware(error, req, res, next) {
     errorService.track('ERROR_MIDDLEWARE', { error, path: req.route && req.route.path, user: req.user && req.user.id });
     if (
-      error instanceof ValidationError
-      || error instanceof AlreadyExistError
-      || error instanceof NotFoundError
-      || error instanceof ForbiddenError
-      || error instanceof UnauthorizedError
-      || error instanceof BadRequestError
+      error instanceof ValidationError ||
+      error instanceof AlreadyExistError ||
+      error instanceof NotFoundError ||
+      error instanceof ForbiddenError ||
+      error instanceof UnauthorizedError ||
+      error instanceof BadRequestError
     ) {
       return res.status(error.getStatus()).json(error.jsonError());
     }

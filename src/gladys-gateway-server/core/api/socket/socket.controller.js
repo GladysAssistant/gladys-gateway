@@ -64,7 +64,9 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
         socket.join(`account:instances:${instance.account_id}`);
 
         // on message (message to user)
-        socket.on('message', (message, callback) => socketModel.handleNewMessageFromInstance(instance, message, callback));
+        socket.on('message', (message, callback) =>
+          socketModel.handleNewMessageFromInstance(instance, message, callback),
+        );
 
         // useful to calculate latency
         socket.on('latency', (startTime, cb) => {

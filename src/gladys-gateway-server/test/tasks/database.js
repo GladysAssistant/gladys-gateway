@@ -17,7 +17,7 @@ module.exports = function Database(db) {
       't_account',
     ];
 
-    return Promise.each(tablesToClean, tableName => db.query(`DELETE FROM ${tableName}`));
+    return Promise.each(tablesToClean, (tableName) => db.query(`DELETE FROM ${tableName}`));
   }
 
   async function fill() {

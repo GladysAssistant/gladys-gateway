@@ -2,11 +2,14 @@ const { NotFoundError } = require('../../common/error');
 
 module.exports = function DeviceModel(logger, db, redisClient) {
   async function getDevices(user) {
-    const devices = await db.t_device.find({
-      user_id: user.id,
-      is_deleted: false,
-      revoked: false,
-    }, { fields: ['id', 'name', 'created_at', 'last_seen'] });
+    const devices = await db.t_device.find(
+      {
+        user_id: user.id,
+        is_deleted: false,
+        revoked: false,
+      },
+      { fields: ['id', 'name', 'created_at', 'last_seen'] },
+    );
 
     return devices;
   }
@@ -22,9 +25,13 @@ module.exports = function DeviceModel(logger, db, redisClient) {
       throw NotFoundError();
     }
 
-    const deviceRevoked = await db.t_device.update(deviceId, {
-      revoked: true,
-    }, { fields: ['id', 'revoked'] });
+    const deviceRevoked = await db.t_device.update(
+      deviceId,
+      {
+        revoked: true,
+      },
+      { fields: ['id', 'revoked'] },
+    );
 
     return deviceRevoked;
   }

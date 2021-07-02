@@ -8,6 +8,7 @@
     "coverage": "nyc --reporter=lcov npm test && codecov",
     "eslint": "eslint core test index.js",
     "eslint-fix": "eslint --fix core test index.js",
+    "prettier": "prettier --write core test index.js",
     "start": "nodemon index.js",
     "apidoc": "apidoc -i core/ -o apidoc/",
     "setup-db-dev": "db-migrate up -e dev",
@@ -45,6 +46,7 @@
     "mocha": "^5.2.0",
     "nock": "^10.0.0",
     "nodemon": "^2.0.6",
+    "prettier": "^2.3.2",
     "should": "^13.2.3",
     "supertest": "^3.3.0"
   },
@@ -70,6 +72,7 @@
     "massive": "^6.9.0",
     "multer": "^1.4.1",
     "multer-s3": "^2.9.0",
+    "node-telegram-bot-api": "^0.53.0",
     "nodemailer": "^5.1.1",
     "object-sizeof": "^1.4.0",
     "omit-deep": "^0.3.0",

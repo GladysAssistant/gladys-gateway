@@ -8,11 +8,15 @@ module.exports = function SlackService(logger) {
       return Promise.resolve();
     }
 
-    return axios.post('https://slack.com/api/users.admin.invite', querystring.stringify({
-      token: process.env.SLACK_TOKEN,
-      email,
-      channels: process.env.SLACK_CHANNELS,
-    }))
+    return axios
+      .post(
+        'https://slack.com/api/users.admin.invite',
+        querystring.stringify({
+          token: process.env.SLACK_TOKEN,
+          email,
+          channels: process.env.SLACK_CHANNELS,
+        }),
+      )
       .catch((err) => {
         logger.warn('Unable to invite user in Slack');
         logger.warn(err);

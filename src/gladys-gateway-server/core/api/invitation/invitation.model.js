@@ -2,12 +2,10 @@ const Joi = require('joi');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const {
-  ValidationError, AlreadyExistError, ForbiddenError, NotFoundError,
-} = require('../../common/error');
+const { ValidationError, AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const schema = require('../../common/schema');
 
-module.exports = function InvitationModel(logger, db, redisClient, mailService) {
+module.exports = function InvitationModel(logger, db, redisClient, mailService, telegramService) {
   async function inviteUser(user, newInvitation) {
     const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, {
       stripUnknown: true,
@@ -20,7 +18,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
       throw new ValidationError('invitation', error);
     }
 
-    return db.withTransaction(async (tx) => {
+    const [invitation, userCreating, tokenGenerated] = await db.withTransaction(async (tx) => {
       // clean email
       const email = value.email.trim().toLowerCase();
       const { role } = value;
@@ -30,7 +28,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
         {
           id: user.id,
         },
-        { fields: ['id', 'name', 'language', 'account_id', 'role'] },
+        { fields: ['id', 'name', 'email', 'language', 'account_id', 'role'] },
       );
 
       // only admin can send invite
@@ -79,13 +77,19 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
         account_id: userWithAccount.account_id,
       });
 
-      await mailService.send({ email, language: userWithAccount.language }, 'invitation', {
-        invitationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
-        nameOfAdminInviting: userWithAccount.name,
-      });
-
-      return insertedInvitation;
+      return [insertedInvitation, userWithAccount, token];
     });
+
+    await mailService.send({ email: invitation.email, language: userCreating.language }, 'invitation', {
+      invitationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(tokenGenerated)}`,
+      nameOfAdminInviting: userCreating.name,
+    });
+
+    telegramService.sendAlert(
+      `User ${userCreating.email} (${userCreating.name} - ${userCreating.language}) is inviting ${invitation.email} to Gladys Plus.`,
+    );
+
+    return invitation;
   }
 
   async function accept(dataParam) {
@@ -116,6 +120,8 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService) 
       logger.debug(error);
       throw new ValidationError('user', error);
     }
+
+    telegramService.sendAlert(`User ${data.email} is accepting the invitation`);
 
     return db.withTransaction(async (tx) => {
       // email of the user is already confirmed as he clicked on the link in his email

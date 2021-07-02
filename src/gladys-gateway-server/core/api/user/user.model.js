@@ -5,9 +5,7 @@ const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const uuid = require('uuid');
 const srpServer = require('secure-remote-password/server');
-const {
-  ValidationError, AlreadyExistError, NotFoundError, ForbiddenError,
-} = require('../../common/error');
+const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
 const schema = require('../../common/schema');
 
 const redisLoginSessionExpiryInSecond = 60;

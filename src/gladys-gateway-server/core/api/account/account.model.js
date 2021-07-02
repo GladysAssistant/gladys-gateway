@@ -2,11 +2,9 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const get = require('get-value');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const {
-  AlreadyExistError, ForbiddenError, NotFoundError, ValidationError,
-} = require('../../common/error');
+const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
 
-module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, slackService) {
+module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, telegramService) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -106,6 +104,8 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });
+
+    telegramService.sendAlert(`New customer ! Customer email = ${email}, language = ${language}`);
 
     return insertedAccount;
   }
@@ -358,78 +358,80 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     }
 
     switch (event.type) {
-    case 'checkout.session.completed':
-      await createAccountFromStripeSession(event.data.object);
-      break;
-    case 'charge.succeeded': {
-      // get currentPeriodEnd threw the API
-      const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
+      case 'checkout.session.completed':
+        await createAccountFromStripeSession(event.data.object);
+        break;
+      case 'charge.succeeded': {
+        // get currentPeriodEnd threw the API
+        const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
 
-      // update current_period_end in DB
-      await db.t_account.update(
-        account.id,
-        {
-          current_period_end: new Date(currentPeriodEnd * 1000),
-        },
-        {
-          fields: ['id', 'current_period_end'],
-        },
-      );
+        // update current_period_end in DB
+        await db.t_account.update(
+          account.id,
+          {
+            current_period_end: new Date(currentPeriodEnd * 1000),
+          },
+          {
+            fields: ['id', 'current_period_end'],
+          },
+        );
 
-      break;
-    }
-
-    case 'invoice.payment_succeeded': {
-      const invoicePaymentSucceededActivity = {
-        stripe_event: event.type,
-        account_id: account.id,
-        hosted_invoice_url: event.data.object.hosted_invoice_url,
-        invoice_pdf: event.data.object.invoice_pdf,
-        amount_paid: event.data.object.amount_paid,
-        closed: event.data.object.closed,
-        currency: event.data.object.currency,
-        params: event,
-      };
-
-      await db.t_account_payment_activity.insert(invoicePaymentSucceededActivity);
-      break;
-    }
-
-    case 'invoice.payment_failed': {
-      const activity = {
-        stripe_event: event.type,
-        account_id: account.id,
-        hosted_invoice_url: event.data.object.hosted_invoice_url,
-        invoice_pdf: event.data.object.invoice_pdf,
-        amount_paid: event.data.object.amount_paid,
-        closed: event.data.object.closed,
-        currency: event.data.object.currency,
-        params: event,
-      };
-
-      await db.t_account_payment_activity.insert(activity);
-
-      const language = get(event, 'data.object.account_country')
-        ? event.data.object.account_country.substr(0, 2).toLowerCase()
-        : 'fr';
-
-      const email = get(event, 'data.customer_email');
-
-      if (language && email) {
-        await mailService.send({ email, language }, 'payment_failed', {
-          updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
-        });
+        break;
       }
 
-      break;
-    }
+      case 'invoice.payment_succeeded': {
+        const invoicePaymentSucceededActivity = {
+          stripe_event: event.type,
+          account_id: account.id,
+          hosted_invoice_url: event.data.object.hosted_invoice_url,
+          invoice_pdf: event.data.object.invoice_pdf,
+          amount_paid: event.data.object.amount_paid,
+          closed: event.data.object.closed,
+          currency: event.data.object.currency,
+          params: event,
+        };
 
-    case 'customer.subscription.deleted':
-      // subscription is canceled, remove the client
-      break;
+        await db.t_account_payment_activity.insert(invoicePaymentSucceededActivity);
+        break;
+      }
 
-    default:
-      break;
+      case 'invoice.payment_failed': {
+        const activity = {
+          stripe_event: event.type,
+          account_id: account.id,
+          hosted_invoice_url: event.data.object.hosted_invoice_url,
+          invoice_pdf: event.data.object.invoice_pdf,
+          amount_paid: event.data.object.amount_paid,
+          closed: event.data.object.closed,
+          currency: event.data.object.currency,
+          params: event,
+        };
+
+        await db.t_account_payment_activity.insert(activity);
+
+        const language = get(event, 'data.object.account_country')
+          ? event.data.object.account_country.substr(0, 2).toLowerCase()
+          : 'fr';
+
+        const email = get(event, 'data.customer_email');
+
+        if (language && email) {
+          await mailService.send({ email, language }, 'payment_failed', {
+            updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+          });
+        }
+
+        telegramService.sendAlert(`Payment failed! Customer email = ${email}, language = ${language}`);
+
+        break;
+      }
+
+      case 'customer.subscription.deleted':
+        // subscription is canceled, remove the client
+        break;
+
+      default:
+        break;
     }
 
     return Promise.resolve();

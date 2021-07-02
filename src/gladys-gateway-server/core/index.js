@@ -13,6 +13,7 @@ const Mail = require('./service/mail');
 const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
+const Telegram = require('./service/telegram');
 const Stat = require('./service/stat');
 const ErrorService = require('./service/error');
 const InstrumentalAgentService = require('./service/instrumentalAgent');
@@ -111,6 +112,7 @@ module.exports = async () => {
     jwtService: Jwt(),
     stripeService: Stripe(logger),
     slackService: Slack(logger),
+    telegramService: Telegram(logger),
     statsService: await Stat(logger, statDb),
     errorService: await ErrorService(logger, statDb),
     instrumentalAgentService: InstrumentalAgentService(logger),
@@ -129,8 +131,15 @@ module.exports = async () => {
       services.instrumentalAgentService,
     ),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
-    invitationModel: Invitation(logger, db, redisClient, services.mailService),
-    accountModel: Account(logger, db, redisClient, services.stripeService, services.mailService, services.slackService),
+    invitationModel: Invitation(logger, db, redisClient, services.mailService, services.telegramService),
+    accountModel: Account(
+      logger,
+      db,
+      redisClient,
+      services.stripeService,
+      services.mailService,
+      services.telegramService,
+    ),
     deviceModel: Device(logger, db, redisClient),
     adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService, services.stripeService),
     openApiModel: OpenApi(logger, db),

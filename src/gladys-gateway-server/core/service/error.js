@@ -34,10 +34,10 @@ module.exports = async function ErrorService(logger, statDb) {
   async function track(eventName, data) {
     try {
       if (
-        data.error
-        && !(data.error instanceof ForbiddenError)
-        && !(data.error instanceof UnauthorizedError)
-        && !(data.error instanceof NotFoundError)
+        data.error &&
+        !(data.error instanceof ForbiddenError) &&
+        !(data.error instanceof UnauthorizedError) &&
+        !(data.error instanceof NotFoundError)
       ) {
         const cleanPayload = omitDeep(data, PROPERTIES_TO_OMIT);
         logger.error(cleanPayload);

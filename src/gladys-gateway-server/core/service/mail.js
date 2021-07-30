@@ -44,6 +44,7 @@ module.exports = function MailService(logger) {
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: user.email,
+      bcc: 'hello@gladysassistant.com',
       subject: emails[template][user.language].subject,
       html,
     };

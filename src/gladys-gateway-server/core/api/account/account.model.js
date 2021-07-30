@@ -413,7 +413,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
           ? event.data.object.account_country.substr(0, 2).toLowerCase()
           : 'fr';
 
-        const email = get(event, 'data.customer_email');
+        const email = account.name;
 
         if (language && email) {
           await mailService.send({ email, language }, 'payment_failed', {

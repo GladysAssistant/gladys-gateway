@@ -12,13 +12,16 @@ module.exports = function StatController(statModel) {
    *   gladys_4_instances: [{
    *     "nb_instances": 200,
    *     "month": "2019-09"
-   *   }]
+   *   }],
+   *  nb_gladys_plus_users: 1000,
    * }
    */
   async function getStats(req, res, next) {
     const gladys4Instances = await statModel.getNumberOfGladys4Instances();
+    const nbOfGladysPlusUsers = await statModel.getNumberOfPayingUsers();
     res.json({
       gladys_4_instances: gladys4Instances,
+      nb_gladys_plus_users: nbOfGladysPlusUsers,
     });
   }
 

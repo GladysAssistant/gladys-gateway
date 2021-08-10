@@ -9,6 +9,7 @@ describe('GET /stats', () => {
       .expect(200)
       .then((response) => {
         response.body.should.have.property('gladys_4_instances');
+        response.body.should.have.property('nb_gladys_plus_users', 0);
         response.body.gladys_4_instances.should.be.instanceOf(Array);
         response.body.gladys_4_instances.forEach((month) => {
           month.should.have.property('nb_instances');
@@ -23,6 +24,7 @@ describe('GET /stats', () => {
       .expect(200)
       .then((response) => {
         response.body.should.have.property('gladys_4_instances');
+        response.body.should.have.property('nb_gladys_plus_users', 0);
         response.body.gladys_4_instances.should.be.instanceOf(Array);
         response.body.gladys_4_instances.forEach((month) => {
           month.should.have.property('nb_instances');

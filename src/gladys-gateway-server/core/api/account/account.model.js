@@ -1,6 +1,5 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
-const get = require('get-value');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
 

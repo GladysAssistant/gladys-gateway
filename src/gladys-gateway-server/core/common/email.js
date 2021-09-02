@@ -52,4 +52,14 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome.ejs`, 'utf8')),
     },
   },
+  trial_will_end: {
+    en: {
+      subject: 'Your Gladys Plus Trial is ending soon',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/trial_will_end.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: "Votre période d'essai de Gladys Plus est bientôt terminée",
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/trial_will_end.ejs`, 'utf8')),
+    },
+  },
 };

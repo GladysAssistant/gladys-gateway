@@ -56,11 +56,7 @@ module.exports = function AccountController(accountModel, socketModel) {
    * }
    */
   async function subscribeMonthlyPlanWithoutAccount(req, res, next) {
-    const account = await accountModel.subscribeMonthlyPlanWithoutAccount(
-      req.body.email,
-      req.body.language,
-      req.body.stripe_source_id,
-    );
+    const account = await accountModel.subscribeMonthlyPlanWithoutAccount(req.body.email, req.body.language);
     res.json({
       current_period_end: account.current_period_end,
     });

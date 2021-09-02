@@ -160,7 +160,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     return accountUpdated;
   }
 
-  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language, sourceId) {
+  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language) {
     const email = rawEmail.trim().toLowerCase();
     const role = 'admin';
 
@@ -173,7 +173,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     }
 
     // create the customer on stripe side
-    const customer = await stripeService.createCustomer(email, sourceId);
+    const customer = await stripeService.createCustomer(email);
 
     // contact stripe to save the subscription id
     let subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
@@ -192,6 +192,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
+      status: 'trialing',
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
@@ -342,18 +343,37 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     const event = stripeService.verifyEvent(body, signature);
 
     let account;
+    let usersInAccount;
+    let email;
+    let language = 'fr'; // default language is in fr
 
-    if (event.data && event.data.object && event.data.object.customer) {
+    if (event.data && event.data.object && event.data.object.customer && event.type !== 'checkout.session.completed') {
       // we get the account linked to the customer
       account = await db.t_account.findOne({
         stripe_customer_id: event.data.object.customer,
       });
+      if (!account) {
+        logger.warn(`Stripe Webhook : Account with stripe customer "${event.data.object.customer}" not found.`);
+        return Promise.resolve();
+      }
+      email = account.name;
+      // we get the users in this account
+      usersInAccount = await db.t_user.find(
+        {
+          account_id: account.id,
+          is_deleted: false,
+        },
+        {
+          fields: ['id', 'language'],
+        },
+      );
+      if (usersInAccount.length > 0) {
+        // eslint-disable-next-line prefer-destructuring
+        language = usersInAccount[0].language;
+      } else {
+        language = 'fr';
+      }
     } else {
-      return Promise.resolve();
-    }
-
-    if (!account && event.type !== 'checkout.session.completed') {
-      logger.warn(`Stripe Webhook : Account with stripe customer "${event.data.object.customer}" not found.`);
       return Promise.resolve();
     }
 
@@ -378,6 +398,30 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
         break;
       }
+
+      case 'customer.subscription.trial_will_end':
+        if (language && email) {
+          await mailService.send({ email, language }, 'trial_will_end', {
+            updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+          });
+        }
+
+        telegramService.sendAlert(`Trial will end! Customer email = ${email}, language = ${language}`);
+
+        break;
+
+      case 'customer.subscription.updated':
+        // update status
+        await db.t_account.update(
+          account.id,
+          {
+            status: event.data.object.status,
+          },
+          {
+            fields: ['id'],
+          },
+        );
+        break;
 
       case 'invoice.payment_succeeded': {
         const invoicePaymentSucceededActivity = {
@@ -408,12 +452,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
         };
 
         await db.t_account_payment_activity.insert(activity);
-
-        const language = get(event, 'data.object.account_country')
-          ? event.data.object.account_country.substr(0, 2).toLowerCase()
-          : 'fr';
-
-        const email = account.name;
 
         if (language && email) {
           await mailService.send({ email, language }, 'payment_failed', {

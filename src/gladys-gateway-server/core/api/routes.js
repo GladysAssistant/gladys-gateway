@@ -180,6 +180,10 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
 
   // account
+  app.post(
+    '/accounts/subscribe/new',
+    asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount),
+  );
   app.get(
     '/accounts/users',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),

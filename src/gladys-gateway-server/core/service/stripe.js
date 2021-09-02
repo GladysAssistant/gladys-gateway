@@ -7,7 +7,7 @@ module.exports = function StripeService(logger) {
   if (process.env.STRIPE_SECRET_KEY) {
     stripe = Stripe(process.env.STRIPE_SECRET_KEY);
   }
-  async function createCustomer(email, source) {
+  async function createCustomer(email) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');
       return Promise.resolve({ id: null });
@@ -15,7 +15,6 @@ module.exports = function StripeService(logger) {
 
     const customer = await stripe.customers.create({
       email,
-      source,
     });
 
     return customer;
@@ -30,11 +29,13 @@ module.exports = function StripeService(logger) {
     // subscribe customer to monthly plan
     const result = await stripe.subscriptions.create({
       customer: stripeCustomerId,
+      default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
       items: [
         {
           plan: process.env.STRIPE_MONTHLY_PLAN_ID,
         },
       ],
+      trial_from_plan: true,
     });
 
     return result;

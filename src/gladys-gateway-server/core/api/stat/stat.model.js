@@ -42,6 +42,7 @@ module.exports = function StatModel(logger, db, redisClient) {
       SELECT COUNT(id) as nb_gladys_plus_users
       FROM t_account
       WHERE current_period_end > NOW()
+      AND status = 'active'
       AND stripe_customer_id IS NOT NULL
       AND stripe_subscription_id IS NOT NULL;
     `;

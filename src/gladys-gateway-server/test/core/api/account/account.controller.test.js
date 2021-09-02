@@ -35,6 +35,22 @@ describe('POST /accounts/subscribe', () => {
       }));
 });
 
+describe('POST /accounts/subscribe/new', () => {
+  it('should create new customer', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/subscribe/new')
+      .send({
+        email: 'toto@toto.fr',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        response.body.should.have.property('current_period_end');
+      }));
+});
+
 describe('POST /accounts/users/:id/revoke', () => {
   it('should revoke a user', () =>
     request(TEST_BACKEND_APP)

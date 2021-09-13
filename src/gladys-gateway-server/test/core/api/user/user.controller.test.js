@@ -367,7 +367,7 @@ describe('GET /users/me', () => {
           profile_url: null,
           gladys_user_id: null,
           gladys_4_user_id: null,
-          current_period_end: null,
+          current_period_end: '2050-11-20T16:00:00.000Z',
         });
       }));
 });

@@ -49,10 +49,10 @@ module.exports = function GoogleController(
     if (response.status && response.status >= 400) {
       res.status(response.status);
     }
-    // override agentUserId, it's the user id
+    // override agentUserId, it's the account id
     // and it shouldn't be sent by the client for security purposes.
     if (response.payload && response.payload.agentUserId) {
-      response.payload.agentUserId = req.user.id;
+      response.payload.agentUserId = req.user.account_id;
     }
     return res.json(response);
   }

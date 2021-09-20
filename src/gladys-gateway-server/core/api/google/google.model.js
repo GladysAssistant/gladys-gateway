@@ -35,6 +35,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
         fields: ['id', 'gladys_4_user_id'],
       },
     );
+
     const newDevice = {
       id: uuid.v4(),
       name: 'Google Home',
@@ -46,6 +47,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
     const accessToken = jwtService.generateAccessTokenOauth(user, newDevice, SCOPE, JWT_AUDIENCE);
     newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     await db.t_device.insert(newDevice);
+
     return {
       accessToken,
       refreshToken,
@@ -115,7 +117,7 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
   }
 
   const getUsersWithGoogleActivatedQuery = `
-      SELECT DISTINCT t_user.id
+      SELECT DISTINCT t_user.id, t_user.account_id
       FROM t_user
       INNER JOIN t_device ON t_user.id = t_device.user_id
       INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
@@ -127,29 +129,21 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
 
   async function requestSync(instanceId) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
-    await Promise.map(
-      users,
-      async (user) => {
-        await smartHomeApp.requestSync(user.id);
-      },
-      { concurrency: 1 },
-    );
+    if (users.length > 0) {
+      await smartHomeApp.requestSync(users[0].account_id);
+    }
   }
 
   async function reportState(instanceId, payload) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
-    await Promise.map(
-      users,
-      async (user) => {
-        const request = {
-          requestId: uuid.v4(),
-          agentUserId: user.id,
-          payload,
-        };
-        await smartHomeApp.reportState(request);
-      },
-      { concurrency: 1 },
-    );
+    if (users.length > 0) {
+      const request = {
+        requestId: uuid.v4(),
+        agentUserId: users[0].account_id,
+        payload,
+      };
+      await smartHomeApp.reportState(request);
+    }
   }
 
   return {

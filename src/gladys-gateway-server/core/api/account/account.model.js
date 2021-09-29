@@ -415,6 +415,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
           account.id,
           {
             status: event.data.object.status,
+            current_period_end: new Date(event.data.object.current_period_end * 1000),
           },
           {
             fields: ['id'],

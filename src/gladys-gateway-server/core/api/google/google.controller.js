@@ -52,7 +52,7 @@ module.exports = function GoogleController(
     // override agentUserId, it's the account id
     // and it shouldn't be sent by the client for security purposes.
     if (response.payload && response.payload.agentUserId) {
-      response.payload.agentUserId = req.user.account_id;
+      response.payload.agentUserId = user.account_id;
     }
     return res.json(response);
   }

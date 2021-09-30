@@ -1,6 +1,7 @@
 const request = require('supertest');
 const { expect } = require('chai');
 const nock = require('nock');
+const get = require('get-value');
 const qs = require('querystring');
 const configTest = require('../../../tasks/config');
 
@@ -273,14 +274,24 @@ describe('POST /google/report_state', () => {
         accessToken: 'toto',
       });
     nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:reportStateAndNotification', () => true)
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        return validAgentUserId && payloadValid;
+      })
       .reply(200, {
         status: 200,
       });
     const response = await request(TEST_BACKEND_APP)
       .post('/google/report_state')
       .send({
-        toto: 'test',
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+            },
+          },
+        },
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)

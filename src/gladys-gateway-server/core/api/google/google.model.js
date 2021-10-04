@@ -11,7 +11,13 @@ const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
 
-module.exports = function AdminModel(logger, db, redisClient, jwtService) {
+const cleanNullProperties = (obj) =>
+  Object.entries(obj)
+    .map(([k, v]) => [k, v && typeof v === 'object' ? cleanNullProperties(v) : v])
+    // eslint-disable-next-line
+    .reduce((a, [k, v]) => (v == null ? a : ((a[k] = v), a)), {});
+
+module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService, errorService) {
   const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL, GOOGLE_HOME_ACCOUNT_PRIVATE_KEY } =
     process.env;
 
@@ -137,12 +143,21 @@ module.exports = function AdminModel(logger, db, redisClient, jwtService) {
   async function reportState(instanceId, payload) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
     if (users.length > 0) {
+      const payloadCleaned = cleanNullProperties(payload);
       const request = {
         requestId: uuid.v4(),
         agentUserId: users[0].account_id,
-        payload,
+        payload: payloadCleaned,
       };
-      await smartHomeApp.reportState(request);
+      try {
+        await smartHomeApp.reportState(request);
+      } catch (e) {
+        errorService.track('GOOGLE_HOME_REPORT_STATE_ERROR', {
+          error: e,
+          payload: payloadCleaned,
+          user: users[0].id,
+        });
+      }
     }
   }
 

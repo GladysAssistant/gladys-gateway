@@ -146,7 +146,7 @@ module.exports = async () => {
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),
     statModel: StatModel(logger, db, redisClient),
-    googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
+    googleModel: GoogleModel(logger, db, redisClient, services.jwtService, services.errorService),
   };
 
   const controllers = {

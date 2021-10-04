@@ -277,7 +277,10 @@ describe('POST /google/report_state', () => {
       .post('/v1/devices:reportStateAndNotification', (body) => {
         const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
         const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
-        return validAgentUserId && payloadValid;
+        const brightnessValid = get(body, 'payload.devices.states.light-123.brightness') === undefined;
+        const spectrumRgbValid = get(body, 'payload.devices.states.light-123.color.spectrumRgb') === undefined;
+        const temperatureKValid = get(body, 'payload.devices.states.light-123.color.temperatureK') === 2000;
+        return validAgentUserId && payloadValid && brightnessValid && spectrumRgbValid && temperatureKValid;
       })
       .reply(200, {
         status: 200,
@@ -289,6 +292,12 @@ describe('POST /google/report_state', () => {
           states: {
             'light-123': {
               on: true,
+              online: true,
+              brightness: null,
+              color: {
+                spectrumRgb: null,
+                temperatureK: 2000,
+              },
             },
           },
         },

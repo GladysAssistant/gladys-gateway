@@ -170,6 +170,7 @@ module.exports = async () => {
       models.userModel,
       models.deviceModel,
       services.instrumentalAgentService,
+      services.errorService,
     ),
   };
 

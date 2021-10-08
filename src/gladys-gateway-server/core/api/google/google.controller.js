@@ -45,41 +45,44 @@ module.exports = function GoogleController(
         logger.warn(e);
       }
     }
-    // then, we sent the request to the local Gladys instance
-    const response = await socketModel.sendMessageOpenApi(user, message);
 
-    // if the request is a disconnect,
-    // return success even if the instance is not reachable
-    if (firstOrderIntent === 'action.devices.DISCONNECT') {
-      return res.json({
-        success: true,
-      });
-    }
+    try {
+      // then, we sent the request to the local Gladys instance
+      const response = await socketModel.sendMessageOpenApi(user, message);
 
-    // Return error if instance is not reachable
-    if (response.status && response.status >= 400) {
+      // override agentUserId, it's the account id
+      // and it shouldn't be sent by the client for security purposes.
+      if (response.payload && response.payload.agentUserId) {
+        response.payload.agentUserId = user.account_id;
+      }
+
+      return res.json(response);
+    } catch (e) {
+      // if the request is a disconnect,
+      // return success even if the instance is not reachable
+      if (firstOrderIntent === 'action.devices.DISCONNECT') {
+        return res.json({
+          success: true,
+        });
+      }
+
+      // Return error if instance is not reachable
       const errorResponse = {
         requestId: req.body.requestId,
         payload: {
-          errorCode: response.status,
+          errorCode: 404,
         },
       };
+
       errorService.track('GOOGLE_HOME_SMART_HOME_ERROR', {
-        response,
+        error: e,
         payload: req.body,
         user: user.id,
         errorResponse,
       });
-      return res.json(errorResponse);
-    }
 
-    // override agentUserId, it's the account id
-    // and it shouldn't be sent by the client for security purposes.
-    if (response.payload && response.payload.agentUserId) {
-      response.payload.agentUserId = user.account_id;
+      return res.status(404).json(errorResponse);
     }
-
-    return res.json(response);
   }
   /**
    * @api {post} /google/authorize Get authorization code

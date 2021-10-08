@@ -17,6 +17,7 @@ module.exports = function GoogleController(
   userModel,
   deviceModel,
   instrumentalAgentService,
+  errorService,
 ) {
   /**
    * @api {post} /v1/api/google/smart_home Entrypoint for google smart home
@@ -46,14 +47,38 @@ module.exports = function GoogleController(
     }
     // then, we sent the request to the local Gladys instance
     const response = await socketModel.sendMessageOpenApi(user, message);
-    if (response.status && response.status >= 400) {
-      res.status(response.status);
+
+    // if the request is a disconnect,
+    // return success even if the instance is not reachable
+    if (firstOrderIntent === 'action.devices.DISCONNECT') {
+      return res.json({
+        success: true,
+      });
     }
+
+    // Return error if instance is not reachable
+    if (response.status && response.status >= 400) {
+      const errorResponse = {
+        requestId: req.body.requestId,
+        payload: {
+          errorCode: response.status,
+        },
+      };
+      errorService.track('GOOGLE_HOME_SMART_HOME_ERROR', {
+        response,
+        payload: req.body,
+        user: user.id,
+        errorResponse,
+      });
+      return res.json(errorResponse);
+    }
+
     // override agentUserId, it's the account id
     // and it shouldn't be sent by the client for security purposes.
     if (response.payload && response.payload.agentUserId) {
       response.payload.agentUserId = user.account_id;
     }
+
     return res.json(response);
   }
   /**

@@ -20,14 +20,9 @@ class SignupPage extends Component {
   };
 
   saveSale = () => {
-
     const script = document.createElement('script');
     script.src = 'https://gladysassistant.com/assets/js/external-gladys-community-package-sales.js';
     document.body.appendChild(script);
-
-    script.onload = () => {
-      
-    };
   };
 
   subscribeToPlan = (token) => {
@@ -50,7 +45,7 @@ class SignupPage extends Component {
       return;
     }
 
-    // we load the script script
+    // we load the stripe script
     const script = document.createElement('script');
     script.src = 'https://js.stripe.com/v3/';
     document.body.appendChild(script);

@@ -200,8 +200,8 @@ Encrypted Body:
 ```json
 {
 	"wrappedKey": "...", // the AES key encrypted with publicKey of the recipient
-	"counter": [] // counter used in AES
-	"data": "..." // the actual data,
+	"counter": [], // counter used in AES
+	"data": "...", // the actual data,
 	"instance_id": "..." 
 }
 ```
@@ -212,7 +212,7 @@ Encrypted Response:
 ```json
 {
 	"wrappedKey": "...", // the AES key encrypted with publicKey of the recipient
-	"counter": [] // counter used in AES
+	"counter": [], // counter used in AES
 	"data": "..." // the actual data
 }
 ```
@@ -268,7 +268,7 @@ Decrypted Response:
 }	
 ```
 
-###Receiving a Websocket event
+### Receiving a Websocket event
 
 `.on('event')`
 
@@ -293,8 +293,8 @@ decrypted
 ```json
 {
 	"wrappedKey": "...", // the AES key encrypted with publicKey of the recipient
-	"counter": [] // counter used in AES
-	"data": "..." // the actual data,
+	"counter": [], // counter used in AES
+	"data": "...", // the actual data,
 	"user_id": "...",
 	"gladys_user_id": "..."
 }
@@ -305,8 +305,8 @@ decrypted
 ```json
 {
 	"wrappedKey": "...", // the AES key encrypted with publicKey of the recipient
-	"counter": [] // counter used in AES
-	"data": "..." // the actual data,
+	"counter": [], // counter used in AES
+	"data": "...", // the actual data,
 	"user_id": "..."
 }
 ```

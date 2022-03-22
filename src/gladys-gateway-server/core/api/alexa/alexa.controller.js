@@ -30,17 +30,27 @@ module.exports = function AlexaController(
     logger.debug(req.body);
     instrumentalAgentService.increment('backend.requests.alexa.smart-home');
     const user = await userModel.getMySelf({ id: req.user.id });
+    const directiveNamespace = get(req.body, 'directive.header.namespace');
+    const directiveName = get(req.body, 'directive.header.name');
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
 
-    const message = {
-      version: '1.0',
-      type: 'gladys-open-api',
-      action: 'alexa-request',
-      instance_id: primaryInstance.id,
-      data: req.body,
-    };
-
     try {
+      // if the request is an accept grant request
+      if (directiveNamespace === 'Alexa.Authorization' && directiveName === 'AcceptGrant') {
+        const code = get(req.body, 'directive.payload.grant.code');
+        const response = await alexaModel.handleAcceptGrantMessage(code, req.device.id);
+        return res.json(response);
+      }
+
+      // else, we sent the message to the local instance
+      const message = {
+        version: '1.0',
+        type: 'gladys-open-api',
+        action: 'alexa-request',
+        instance_id: primaryInstance.id,
+        data: req.body,
+      };
+
       // then, we sent the request to the local Gladys instance
       const response = await socketModel.sendMessageOpenApi(user, message);
       return res.json(response);
@@ -60,6 +70,7 @@ module.exports = function AlexaController(
    * @apiGroup Alexa
    */
   async function authorize(req, res) {
+    logger.info(`Alexa.authorize : ${req.body.client_id}`);
     instrumentalAgentService.increment('backend.requests.alexa.authorize');
     const { ALEXA_OAUTH_CLIENT_ID } = process.env;
     if (req.body.client_id !== ALEXA_OAUTH_CLIENT_ID) {
@@ -83,6 +94,7 @@ module.exports = function AlexaController(
    * @apiGroup Alexa
    */
   async function token(req, res, next) {
+    logger.info(`Alexa.token : ${req.body.client_id} - ${req.body.grant_type}`);
     instrumentalAgentService.increment('backend.requests.alexa.token');
     const { ALEXA_OAUTH_CLIENT_ID, ALEXA_OAUTH_CLIENT_SECRET } = process.env;
     try {
@@ -115,18 +127,7 @@ module.exports = function AlexaController(
       res.status(400).json({ error: 'invalid_grant' });
     }
   }
-  /**
-   * @api {post} /alexa/request_sync Request Sync
-   * @apiName Request Sync
-   * @apiGroup Alexa
-   */
-  async function requestSync(req, res) {
-    instrumentalAgentService.increment('backend.requests.alexa.request-sync');
-    await alexaModel.requestSync(req.instance.id);
-    res.json({
-      status: 200,
-    });
-  }
+
   /**
    * @api {post} /alexa/report_state Report State
    * @apiName Report State
@@ -143,7 +144,6 @@ module.exports = function AlexaController(
     smartHome,
     authorize,
     token,
-    requestSync,
     reportState,
   };
 };

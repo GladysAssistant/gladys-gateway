@@ -2,11 +2,14 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
+const axios = require('axios');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
 const ALEXA_OAUTH_CODE_REDIS_PREFIX = `ALEXA_OAUTH_CODE`;
 const ALEXA_CODE_EXPIRY_IN_SECONDS = 60 * 60;
+
+const ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'alexa-grant-access-token:';
 
 const JWT_AUDIENCE = 'alexa-oauth';
 const SCOPE = ['alexa'];
@@ -110,7 +113,8 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
   }
 
   const getUsersWithAlexaActivatedQuery = `
-      SELECT DISTINCT t_user.id, t_user.account_id
+      SELECT DISTINCT t_user.id, t_user.account_id, 
+      t_device.id as device_id, t_device.provider_refresh_token
       FROM t_user
       INNER JOIN t_device ON t_user.id = t_device.user_id
       INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
@@ -120,31 +124,94 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
       AND t_device.client_id = $2;
     `;
 
-  async function requestSync(instanceId) {
-    const users = await db.query(getUsersWithAlexaActivatedQuery, [instanceId, ALEXA_OAUTH_CLIENT_ID]);
-    if (users.length > 0) {
-      // request sync
+  async function saveAlexaAccessTokenAndRefreshToken(deviceId, data) {
+    await redisClient.setAsync(
+      `${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`,
+      data.access_token,
+      'EX',
+      data.expires_in - 60, // We remove 1 minute to be safe
+    );
+
+    await db.t_device.update(deviceId, {
+      provider_refresh_token: data.refresh_token,
+    });
+  }
+
+  async function handleAcceptGrantMessage(authorizationCode, deviceId) {
+    logger.info(`Alexa.handleAcceptGrantMessage : ${deviceId}`);
+    const { ALEXA_GRANT_CLIENT_ID, ALEXA_GRANT_CLIENT_SECRET } = process.env;
+    const params = new URLSearchParams();
+    params.append('grant_type', 'authorization_code');
+    params.append('code', authorizationCode);
+    params.append('client_id', ALEXA_GRANT_CLIENT_ID);
+    params.append('client_secret', ALEXA_GRANT_CLIENT_SECRET);
+    const options = {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      data: params,
+      url: 'https://api.amazon.com/auth/o2/token',
+    };
+    const { data } = await axios(options);
+
+    await saveAlexaAccessTokenAndRefreshToken(deviceId, data);
+
+    return {
+      event: {
+        header: {
+          namespace: 'Alexa.Authorization',
+          name: 'AcceptGrant.Response',
+          messageId: uuid.v4(),
+          payloadVersion: '3',
+        },
+        payload: {},
+      },
+    };
+  }
+
+  async function getAlexaAccessToken(deviceId, refreshToken) {
+    const accessTokenInRedis = await redisClient.getAsync(`${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`);
+    if (accessTokenInRedis) {
+      return accessTokenInRedis;
     }
+    const { ALEXA_GRANT_CLIENT_ID, ALEXA_GRANT_CLIENT_SECRET } = process.env;
+    const params = new URLSearchParams();
+    params.append('grant_type', 'refresh_token');
+    params.append('refresh_token', refreshToken);
+    params.append('client_id', ALEXA_GRANT_CLIENT_ID);
+    params.append('client_secret', ALEXA_GRANT_CLIENT_SECRET);
+    const options = {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      data: params,
+      url: 'https://api.amazon.com/auth/o2/token',
+    };
+    const { data } = await axios(options);
+    await saveAlexaAccessTokenAndRefreshToken(deviceId, data);
+    return data.access_token;
   }
 
   async function reportState(instanceId, payload) {
     const users = await db.query(getUsersWithAlexaActivatedQuery, [instanceId, ALEXA_OAUTH_CLIENT_ID]);
     if (users.length > 0) {
-      const payloadCleaned = cleanNullProperties(payload);
-      const request = {
-        requestId: uuid.v4(),
-        agentUserId: users[0].account_id,
-        payload: payloadCleaned,
-      };
-      try {
-        // report state
-      } catch (e) {
-        errorService.track('ALEXA_REPORT_STATE_ERROR', {
-          error: e,
-          payload: payloadCleaned,
-          user: users[0].id,
-        });
-      }
+      await Promise.each(users, async (user) => {
+        try {
+          const accessToken = await getAlexaAccessToken(user.device_id, user.refresh_token);
+          const options = {
+            method: 'POST',
+            headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },
+            data: payload,
+            url: 'https://api.eu.amazonalexa.com/v3/events',
+          };
+          await axios(options);
+          // report state
+        } catch (e) {
+          errorService.track('ALEXA_REPORT_STATE_ERROR', {
+            error: e,
+            payload,
+            user: users[0].id,
+          });
+        }
+      });
     }
   }
 
@@ -152,7 +219,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
     getRefreshTokenAndAccessToken,
     getAccessToken,
     getCode,
-    requestSync,
     reportState,
+    handleAcceptGrantMessage,
   };
 };

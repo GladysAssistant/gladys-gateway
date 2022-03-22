@@ -559,6 +559,18 @@ class GladysGatewayJs {
     return requestApi.post(`${this.serverUrl}/google/report_state`, body, this);
   }
 
+  async alexaAuthorize(body) {
+    return requestApi.post(`${this.serverUrl}/alexa/authorize`, body, this);
+  }
+
+  async alexaRequestSync() {
+    return requestApi.post(`${this.serverUrl}/alexa/request_sync`, {}, this);
+  }
+
+  async alexaReportState(body) {
+    return requestApi.post(`${this.serverUrl}/alexa/report_state`, body, this);
+  }
+
   async getInstance() {
     const instances = await requestApi.get(`${this.serverUrl}/instances`, this);
 

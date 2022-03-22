@@ -26,6 +26,8 @@ module.exports = function AlexaController(
    * @apiGroup Alexa
    */
   async function smartHome(req, res) {
+    logger.debug(`Alexa : smartHome request`);
+    logger.debug(req.body);
     instrumentalAgentService.increment('backend.requests.alexa.smart-home');
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);

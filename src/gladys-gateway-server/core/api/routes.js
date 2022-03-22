@@ -329,6 +329,32 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.post('/v1/api/google/token', asyncMiddleware(controllers.googleController.token));
 
+  // alexa internal route
+  app.post(
+    '/alexa/authorize',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.alexaController.authorize),
+  );
+  app.post(
+    '/alexa/request_sync',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.alexaController.requestSync),
+  );
+  app.post(
+    '/alexa/report_state',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.alexaController.reportState),
+  );
+
+  // Alexa actions
+  app.post(
+    '/v1/api/alexa/smart_home',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'alexa', audience: 'alexa-oauth' })),
+    asyncMiddleware(controllers.alexaController.smartHome),
+  );
+
+  app.post('/v1/api/alexa/token', asyncMiddleware(controllers.alexaController.token));
+
   // Gladys version
   app.get(
     '/v1/api/gladys/version',

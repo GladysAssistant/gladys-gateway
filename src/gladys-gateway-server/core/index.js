@@ -32,6 +32,7 @@ const Version = require('./api/version/version.model.js');
 const Backup = require('./api/backup/backup.model');
 const StatModel = require('./api/stat/stat.model.js');
 const GoogleModel = require('./api/google/google.model.js');
+const AlexaModel = require('./api/alexa/alexa.model.js');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -47,6 +48,7 @@ const VersionController = require('./api/version/version.controller');
 const BackupController = require('./api/backup/backup.controller');
 const StatController = require('./api/stat/stat.controller');
 const GoogleController = require('./api/google/google.controller');
+const AlexaController = require('./api/alexa/alexa.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -147,6 +149,7 @@ module.exports = async () => {
     backupModel: Backup(logger, db),
     statModel: StatModel(logger, db, redisClient),
     googleModel: GoogleModel(logger, db, redisClient, services.jwtService, services.errorService),
+    alexaModel: AlexaModel(logger, db, redisClient, services.jwtService, services.errorService),
   };
 
   const controllers = {
@@ -165,6 +168,16 @@ module.exports = async () => {
     googleController: GoogleController(
       logger,
       models.googleModel,
+      models.socketModel,
+      models.instanceModel,
+      models.userModel,
+      models.deviceModel,
+      services.instrumentalAgentService,
+      services.errorService,
+    ),
+    alexaController: AlexaController(
+      logger,
+      models.alexaModel,
       models.socketModel,
       models.instanceModel,
       models.userModel,

@@ -104,6 +104,24 @@ describe('crypto encrypt and decrypt', () => {
     const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.have.property('message', 'hey');
   });
+  it('should encrypt a big message and decrypt it using the same key', async function Test() {
+    this.timeout(10000);
+    const crypto = Crypto({
+      cryptoLib: webcrypto,
+    });
+    const keys = await crypto.generateKeyPair();
+    const data = {
+      message: '',
+    };
+    // This message will be 2MB approximately
+    for (let i = 0; i < 2000000; i += 1) {
+      data.message += 'e';
+    }
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data);
+    encryptedData.should.have.property('signature');
+    const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
+    decrypted.should.have.property('message', data.message);
+  });
 });
 
 describe('crypto encrypt and decrypt with decrypted private key', () => {

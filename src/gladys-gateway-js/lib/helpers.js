@@ -1,5 +1,6 @@
 function ab2str(buf) {
-  return String.fromCharCode.apply(null, new Uint16Array(buf));
+  const utf8decoder = new TextDecoder();
+  return utf8decoder.decode(buf);
 }
 
 function str2ab(str) {

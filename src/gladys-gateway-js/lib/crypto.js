@@ -332,7 +332,7 @@ module.exports = ({ cryptoLib }) => {
     return decryptedKey;
   }
 
-  async function encryptMessage(publicKey, ecdsaPrivateKey, rawData, isNewEncoder = false) {
+  async function encryptMessage(publicKey, ecdsaPrivateKey, rawData, isNewEncoder = true) {
     // add timestamp to message to avoid replay attack
     const dataWithTimestamp = {
       data: rawData,

@@ -99,7 +99,7 @@ describe('crypto encrypt and decrypt', () => {
     const data = {
       message: 'hey',
     };
-    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data);
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data, false);
     encryptedData.should.have.property('signature');
     const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.have.property('message', 'hey');

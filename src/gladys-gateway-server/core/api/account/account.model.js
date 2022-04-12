@@ -213,6 +213,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+      updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${insertedAccount.stripe_portal_key}`,
     });
 
     return insertedAccount;

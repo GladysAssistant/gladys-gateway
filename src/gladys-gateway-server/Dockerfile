@@ -12,7 +12,7 @@ RUN mkdir /src
 WORKDIR /src
 ADD . /src
 
-RUN apk add --no-cache --virtual .build-deps make gcc g++ python git && \
+RUN apk add --no-cache --virtual .build-deps make gcc g++ python3 git && \
   npm install && apk del .build-deps && cd node_modules/geoip-lite && npm run-script updatedb license_key=$MAX_MIND_LICENSE_KEY
 
 # Export listening port

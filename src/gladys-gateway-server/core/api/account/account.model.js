@@ -81,6 +81,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
+      status: 'active',
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
@@ -372,8 +373,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       } else {
         language = 'fr';
       }
-    } else {
-      return Promise.resolve();
     }
 
     switch (event.type) {

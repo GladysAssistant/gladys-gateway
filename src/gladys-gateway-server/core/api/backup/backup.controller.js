@@ -103,7 +103,19 @@ module.exports = function BackupController(backupModel, logger) {
    */
   async function get(req, res, next) {
     const backups = await backupModel.get(req.instance.id, req.query);
-    res.json(backups);
+    const backupsWithSignedUrls = await Promise.map(backups, async (backup) => {
+      const key = path.basename(backup.path);
+      const signedUrl = await s3.getSignedUrlPromise('getObject', {
+        Bucket: process.env.STORAGE_BUCKET,
+        Key: key,
+        Expires: 6 * 60 * 60, // URL is valid 6 hours
+      });
+      return {
+        ...backup,
+        path: signedUrl,
+      };
+    });
+    res.json(backupsWithSignedUrls);
   }
 
   /**
@@ -159,7 +171,6 @@ module.exports = function BackupController(backupModel, logger) {
     res.send({
       file_id: multipartUpload.UploadId,
       file_key: multipartUpload.Key,
-      name,
       parts,
       chunk_size: CHUNK_SIZE,
     });
@@ -188,12 +199,13 @@ module.exports = function BackupController(backupModel, logger) {
       },
     };
 
-    const result = await s3.completeMultipartUpload(multipartParams).promise();
-
-    console.log(result);
-
+    await s3.completeMultipartUpload(multipartParams).promise();
+    const signedUrl = await s3.getSignedUrlPromise('getObject', {
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: req.body.file_key,
+    });
     res.send({
-      success: true,
+      signed_url: signedUrl,
     });
   }
 

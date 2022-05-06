@@ -11,6 +11,7 @@ async function readChunk(filePath, { length, startPosition }) {
   const fileDescriptor = await fsOpenP(filePath, 'r');
 
   try {
+    // eslint-disable-next-line prefer-const
     let [bytesRead, buffer] = await fsReadP(fileDescriptor, {
       buffer: Buffer.alloc(length),
       length,

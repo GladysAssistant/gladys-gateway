@@ -1,5 +1,12 @@
 const request = require('supertest');
 const should = require('should');
+const fs = require('fs');
+const path = require('path');
+const Promise = require('bluebird');
+const axios = require('axios');
+const { expect } = require('chai');
+
+const { readChunk } = require('./utils.test');
 const configTest = require('../../../tasks/config');
 
 describe('GET /backups', () => {
@@ -23,4 +30,56 @@ describe('GET /backups', () => {
           },
         ]);
       }));
+});
+
+describe.only('Upload backup', () => {
+  it('should upload backup', async () => {
+    const filePath = path.join(__dirname, 'file_to_upload.enc');
+    const fileSize = fs.statSync(filePath).size;
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: fileSize,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('file_id');
+    expect(response.body).to.have.property('file_key');
+    expect(response.body).to.have.property('name');
+    expect(response.body).to.have.property('parts');
+    expect(response.body).to.have.property('chunk_size');
+    response.body.parts.forEach((part) => {
+      expect(part).to.have.property('signed_url');
+      expect(part).to.have.property('part_number');
+    });
+    const partsUploaded = await Promise.mapSeries(response.body.parts, async (part, index) => {
+      const startPosition = index * response.body.chunk_size;
+      const chunk = await readChunk(filePath, { length: response.body.chunk_size, startPosition });
+      const options = {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+      };
+      const { headers } = await axios.put(part.signed_url, chunk, options);
+      return {
+        PartNumber: part.part_number,
+        ETag: headers.etag.replace(/"/g, ''),
+      };
+    });
+    console.log(partsUploaded);
+    const finalResponse = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/finalize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: response.body.file_key,
+        file_id: response.body.file_id,
+        parts: partsUploaded,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    console.log(finalResponse);
+  });
 });

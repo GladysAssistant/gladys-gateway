@@ -46,6 +46,7 @@
     "mocha": "^5.2.0",
     "nock": "^10.0.0",
     "nodemon": "^2.0.6",
+    "pify": "^5.0.0",
     "prettier": "^2.3.2",
     "should": "^13.2.3",
     "supertest": "^3.3.0"
@@ -53,7 +54,7 @@
   "dependencies": {
     "@sentry/node": "^5.22.3",
     "actions-on-google": "^2.14.0",
-    "aws-sdk": "^2.463.0",
+    "aws-sdk": "^2.1129.0",
     "axios": "^0.18.1",
     "bluebird": "^3.5.3",
     "body-parser": "^1.18.3",

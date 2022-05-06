@@ -1,12 +1,20 @@
 const path = require('path');
 const aws = require('aws-sdk');
 const multer = require('multer');
+const Promise = require('bluebird');
 const multerS3 = require('multer-s3');
 const uuid = require('uuid');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware.js');
 
+aws.config.update({
+  signatureVersion: 'v4',
+  signatureCache: false,
+});
+
 const MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+
+const CHUNK_SIZE = 10 * 1024; // 10Mo
 
 module.exports = function BackupController(backupModel, logger) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
@@ -98,8 +106,101 @@ module.exports = function BackupController(backupModel, logger) {
     res.json(backups);
   }
 
+  /**
+   * @api {post} /backups/multi_parts/initiliaze Initialize new multi-part upload
+   * @apiName initMultiPartBackup
+   * @apiGroup Backup
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "file_id": "",
+   *   "file_key": ""
+   * }
+   */
+  async function initializeMultipartUpload(req, res) {
+    // Generate file destination ID
+    const name = `${uuid.v4()}.enc`;
+    const numberOfParts = Math.ceil(req.body.file_size / CHUNK_SIZE);
+
+    const multipartParams = {
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: name,
+      ACL: 'private',
+    };
+
+    const multipartUpload = await s3.createMultipartUpload(multipartParams).promise();
+
+    // Generate all signed urls for the upload
+    const multipartParamsSignedUrl = {
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: multipartUpload.Key,
+      UploadId: multipartUpload.UploadId,
+      Expires: 10 * 60 * 60, // URL is valid for 10 hours
+    };
+
+    const tasks = new Array(numberOfParts);
+    const parts = await Promise.map(
+      tasks,
+      async (task, index) => {
+        const signedUrl = await s3.getSignedUrlPromise('uploadPart', {
+          ...multipartParamsSignedUrl,
+          PartNumber: index + 1,
+        });
+        return {
+          signed_url: signedUrl,
+          part_number: index + 1,
+        };
+      },
+      { concurrency: 10 },
+    );
+
+    res.send({
+      file_id: multipartUpload.UploadId,
+      file_key: multipartUpload.Key,
+      name,
+      parts,
+      chunk_size: CHUNK_SIZE,
+    });
+  }
+
+  /**
+   * @api {post} /backups/multi_parts/finalize Finalize upload
+   * @apiName finalizeMultiPartUpload
+   * @apiGroup Backup
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "success": true
+   * }
+   */
+  async function finalizeMultipartUpload(req, res) {
+    const multipartParams = {
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: req.body.file_key,
+      UploadId: req.body.file_id,
+      MultipartUpload: {
+        // ordering the parts to make sure they are in the right order
+        Parts: req.body.parts.sort((a, b) => a.PartNumber - b.PartNumber),
+      },
+    };
+
+    const result = await s3.completeMultipartUpload(multipartParams).promise();
+
+    console.log(result);
+
+    res.send({
+      success: true,
+    });
+  }
+
   return {
     create: asyncMiddleware(create),
     get: asyncMiddleware(get),
+    initializeMultipartUpload: asyncMiddleware(initializeMultipartUpload),
+    finalizeMultipartUpload: asyncMiddleware(finalizeMultipartUpload),
   };
 };

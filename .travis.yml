@@ -33,8 +33,8 @@ env:
     - DISABLE_EMAIL=true
     - JWT_ACCESS_TOKEN_SECRET=TESTTESTETSTTE5rPzwPhXvLt9Jb8CEeq5hr0GRyteTVL9wg1QKJJMImUjbJsLrl36hiNvmflDVm
     - JWT_REFRESH_TOKEN_SECRET=TESTESTESTESTSTiqgbxZ5107HBHpR70OeVn9Lg3tG5HBDvUwrV2Rqur7LsxDZLDsmELtRuDvfMxGL7
-    - STORAGE_ENDPOINT=fra1.digitaloceanspaces.com
-    - STORAGE_BUCKET=test
+    - STORAGE_ENDPOINT=s3.eu-central-1.amazonaws.com
+    - STORAGE_BUCKET=gladys-gateway-test
     - GOOGLE_HOME_OAUTH_CLIENT_ID=google-home
     - GOOGLE_HOME_OAUTH_CLIENT_SECRET=google-home-secret
     - CXX=g++-4.8

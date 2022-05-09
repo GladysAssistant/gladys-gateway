@@ -93,14 +93,20 @@ jobs:
           npm run eslint
       - name: ✅ Test with coverage
         working-directory: ./src/gladys-gateway-server
+        env:
+          GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL: ${{ secrets.GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           npm run coverage
+
       - name: 🔐 Dependencies security audit
         working-directory: ./src/gladys-gateway-server
         run: npm audit --production --audit-level=critical
       - name: 📄 Codecov report upload
         uses: codecov/codecov-action@v2
         with:
+          token: ${{ secrets.CODECOV_TOKEN }}
           directory: ./src/gladys-gateway-server
           fail_ci_if_error: true
   docker-build:
@@ -113,4 +119,4 @@ jobs:
       - name: Docker login
         run: docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
       - name: Docker build
-        run: docker build --build-arg MAX_MIND_LICENSE_KEY="$MAX_MIND_LICENSE_KEY" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+        run: docker build --build-arg MAX_MIND_LICENSE_KEY="${{ secrets.MAX_MIND_LICENSE_KEY }}" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server

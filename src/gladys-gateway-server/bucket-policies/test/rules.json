@@ -1,0 +1,15 @@
+{
+  "Rules": [
+    {
+      "ID": "AbortOldMultipartAndPruneOldFile",
+      "Prefix": "",
+      "Status": "Enabled",
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 1
+      },
+      "Expiration": {
+        "Days": 1
+      }
+    }
+  ]
+}

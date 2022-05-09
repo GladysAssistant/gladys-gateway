@@ -341,6 +341,18 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.create);
   app.get('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.get);
 
+  // Backup multi-part upload
+  app.post(
+    '/backups/multi_parts/initialize',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    controllers.backupController.initializeMultipartUpload,
+  );
+  app.post(
+    '/backups/multi_parts/finalize',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    controllers.backupController.finalizeMultipartUpload,
+  );
+
   // socket
   io.on('connection', controllers.socketController.connection);
 

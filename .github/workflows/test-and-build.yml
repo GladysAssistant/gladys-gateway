@@ -118,7 +118,7 @@ jobs:
           DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Docker build
-        run: docker build --build-arg MAX_MIND_LICENSE_KEY="${{ secrets.MAX_MIND_LICENSE_KEY }}" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+        run: docker build -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
   docker-build-and-push:
     if: ${{ github.ref == 'refs/heads/main' }}
     needs: test

@@ -1,0 +1,108 @@
+name: Pull request tests
+
+on:
+  pull_request:
+    branches: [master]
+
+env:
+  POSTGRESQL_DATABASE: ci_test
+  POSTGRESQL_DATABASE_TEST: ci_test
+  POSTGRESQL_USER: postgres
+  POSTGRESQL_HOST: localhost
+  POSTGRESQL_PASSWORD: test
+  POSTGRESQL_PORT: 5432
+  REDIS_HOST: localhost
+  REDIS_PORT: 6379
+  SERVER_PORT: 3000
+  MAILGUN_API_KEY: test
+  MAILGUN_DOMAIN: test.mailgun.org
+  EMAIL_FROM: "Gladys Project <test.mailgun.org>"
+  DISABLE_EMAIL: true
+  JWT_ACCESS_TOKEN_SECRET: TESTTESTETSTTE5rPzwPhXvLt9Jb8CEeq5hr0GRyteTVL9wg1QKJJMImUjbJsLrl36hiNvmflDVm
+  JWT_REFRESH_TOKEN_SECRET: TESTESTESTESTSTiqgbxZ5107HBHpR70OeVn9Lg3tG5HBDvUwrV2Rqur7LsxDZLDsmELtRuDvfMxGL7
+  STORAGE_ENDPOINT: s3.eu-central-1.amazonaws.com
+  STORAGE_BUCKET: gladys-gateway-test
+  GOOGLE_HOME_OAUTH_CLIENT_ID: google-home
+  GOOGLE_HOME_OAUTH_CLIENT_SECRET: google-home-secret
+
+jobs:
+  test-server:
+    name: Server test
+    runs-on: ubuntu-20.04
+    services:
+      postgres:
+        image: postgres:10
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ci_test
+          POSTGRES_USER: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - name: ⬇️ Checkout Gladys code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: 💽 Setup nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+      - name: 📇 Use npm cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: 💽 Install System Dependencies
+        run: |
+          sudo apt update
+          sudo apt-get install -y libudev-dev sqlite3 openssl python-is-python3
+      - name: 📦 Install Global NPM Packages
+        run: |
+          sudo npm install -g lerna eslint db-migrate codecov nyc
+      - name: 📦 Install NPM packages
+        run: |
+          lerna bootstrap
+      - name: Run database migration
+        working-directory: ./src/gladys-gateway-server
+        run: |
+          db-migrate up
+      - name: 🧐 Prettier check
+        run: |
+          lerna run prettier
+      - name: 👕 ESlint
+        run: |
+          lerna run eslint
+      - name: ✅ Test with coverage
+        run: |
+          lerna run coverage
+      - name: 🔐 Dependencies security audit
+        working-directory: ./src/gladys-gateway-server
+        run: npm audit --production --audit-level=critical
+      - name: 📄 Codecov report upload
+        uses: codecov/codecov-action@v2
+        with:
+          fail_ci_if_error: true
+  docker-build:
+    if: github.event.pull_request.draft == false
+    name: Docker build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v2
+      - name: Docker login
+        run: docker login -u="$DOCKER_USERNAME" -p="$DOCKER_PASSWORD"
+      - name: Docker build
+        run: docker build --build-arg MAX_MIND_LICENSE_KEY="$MAX_MIND_LICENSE_KEY" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server

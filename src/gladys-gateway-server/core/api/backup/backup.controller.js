@@ -14,7 +14,7 @@ aws.config.update({
 
 const MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
 
-const CHUNK_SIZE = 10 * 1024; // 10Mo
+const CHUNK_SIZE = 10 * 1024 * 1024; // 10Mo
 
 module.exports = function BackupController(backupModel, logger) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
@@ -189,13 +189,15 @@ module.exports = function BackupController(backupModel, logger) {
    * }
    */
   async function finalizeMultipartUpload(req, res) {
+    // ordering the parts to make sure they are in the right order
+    const partsOrdered = req.body.parts.sort((a, b) => a.PartNumber - b.PartNumber);
+
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
       Key: req.body.file_key,
       UploadId: req.body.file_id,
       MultipartUpload: {
-        // ordering the parts to make sure they are in the right order
-        Parts: req.body.parts.sort((a, b) => a.PartNumber - b.PartNumber),
+        Parts: partsOrdered,
       },
     };
 

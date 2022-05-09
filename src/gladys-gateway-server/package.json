@@ -9,6 +9,7 @@
     "eslint": "eslint core test index.js",
     "eslint-fix": "eslint --fix core test index.js",
     "prettier": "prettier --write core test index.js",
+    "prettier-check": "prettier --check core test index.js",
     "start": "nodemon index.js",
     "apidoc": "apidoc -i core/ -o apidoc/",
     "setup-db-dev": "db-migrate up -e dev",

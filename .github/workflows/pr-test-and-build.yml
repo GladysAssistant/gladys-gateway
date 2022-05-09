@@ -84,20 +84,24 @@ jobs:
         run: |
           npm run setup-db-test
       - name: 🧐 Prettier check
+        working-directory: ./src/gladys-gateway-server
         run: |
-          lerna run prettier
+          npm run prettier-check
       - name: 👕 ESlint
+        working-directory: ./src/gladys-gateway-server
         run: |
-          lerna run eslint
+          npm run eslint
       - name: ✅ Test with coverage
+        working-directory: ./src/gladys-gateway-server
         run: |
-          lerna run coverage
+          npm run coverage
       - name: 🔐 Dependencies security audit
         working-directory: ./src/gladys-gateway-server
         run: npm audit --production --audit-level=critical
       - name: 📄 Codecov report upload
         uses: codecov/codecov-action@v2
         with:
+          directory: ./src/gladys-gateway-server
           fail_ci_if_error: true
   docker-build:
     if: github.event.pull_request.draft == false

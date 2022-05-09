@@ -69,12 +69,10 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-      - name: 📦 Install Global NPM Packages
-        run: |
-          sudo npm install -g lerna
       - name: 📦 Install NPM packages
+        working-directory: ./src/gladys-gateway-server
         run: |
-          lerna bootstrap
+          npm ci
       - name: Run database migration
         working-directory: ./src/gladys-gateway-server
         run: |

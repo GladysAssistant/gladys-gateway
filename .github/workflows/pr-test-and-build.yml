@@ -78,7 +78,7 @@ jobs:
       - name: Run database migration
         working-directory: ./src/gladys-gateway-server
         run: |
-          db-migrate up
+          npm run setup-db-test
       - name: 🧐 Prettier check
         run: |
           lerna run prettier

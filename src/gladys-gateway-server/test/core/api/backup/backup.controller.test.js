@@ -36,7 +36,8 @@ describe('GET /backups', () => {
 });
 
 describe('Upload backup', () => {
-  it('should upload small backup', async () => {
+  it('should upload small backup', async function Test() {
+    this.timeout(10000);
     const filePath = path.join(__dirname, 'file_to_upload.enc');
     const fileSize = fs.statSync(filePath).size;
     const response = await request(TEST_BACKEND_APP)

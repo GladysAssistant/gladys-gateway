@@ -13,6 +13,8 @@ aws.config.update({
   signatureCache: false,
 });
 
+const ENABLE_SIGNED_URL_BACKUPS = process.env.ENABLE_SIGNED_URL_BACKUPS === 'true';
+
 const MAX_FILE_SIZE_IN_BYTES = parseInt(process.env.BACKUP_MAX_FILE_SIZE_IN_BYTES, 10);
 
 const CHUNK_SIZE_IN_BYTES = parseInt(process.env.BACKUP_CHUNK_SIZE_IN_BYTES, 10);
@@ -27,7 +29,7 @@ module.exports = function BackupController(backupModel, logger) {
     storage: multerS3({
       s3,
       bucket: process.env.STORAGE_BUCKET,
-      acl: 'public-read',
+      acl: ENABLE_SIGNED_URL_BACKUPS ? 'private' : 'public-read',
       key: (request, file, cb) => {
         const newFileName = `${uuid.v4()}.enc`;
         cb(null, newFileName);
@@ -113,7 +115,7 @@ module.exports = function BackupController(backupModel, logger) {
       });
       return {
         ...backup,
-        path: signedUrl,
+        path: ENABLE_SIGNED_URL_BACKUPS ? signedUrl : backup.path,
       };
     });
     res.json(backupsWithSignedUrls);
@@ -144,7 +146,7 @@ module.exports = function BackupController(backupModel, logger) {
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
       Key: name,
-      ACL: 'private',
+      ACL: ENABLE_SIGNED_URL_BACKUPS ? 'private' : 'public-read',
     };
 
     const multipartUpload = await s3.createMultipartUpload(multipartParams).promise();

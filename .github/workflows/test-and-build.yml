@@ -28,7 +28,7 @@ env:
   GOOGLE_HOME_OAUTH_CLIENT_SECRET: google-home-secret
 
 jobs:
-  test-server:
+  test:
     name: Server test
     runs-on: ubuntu-20.04
     services:
@@ -121,7 +121,7 @@ jobs:
         run: docker build --build-arg MAX_MIND_LICENSE_KEY="${{ secrets.MAX_MIND_LICENSE_KEY }}" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
   docker-build-and-push:
     if: ${{ github.ref == 'refs/heads/main' }}
-    needs: server-test
+    needs: test
     name: Docker build and push
     runs-on: ubuntu-20.04
     steps:

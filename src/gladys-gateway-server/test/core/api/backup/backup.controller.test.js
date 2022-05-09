@@ -9,7 +9,7 @@ const { readChunk } = require('./utils.test');
 const configTest = require('../../../tasks/config');
 
 describe('GET /backups', () => {
-  it('should return list of succesfull backups', async () => {
+  it('should return list of successful backups', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get('/backups')
       .set('Accept', 'application/json')

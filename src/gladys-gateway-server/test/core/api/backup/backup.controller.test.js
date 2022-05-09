@@ -109,7 +109,7 @@ describe('Upload backup', () => {
       expect(part).to.have.property('part_number');
     });
     expect(response.body.parts).to.have.lengthOf(2);
-    const partsUploaded = await Promise.mapSeries(response.body.parts, async (part, index) => {
+    const partsUploaded = await Promise.map(response.body.parts, async (part, index) => {
       const startPosition = index * response.body.chunk_size;
       const chunk = await readChunk(filePath, { length: response.body.chunk_size, startPosition });
       const options = {
@@ -137,5 +137,22 @@ describe('Upload backup', () => {
     expect(finalResponse.body).to.have.property('signed_url');
     const { data } = await axios.get(finalResponse.body.signed_url);
     expect(data).to.equal(fileContent);
+  });
+  it('should not upload backup, file too large', async function Test() {
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: 12 * 1024 * 1024 * 1024,
+      })
+      .expect('Content-Type', /json/)
+      .expect(400);
+    expect(response.body).to.deep.equal({
+      status: 400,
+      error_code: 'BAD_REQUEST',
+      error_message: 'File is too large. Maximum file size is 10240 MB.',
+    });
   });
 });

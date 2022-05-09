@@ -225,10 +225,39 @@ module.exports = function BackupController(backupModel, logger) {
     });
   }
 
+  /**
+   * @api {post} /backups/multi_parts/abort Abort upload
+   * @apiName abortMultiPartUpload
+   * @apiGroup Backup
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": "failed"
+   * }
+   */
+  async function abortMultiPartUpload(req, res) {
+    const multipartParams = {
+      Bucket: process.env.STORAGE_BUCKET,
+      Key: req.body.file_key,
+      UploadId: req.body.file_id,
+    };
+
+    await s3.abortMultipartUpload(multipartParams).promise();
+
+    const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
+      status: 'failed',
+    });
+
+    res.send(backup);
+  }
+
   return {
     create: asyncMiddleware(create),
     get: asyncMiddleware(get),
     initializeMultipartUpload: asyncMiddleware(initializeMultipartUpload),
     finalizeMultipartUpload: asyncMiddleware(finalizeMultipartUpload),
+    abortMultiPartUpload: asyncMiddleware(abortMultiPartUpload),
   };
 };

@@ -352,6 +352,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     controllers.backupController.finalizeMultipartUpload,
   );
+  app.post(
+    '/backups/multi_parts/abort',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    controllers.backupController.abortMultiPartUpload,
+  );
 
   // socket
   io.on('connection', controllers.socketController.connection);

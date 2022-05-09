@@ -208,4 +208,40 @@ describe('Upload backup', () => {
       error_message: 'Backup id was not found',
     });
   });
+  it('should start backup & abort backup', async function Test() {
+    this.timeout(10000);
+    const filePath = path.join(__dirname, 'file_to_upload.enc');
+    const fileSize = fs.statSync(filePath).size;
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: fileSize,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('file_id');
+    expect(response.body).to.have.property('file_key');
+    expect(response.body).to.have.property('parts');
+    expect(response.body).to.have.property('chunk_size');
+    expect(response.body).to.have.property('backup_id');
+    response.body.parts.forEach((part) => {
+      expect(part).to.have.property('signed_url');
+      expect(part).to.have.property('part_number');
+    });
+    const finalResponse = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/abort')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: response.body.file_key,
+        file_id: response.body.file_id,
+        backup_id: response.body.backup_id,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(finalResponse.body).to.have.property('status', 'failed');
+    expect(finalResponse.body).to.have.property('path', null);
+  });
 });

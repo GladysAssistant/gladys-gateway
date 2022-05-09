@@ -69,13 +69,9 @@ jobs:
           key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
-      - name: 💽 Install System Dependencies
-        run: |
-          sudo apt update
-          sudo apt-get install -y libudev-dev sqlite3 openssl python-is-python3
       - name: 📦 Install Global NPM Packages
         run: |
-          sudo npm install -g lerna eslint db-migrate codecov nyc
+          sudo npm install -g lerna
       - name: 📦 Install NPM packages
         run: |
           lerna bootstrap

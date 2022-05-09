@@ -86,4 +86,56 @@ describe('Upload backup', () => {
     const { data } = await axios.get(finalResponse.body.signed_url);
     expect(data).to.equal('toto');
   });
+  it('should upload larger backup in multiple chunks', async function Test() {
+    this.timeout(30000);
+    const filePath = path.join(__dirname, 'larger_file_to_upload.enc');
+    const fileSize = fs.statSync(filePath).size;
+    const fileContent = fs.readFileSync(filePath, 'utf-8');
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: fileSize,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('file_id');
+    expect(response.body).to.have.property('file_key');
+    expect(response.body).to.have.property('parts');
+    expect(response.body).to.have.property('chunk_size');
+    response.body.parts.forEach((part) => {
+      expect(part).to.have.property('signed_url');
+      expect(part).to.have.property('part_number');
+    });
+    expect(response.body.parts).to.have.lengthOf(2);
+    const partsUploaded = await Promise.mapSeries(response.body.parts, async (part, index) => {
+      const startPosition = index * response.body.chunk_size;
+      const chunk = await readChunk(filePath, { length: response.body.chunk_size, startPosition });
+      const options = {
+        headers: {
+          'Content-Type': 'application/octet-stream',
+        },
+      };
+      const { headers } = await axios.put(part.signed_url, chunk, options);
+      return {
+        PartNumber: part.part_number,
+        ETag: headers.etag.replace(/"/g, ''),
+      };
+    });
+    const finalResponse = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/finalize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: response.body.file_key,
+        file_id: response.body.file_id,
+        parts: partsUploaded,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(finalResponse.body).to.have.property('signed_url');
+    const { data } = await axios.get(finalResponse.body.signed_url);
+    expect(data).to.equal(fileContent);
+  });
 });

@@ -9,7 +9,7 @@ const { readChunk } = require('./utils.test');
 const configTest = require('../../../tasks/config');
 
 describe('GET /backups', () => {
-  it('should return list of backups', async () => {
+  it('should return list of succesfull backups', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get('/backups')
       .set('Accept', 'application/json')
@@ -27,6 +27,7 @@ describe('GET /backups', () => {
         account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
         path: `https://${process.env.STORAGE_BUCKET}.${process.env.STORAGE_ENDPOINT}/un-autre-backup.enc`,
         size: 1000,
+        status: 'successed',
         created_at: '2018-10-16T02:21:25.901Z',
         updated_at: '2018-10-16T02:21:25.901Z',
         is_deleted: false,

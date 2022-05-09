@@ -39,6 +39,7 @@ module.exports = function BackupModel(logger, db) {
     const backups = await db.t_backup.find(
       {
         account_id: instance.account_id,
+        status: 'successed',
       },
       {
         offset,

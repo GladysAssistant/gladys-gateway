@@ -6,15 +6,16 @@ const multerS3 = require('multer-s3');
 const uuid = require('uuid');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware.js');
+const { BadRequestError } = require('../../common/error.js');
 
 aws.config.update({
   signatureVersion: 'v4',
   signatureCache: false,
 });
 
-const MAX_FILE_SIZE_IN_BYTES = 10 * 1024 * 1024 * 1024; // 10 GB
+const MAX_FILE_SIZE_IN_BYTES = parseInt(process.env.BACKUP_MAX_FILE_SIZE_IN_BYTES, 10);
 
-const CHUNK_SIZE = 10 * 1024 * 1024; // 10Mo
+const CHUNK_SIZE_IN_BYTES = parseInt(process.env.BACKUP_CHUNK_SIZE_IN_BYTES, 10);
 
 module.exports = function BackupController(backupModel, logger) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
@@ -134,7 +135,11 @@ module.exports = function BackupController(backupModel, logger) {
   async function initializeMultipartUpload(req, res) {
     // Generate file destination ID
     const name = `${uuid.v4()}.enc`;
-    const numberOfParts = Math.ceil(req.body.file_size / CHUNK_SIZE);
+    const numberOfParts = Math.ceil(req.body.file_size / CHUNK_SIZE_IN_BYTES);
+
+    if (req.body.file_size > MAX_FILE_SIZE_IN_BYTES) {
+      throw new BadRequestError(`File is too large. Maximum file size is ${MAX_FILE_SIZE_IN_BYTES / 1024 / 1024} MB.`);
+    }
 
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
@@ -172,7 +177,7 @@ module.exports = function BackupController(backupModel, logger) {
       file_id: multipartUpload.UploadId,
       file_key: multipartUpload.Key,
       parts,
-      chunk_size: CHUNK_SIZE,
+      chunk_size: CHUNK_SIZE_IN_BYTES,
     });
   }
 

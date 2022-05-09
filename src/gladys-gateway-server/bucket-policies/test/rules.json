@@ -8,7 +8,7 @@
         "DaysAfterInitiation": 1
       },
       "Expiration": {
-        "Days": 30
+        "Days": 5
       }
     }
   ]

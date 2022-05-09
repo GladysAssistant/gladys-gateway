@@ -77,7 +77,7 @@ module.exports = function BackupController(backupModel, logger) {
       try {
         const file = req.files[0];
         const url = file.location.startsWith('https://') ? file.location : `https://${file.location}`;
-        await backupModel.createBackup(req.instance.id, url, file.size);
+        await backupModel.createBackup(req.instance.id, url, file.size, 'successed');
         return res.json({ status: 200 });
       } catch (e) {
         logger.warn(e);
@@ -173,11 +173,15 @@ module.exports = function BackupController(backupModel, logger) {
       { concurrency: 10 },
     );
 
+    // create backup in database with "started" type
+    const backup = await backupModel.createBackup(req.instance.id, null, req.body.file_size, 'started');
+
     res.send({
       file_id: multipartUpload.UploadId,
       file_key: multipartUpload.Key,
       parts,
       chunk_size: CHUNK_SIZE_IN_BYTES,
+      backup_id: backup.id,
     });
   }
 
@@ -211,8 +215,13 @@ module.exports = function BackupController(backupModel, logger) {
       Bucket: process.env.STORAGE_BUCKET,
       Key: req.body.file_key,
     });
+    const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
+      status: 'successed',
+      path: signedUrl.split('?')[0],
+    });
     res.send({
       signed_url: signedUrl,
+      backup,
     });
   }
 

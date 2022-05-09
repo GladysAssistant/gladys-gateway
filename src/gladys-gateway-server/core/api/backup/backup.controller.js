@@ -115,7 +115,7 @@ module.exports = function BackupController(backupModel, logger) {
       });
       return {
         ...backup,
-        path: ENABLE_SIGNED_URL_BACKUPS ? backup.path : signedUrl,
+        path: ENABLE_SIGNED_URL_BACKUPS ? signedUrl : backup.path,
       };
     });
     res.json(backupsWithSignedUrls);

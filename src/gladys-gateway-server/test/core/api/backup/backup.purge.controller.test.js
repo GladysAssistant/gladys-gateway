@@ -148,4 +148,36 @@ describe('POST /admin/api/backups/purge', () => {
       .expect('Content-Type', /json/)
       .expect(401);
   });
+  it('should return 429, too many requests', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(429);
+  });
 });

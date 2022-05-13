@@ -17,7 +17,7 @@ module.exports = function AdminApiAuth(logger, redisClient) {
   const limiter = new RateLimiterRedis({
     storeClient: redisClient,
     keyPrefix: 'rate_limit:admin_api_auth',
-    points: MAX_FAILS, // 10 fails per 24 hours
+    points: MAX_FAILS, // fails per 24 hours
     duration: 24 * 60 * 60, // 24 hour
   });
   return asyncMiddleware(async (req, res, next) => {

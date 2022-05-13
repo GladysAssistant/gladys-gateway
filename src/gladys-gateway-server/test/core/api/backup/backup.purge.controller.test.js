@@ -133,6 +133,14 @@ describe('POST /admin/api/backups/purge', () => {
       .expect('Content-Type', /json/)
       .expect(401);
   });
+  it('should return 401, empty string header', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/admin/api/backups/purge')
+      .set('Accept', 'application/json')
+      .set('Authorization', '')
+      .expect('Content-Type', /json/)
+      .expect(401);
+  });
   it('should return 401, empty header', async () => {
     await request(TEST_BACKEND_APP)
       .post('/admin/api/backups/purge')

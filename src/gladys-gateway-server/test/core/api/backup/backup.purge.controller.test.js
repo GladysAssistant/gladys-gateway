@@ -119,5 +119,10 @@ describe('POST /admin/api/backups/purge', () => {
     } catch (e) {
       expect(e).to.have.property('statusCode', 404);
     }
+    const backupsRemainingCount = await TEST_DATABASE_INSTANCE.t_backup.find({
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      status: 'successed',
+    });
+    expect(backupsRemainingCount).to.have.lengthOf(5);
   });
 });

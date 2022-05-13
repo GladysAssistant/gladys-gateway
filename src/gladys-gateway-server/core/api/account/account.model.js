@@ -572,6 +572,11 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 
+  async function getAllAccounts() {
+    const accounts = await db.t_account.find({}, { field: ['id', 'name', 'created_at'] });
+    return accounts;
+  }
+
   return {
     getUsers,
     updateCard,
@@ -585,5 +590,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     getInvoices,
     createPaymentSession,
     createBillingPortalSession,
+    getAllAccounts,
   };
 };

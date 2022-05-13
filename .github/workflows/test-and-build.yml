@@ -29,6 +29,8 @@ env:
   BACKUP_CHUNK_SIZE_IN_BYTES: 5242880
   BACKUP_MAX_FILE_SIZE_IN_BYTES: 10737418240
   ENABLE_SIGNED_URL_BACKUPS: true
+  AWS_REGION: eu-central-1
+  ADMIN_API_AUTHORIZATION_TOKEN: testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
 
 jobs:
   test:

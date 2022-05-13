@@ -358,6 +358,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     controllers.backupController.abortMultiPartUpload,
   );
 
+  // Backup purge admin API
+  app.post('/admin/api/backups/purge', middlewares.adminApiAuth, controllers.backupController.purgeBackups);
+
   // socket
   io.on('connection', controllers.socketController.connection);
 

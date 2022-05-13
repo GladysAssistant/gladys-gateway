@@ -30,6 +30,7 @@ before(async function Before() {
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);
   global.TEST_BACKEND_APP = app;
+  global.TEST_DATABASE_INSTANCE = db;
 });
 
 beforeEach(function BeforeEach() {

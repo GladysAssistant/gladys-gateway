@@ -265,9 +265,13 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       logger.info(`PurgeBackups: Found ${backupsToDelete.length} to delete`);
       logger.info(`PurgeBackups: Found ${backupsToKeep.length} to keep (+3 most recent backups)`);
       if (executeDelete) {
-        await Promise.mapSeries(backupsToDelete, async (backup) => {
-          await backupModel.deleteBackup(backup.id, backup.path);
-        });
+        await Promise.map(
+          backupsToDelete,
+          async (backup) => {
+            await backupModel.deleteBackup(backup.id, backup.path);
+          },
+          { concurrency: 10 },
+        );
       }
       return {
         id: account.id,

@@ -7,6 +7,7 @@ const {
   ServerError,
   PaymentRequiredError,
   BadRequestError,
+  TooManyRequestsError,
 } = require('../common/error');
 
 module.exports = function getErrorMiddleware(errorService) {
@@ -18,7 +19,8 @@ module.exports = function getErrorMiddleware(errorService) {
       error instanceof NotFoundError ||
       error instanceof ForbiddenError ||
       error instanceof UnauthorizedError ||
-      error instanceof BadRequestError
+      error instanceof BadRequestError ||
+      error instanceof TooManyRequestsError
     ) {
       return res.status(error.getStatus()).json(error.jsonError());
     }

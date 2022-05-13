@@ -192,7 +192,7 @@ module.exports = async () => {
     ),
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.instrumentalAgentService),
-    adminApiAuth: AdminApiAuth(logger),
+    adminApiAuth: AdminApiAuth(logger, redisClient),
   };
 
   routes.load(app, io, controllers, middlewares);

@@ -19,7 +19,7 @@ const MAX_FILE_SIZE_IN_BYTES = parseInt(process.env.BACKUP_MAX_FILE_SIZE_IN_BYTE
 
 const CHUNK_SIZE_IN_BYTES = parseInt(process.env.BACKUP_CHUNK_SIZE_IN_BYTES, 10);
 
-module.exports = function BackupController(backupModel, logger) {
+module.exports = function BackupController(backupModel, accountModel, logger) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
   const s3 = new aws.S3({
     endpoint: spacesEndpoint,
@@ -255,11 +255,35 @@ module.exports = function BackupController(backupModel, logger) {
     res.send(backup);
   }
 
+  async function purgeBackups(req, res) {
+    const executeDelete = req.body.execute_delete === true;
+    const accounts = await accountModel.getAllAccounts();
+    logger.info(`PurgeBackups: Found ${accounts.length} to check for purge backups`);
+    const result = await Promise.mapSeries(accounts, async (account) => {
+      logger.info(`PurgeBackups: account ${account.name}`);
+      const { backupsToDelete, backupsToKeep } = await backupModel.getBackupPurgeList(account.id);
+      logger.info(`PurgeBackups: Found ${backupsToDelete.length} to delete`);
+      logger.info(`PurgeBackups: Found ${backupsToKeep.length} to keep (+3 most recent backups)`);
+      if (executeDelete) {
+        await Promise.mapSeries(backupsToDelete, async (backup) => {
+          await backupModel.deleteBackup(backup.id, backup.path);
+        });
+      }
+      return {
+        id: account.id,
+        nb_backups_to_keep: backupsToKeep.length,
+        nb_backups_to_delete: backupsToDelete.length,
+      };
+    });
+    res.json(result);
+  }
+
   return {
     create: asyncMiddleware(create),
     get: asyncMiddleware(get),
     initializeMultipartUpload: asyncMiddleware(initializeMultipartUpload),
     finalizeMultipartUpload: asyncMiddleware(finalizeMultipartUpload),
     abortMultiPartUpload: asyncMiddleware(abortMultiPartUpload),
+    purgeBackups: asyncMiddleware(purgeBackups),
   };
 };

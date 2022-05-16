@@ -286,3 +286,65 @@ describe('POST /alexa/report_state', () => {
     expect(response.body).to.deep.equal({ status: 200 });
   });
 });
+
+describe('POST /v1/api/alexa/smart_home', () => {
+  let accessToken;
+  beforeEach(async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/alexa/authorize')
+      .send({
+        redirect_uri: 'https://pitangui.amazon.com/api/skill/link/M1CD0NOTQVDMUV',
+        state: 'toto',
+        client_id: process.env.ALEXA_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    const myUrl = new URL(response.body.redirectUrl);
+    const queryStringToSend = qs.encode({
+      client_id: process.env.ALEXA_OAUTH_CLIENT_ID,
+      client_secret: process.env.ALEXA_OAUTH_CLIENT_SECRET,
+      state: 'toto',
+      code: myUrl.searchParams.get('code'),
+      grant_type: 'authorization_code',
+    });
+    const tokenResult = await request(TEST_BACKEND_APP)
+      .post('/v1/api/alexa/token')
+      .send(queryStringToSend)
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .expect(200);
+    accessToken = tokenResult.body.access_token;
+  });
+  it('should send smart home request', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/v1/api/alexa/smart_home')
+      .send({
+        directive: {
+          header: {
+            namespace: 'Alexa.PowerController',
+            name: 'TurnOn',
+            payloadVersion: '3',
+            messageId: 'c43c5ef1-b456-4736-ba6b-4643a98a7e27',
+            correlationToken:
+              'AAAAAAAAAQBe8ATzt+PzWVqbUXXQAv6JFAIAAAAAAADNYsvnxph02bkNS9vIkVRS1S/HQ30Nab1ai4U8WdBDVhSBKEkvJkzXTZFidmkW/eI78kPC8zSg4HTO0I1BfpLZ3qKVHkvLija4pKuhadAHKg96ccMDKR7krNc3AZ5RaDrg1QTPGbEfKXbUoPMNNo9HyRJzoEaqphBRI2/aFLmHaHnENYM8Ou3y7CzFj41xQ3VBjKQdyb4cxD2MJrAln2X5t0vuMcxkgMJ0ZTt9L9N3aQKFx9Xi3RI91cR4cDajUxGGx1RzYa2t6oroos5tjN3IutEntO7V0iKO/9CMnerWuFbihll7EeiDxY33h2KcY4MCIg2zQKaBRnyHwin+R/e9A7Ozv3CR/Qvxj5CxmL9nHHFjZMRXsauNNfG5vzzo03H5WutpXjC/UwfPviGk0dG+FBH7AqQ4TH1RojoLS/a1mcpsxSORo/dezT3d9zxlD/8lcsMcWZao5mxEkQybkrOBxXVhgAJyyH+5X/RJjUWVjVBxR4ODIRie1RKuTcmla7VwqM8JocAUy9lWsCMXjW5KhNBnVca/xU8I/XfhaVD+LV+pqDDvgDmq/KVYyp8bbFKVdSQ9mFrVMpgt97lnMDd2oNASDET10grmQdwbn/FivkK2tnveVlaU7/BpnC+JpGBqHT0DSJucu0es0SLlEd875QAdGPJ4Eg+OD4t8z4NqXyyH2iqVhq+AwQDFjY6UpPaWkykN',
+          },
+          endpoint: {
+            scope: {
+              type: 'BearerToken',
+              token: 'someAccessToken',
+            },
+            endpointId: 'device-1',
+            cookie: {},
+          },
+          payload: {},
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', accessToken)
+      .expect('Content-Type', /json/)
+      .expect(404);
+    expect(response.body).to.deep.equal({ code: 404, errorMessage: 'NO_INSTANCE_FOUND' });
+  });
+});

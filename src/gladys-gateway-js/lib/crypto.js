@@ -1,6 +1,6 @@
 const arrayBufferToHex = require('array-buffer-to-hex');
 const hexToArrayBuffer = require('hex-to-array-buffer');
-const { str2ab, ab2str, appendBuffer, sanitizePassPhrase } = require('./helpers');
+const { str2ab, ab2str, appendBuffer, sanitizePassPhrase, ab2strOldStyle, str2abOldStyle } = require('./helpers');
 
 const PBKDF2_ITERATIONS = 100000;
 const MESSAGE_MAX_LIFETIME = 5 * 60 * 1000; // a message expire after 5 minutes
@@ -67,7 +67,7 @@ module.exports = ({ cryptoLib }) => {
 
     const key = await cryptoLib.subtle.importKey(
       'raw', // only 'raw' is allowed
-      str2ab(passphrase), // your password
+      str2abOldStyle(passphrase), // your password
       {
         name: 'PBKDF2',
       },
@@ -130,7 +130,7 @@ module.exports = ({ cryptoLib }) => {
 
     const key = await cryptoLib.subtle.importKey(
       'raw', // only 'raw' is allowed
-      str2ab(passphrase), // your password
+      str2abOldStyle(passphrase), // your password
       {
         name: 'PBKDF2',
       },
@@ -189,7 +189,7 @@ module.exports = ({ cryptoLib }) => {
 
     const key = await cryptoLib.subtle.importKey(
       'raw', // only 'raw' is allowed
-      str2ab(passphrase), // your password
+      str2abOldStyle(passphrase), // your password
       {
         name: 'PBKDF2',
       },
@@ -264,7 +264,7 @@ module.exports = ({ cryptoLib }) => {
 
     const key = await cryptoLib.subtle.importKey(
       'raw', // only 'raw' is allowed
-      str2ab(passphrase), // your password
+      str2abOldStyle(passphrase), // your password
       {
         name: 'PBKDF2',
       },
@@ -332,7 +332,7 @@ module.exports = ({ cryptoLib }) => {
     return decryptedKey;
   }
 
-  async function encryptMessage(publicKey, ecdsaPrivateKey, rawData) {
+  async function encryptMessage(publicKey, ecdsaPrivateKey, rawData, isNewEncoder = true) {
     // add timestamp to message to avoid replay attack
     const dataWithTimestamp = {
       data: rawData,
@@ -367,7 +367,7 @@ module.exports = ({ cryptoLib }) => {
         tagLength: 128, // can be 32, 64, 96, 104, 112, 120 or 128 (default)
       },
       symetricKey, // from generateKey or importKey above
-      str2ab(data), // ArrayBuffer of data you want to encrypt
+      isNewEncoder ? str2ab(data) : str2abOldStyle(data), // ArrayBuffer of data you want to encrypt
     );
 
     const wrappedSymetricKey = await cryptoLib.subtle.wrapKey(
@@ -402,6 +402,7 @@ module.exports = ({ cryptoLib }) => {
       wrappedSymetricKey: arrayBufferToHex(wrappedSymetricKey),
       encryptedData: arrayBufferToHex(encryptedData),
       signature: arrayBufferToHex(signature),
+      isNewEncoder,
     };
   }
 
@@ -463,7 +464,7 @@ module.exports = ({ cryptoLib }) => {
     );
 
     // we decrypt the data
-    let strData = ab2str(decryptedData);
+    let strData = data.isNewEncoder ? ab2str(decryptedData) : ab2strOldStyle(decryptedData);
     strData = strData.replace(/\0/g, '');
 
     // then convert it to JS object
@@ -522,7 +523,7 @@ module.exports = ({ cryptoLib }) => {
       {
         name: 'SHA-256',
       },
-      str2ab(key),
+      str2abOldStyle(key),
     );
 
     hash = arrayBufferToHex(hash);

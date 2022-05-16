@@ -62,6 +62,7 @@ const IsSuperAdminMiddleware = require('./middleware/isSuperAdmin');
 const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
 const gladysUsageMiddleware = require('./middleware/gladysUsage');
 const requestExecutionTime = require('./middleware/requestExecutionTime');
+const AdminApiAuth = require('./middleware/adminApiAuth');
 
 // Routes
 const routes = require('./api/routes');
@@ -163,7 +164,7 @@ module.exports = async () => {
     adminController: AdminController(models.adminModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
     versionController: VersionController(models.versionModel),
-    backupController: BackupController(models.backupModel, logger),
+    backupController: BackupController(models.backupModel, models.accountModel, logger),
     statController: StatController(models.statModel),
     googleController: GoogleController(
       logger,
@@ -204,6 +205,7 @@ module.exports = async () => {
     ),
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.instrumentalAgentService),
+    adminApiAuth: AdminApiAuth(logger, redisClient),
   };
 
   routes.load(app, io, controllers, middlewares);

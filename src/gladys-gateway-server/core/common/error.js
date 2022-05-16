@@ -48,6 +48,31 @@ class BadRequestError extends Error {
   }
 }
 
+class TooManyRequestsError extends Error {
+  constructor(errorMessage) {
+    super(errorMessage);
+    this.errorMessage = errorMessage;
+    this.code = 429;
+
+    // the next line is important so that the ValidationError constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, NotFoundError);
+  }
+
+  // we can also define custom methods on this class
+  jsonError() {
+    return {
+      status: this.code,
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: this.errorMessage,
+    };
+  }
+
+  getStatus() {
+    return this.code;
+  }
+}
+
 class ValidationError extends Error {
   constructor(objectName, joiError) {
     const errorMessage = `ValidationError: ${objectName} object.`;
@@ -212,3 +237,4 @@ module.exports.ForbiddenError = ForbiddenError;
 module.exports.UnauthorizedError = UnauthorizedError;
 module.exports.ServerError = ServerError;
 module.exports.PaymentRequiredError = PaymentRequiredError;
+module.exports.TooManyRequestsError = TooManyRequestsError;

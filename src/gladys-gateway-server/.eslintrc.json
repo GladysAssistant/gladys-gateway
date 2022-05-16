@@ -13,6 +13,7 @@
     "describe": true,
     "it": true,
     "TEST_BACKEND_APP": true,
+    "TEST_DATABASE_INSTANCE": true,
     "should": true,
     "beforeEach": true,
     "afterEach": true,

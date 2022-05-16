@@ -91,7 +91,7 @@ describe('crypto.decryptPrivateKey', () => {
 });
 
 describe('crypto encrypt and decrypt', () => {
-  it('should encrypt a message and decrypt it using the same key', async () => {
+  it('should encrypt a message and decrypt it using the same key (old encoding)', async () => {
     const crypto = Crypto({
       cryptoLib: webcrypto,
     });
@@ -99,10 +99,54 @@ describe('crypto encrypt and decrypt', () => {
     const data = {
       message: 'hey',
     };
-    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data);
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data, false);
     encryptedData.should.have.property('signature');
     const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
     decrypted.should.have.property('message', 'hey');
+  });
+  it('should encrypt a message and decrypt it using the same key (new encoding)', async () => {
+    const crypto = Crypto({
+      cryptoLib: webcrypto,
+    });
+    const keys = await crypto.generateKeyPair();
+    const data = {
+      message: 'hey',
+    };
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data, true);
+    encryptedData.should.have.property('signature');
+    const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
+    decrypted.should.have.property('message', 'hey');
+  });
+  it('should encrypt a message with special characters and decrypt it using the same key (new encoding)', async () => {
+    const crypto = Crypto({
+      cryptoLib: webcrypto,
+    });
+    const keys = await crypto.generateKeyPair();
+    const data = {
+      message: 'voilà, &é!!è,😄',
+    };
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data, true);
+    encryptedData.should.have.property('signature');
+    const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
+    decrypted.should.have.property('message', data.message);
+  });
+  it('should encrypt a big message and decrypt it using the same key (new encoding)', async function Test() {
+    this.timeout(10000);
+    const crypto = Crypto({
+      cryptoLib: webcrypto,
+    });
+    const keys = await crypto.generateKeyPair();
+    const data = {
+      message: '',
+    };
+    // This message will be 2MB approximately
+    for (let i = 0; i < 2000000; i += 1) {
+      data.message += 'e';
+    }
+    const encryptedData = await crypto.encryptMessage(keys.rsaKeys.publicKey, keys.ecdsaKeys.privateKey, data, true);
+    encryptedData.should.have.property('signature');
+    const decrypted = await crypto.decryptMessage(keys.rsaKeys.privateKey, keys.ecdsaKeys.publicKey, encryptedData);
+    decrypted.should.have.property('message', data.message);
   });
 });
 

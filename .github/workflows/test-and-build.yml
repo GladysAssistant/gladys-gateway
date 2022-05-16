@@ -1,0 +1,145 @@
+name: Pull request tests
+
+on:
+  pull_request:
+    branches: [master]
+  push:
+    branches: [master]
+
+env:
+  POSTGRESQL_DATABASE: ci_test
+  POSTGRESQL_DATABASE_TEST: ci_test
+  POSTGRESQL_USER: postgres
+  POSTGRESQL_HOST: localhost
+  POSTGRESQL_PASSWORD: test
+  POSTGRESQL_PORT: 5432
+  REDIS_HOST: localhost
+  REDIS_PORT: 6379
+  SERVER_PORT: 3000
+  MAILGUN_API_KEY: test
+  MAILGUN_DOMAIN: test.mailgun.org
+  EMAIL_FROM: "Gladys Project <test.mailgun.org>"
+  DISABLE_EMAIL: true
+  JWT_ACCESS_TOKEN_SECRET: TESTTESTETSTTE5rPzwPhXvLt9Jb8CEeq5hr0GRyteTVL9wg1QKJJMImUjbJsLrl36hiNvmflDVm
+  JWT_REFRESH_TOKEN_SECRET: TESTESTESTESTSTiqgbxZ5107HBHpR70OeVn9Lg3tG5HBDvUwrV2Rqur7LsxDZLDsmELtRuDvfMxGL7
+  STORAGE_ENDPOINT: s3.eu-central-1.amazonaws.com
+  STORAGE_BUCKET: gladys-gateway-test
+  GOOGLE_HOME_OAUTH_CLIENT_ID: google-home
+  GOOGLE_HOME_OAUTH_CLIENT_SECRET: google-home-secret
+  BACKUP_CHUNK_SIZE_IN_BYTES: 5242880
+  BACKUP_MAX_FILE_SIZE_IN_BYTES: 10737418240
+  ENABLE_SIGNED_URL_BACKUPS: true
+  AWS_REGION: eu-central-1
+  ADMIN_API_AUTHORIZATION_TOKEN: testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+
+jobs:
+  test:
+    name: Server test
+    runs-on: ubuntu-20.04
+    services:
+      postgres:
+        image: postgres:10
+        env:
+          POSTGRES_PASSWORD: test
+          POSTGRES_DB: ci_test
+          POSTGRES_USER: postgres
+        # Set health checks to wait until postgres has started
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+      redis:
+        image: redis
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+    steps:
+      - name: ⬇️ Checkout Gladys code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+      - name: 💽 Setup nodejs
+        uses: actions/setup-node@v2
+        with:
+          node-version: "16"
+      - name: 📇 Use npm cache
+        uses: actions/cache@v2
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+      - name: 📦 Install NPM packages
+        working-directory: ./src/gladys-gateway-server
+        run: |
+          npm ci
+      - name: Run database migration
+        working-directory: ./src/gladys-gateway-server
+        run: |
+          npm run setup-db-test
+      - name: 🧐 Prettier check
+        working-directory: ./src/gladys-gateway-server
+        run: |
+          npm run prettier-check
+      - name: 👕 ESlint
+        working-directory: ./src/gladys-gateway-server
+        run: |
+          npm run eslint
+      - name: ✅ Test with coverage
+        working-directory: ./src/gladys-gateway-server
+        env:
+          GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL: ${{ secrets.GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: |
+          npm run coverage
+
+      - name: 🔐 Dependencies security audit
+        working-directory: ./src/gladys-gateway-server
+        run: npm audit --production --audit-level=critical
+      - name: 📄 Codecov report upload
+        uses: codecov/codecov-action@v2
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          directory: ./src/gladys-gateway-server
+          fail_ci_if_error: true
+  docker-build:
+    if: github.event.pull_request.draft == false && github.ref != 'refs/heads/master'
+    name: Docker build
+    runs-on: ubuntu-20.04
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v2
+      - name: Docker login
+        run: docker login -u="$DOCKERHUB_USER" -p="$DOCKERHUB_PASSWORD"
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Docker build
+        run: docker build -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+  docker-build-and-push:
+    if: ${{ github.ref == 'refs/heads/master' }}
+    needs: test
+    name: Docker build and push
+    runs-on: ubuntu-20.04
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v2
+      - name: Docker login
+        run: docker login -u="$DOCKERHUB_USER" -p="$DOCKERHUB_PASSWORD"
+        env:
+          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
+          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: Docker build
+        run: docker build --build-arg MAX_MIND_LICENSE_KEY="${{ secrets.MAX_MIND_LICENSE_KEY }}" -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
+        env:
+          DOCKERHUB_USER: ${{ secrets.MAX_MIND_LICENSE_KEY }}
+      - name: Docker push
+        run: docker push gladysassistant/gladys-gateway-server:latest

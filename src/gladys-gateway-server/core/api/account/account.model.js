@@ -81,6 +81,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
+      status: 'active',
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
@@ -372,8 +373,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       } else {
         language = 'fr';
       }
-    } else {
-      return Promise.resolve();
     }
 
     switch (event.type) {
@@ -573,6 +572,11 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 
+  async function getAllAccounts() {
+    const accounts = await db.t_account.find({}, { field: ['id', 'name', 'created_at'] });
+    return accounts;
+  }
+
   return {
     getUsers,
     updateCard,
@@ -586,5 +590,6 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     getInvoices,
     createPaymentSession,
     createBillingPortalSession,
+    getAllAccounts,
   };
 };

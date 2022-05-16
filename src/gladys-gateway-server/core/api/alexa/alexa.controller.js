@@ -2,6 +2,7 @@
 /* eslint-disable implicit-arrow-linebreak */
 /* eslint-disable arrow-parens */
 const get = require('get-value');
+const clone = require('clone');
 const { BadRequestError } = require('../../common/error');
 
 const VALID_REDIRECT_URIS = [
@@ -42,13 +43,27 @@ module.exports = function AlexaController(
         return res.json(response);
       }
 
+      const bodyCloned = clone(req.body);
+
+      // Remove scope that contains Gladys gateway credentials
+      const endPointScope = get(bodyCloned, 'directive.endpoint.scope');
+      if (endPointScope) {
+        delete bodyCloned.directive.endpoint.scope;
+      }
+
+      // Remove useless cookie
+      const cookie = get(bodyCloned, 'directive.endpoint.cookie');
+      if (cookie) {
+        delete bodyCloned.directive.endpoint.cookie;
+      }
+
       // else, we sent the message to the local instance
       const message = {
         version: '1.0',
         type: 'gladys-open-api',
         action: 'alexa-request',
         instance_id: primaryInstance.id,
-        data: req.body,
+        data: bodyCloned,
       };
 
       // then, we sent the request to the local Gladys instance

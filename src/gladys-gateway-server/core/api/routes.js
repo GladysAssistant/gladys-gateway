@@ -336,11 +336,6 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.alexaController.authorize),
   );
   app.post(
-    '/alexa/request_sync',
-    asyncMiddleware(middlewares.accessTokenInstanceAuth),
-    asyncMiddleware(controllers.alexaController.requestSync),
-  );
-  app.post(
     '/alexa/report_state',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.alexaController.reportState),

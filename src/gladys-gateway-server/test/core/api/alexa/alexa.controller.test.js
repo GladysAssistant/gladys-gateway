@@ -210,16 +210,61 @@ describe('POST /alexa/report_state', () => {
       code: myUrl.searchParams.get('code'),
       grant_type: 'authorization_code',
     });
-    await request(TEST_BACKEND_APP)
+    const tokenResult = await request(TEST_BACKEND_APP)
       .post('/v1/api/alexa/token')
       .send(queryStringToSend)
       .set('Accept', 'application/json')
       .set('Content-Type', 'application/x-www-form-urlencoded')
       .expect(200);
+    nock('https://api.amazon.com')
+      .post('/auth/o2/token', (body) => {
+        const grandTypeValid = body.grant_type === 'authorization_code';
+        const codeValid = body.code === 'someAuthCode';
+        const clientIdValid = body.client_id === process.env.ALEXA_GRANT_CLIENT_ID;
+        const clientSecretValid = body.client_secret === process.env.ALEXA_GRANT_CLIENT_SECRET;
+        return grandTypeValid && codeValid && clientIdValid && clientSecretValid;
+      })
+      .reply(200, {
+        refresh_token: 'refresh_token',
+        access_token: 'access_token',
+        expires_in: 100,
+      });
+    await request(TEST_BACKEND_APP)
+      .post('/v1/api/alexa/smart_home')
+      .send({
+        directive: {
+          header: {
+            namespace: 'Alexa.Authorization',
+            name: 'AcceptGrant',
+            messageId: '3b7e736f-d0dc-4a00-8e39-99796016b2f4',
+            payloadVersion: '3',
+          },
+          payload: {
+            grant: {
+              type: 'OAuth2.AuthorizationCode',
+              code: 'someAuthCode',
+            },
+            grantee: {
+              type: 'BearerToken',
+              token: 'someAccessToken',
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', tokenResult.body.access_token)
+      .expect('Content-Type', /json/)
+      .expect(200);
   });
   it('should report a new state', async () => {
     nock('https://api.amazon.com:443', { encodedQueryParams: true })
-      .post('/auth/o2/token', () => true)
+      .post('/auth/o2/token', (body) => {
+        const grandTypeValid = body.grand_type === 'refresh_token';
+        const refreshTokenValid = body.refresh_token === 'refresh_token';
+        const clientIdValid = body.client_id === process.env.ALEXA_OAUTH_CLIENT_ID;
+        const clientSecretValid = body.client_secret === process.env.ALEXA_OAUTH_CLIENT_SECRET;
+        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
+      })
       .reply(200, {
         access_token: 'toto',
         expires_in: 100,

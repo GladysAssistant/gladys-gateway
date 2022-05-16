@@ -195,7 +195,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
     if (users.length > 0) {
       await Promise.each(users, async (user) => {
         try {
-          const accessToken = await getAlexaAccessToken(user.device_id, user.refresh_token);
+          const accessToken = await getAlexaAccessToken(user.device_id, user.provider_refresh_token);
           const options = {
             method: 'POST',
             headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },

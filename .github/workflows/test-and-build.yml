@@ -26,6 +26,10 @@ env:
   STORAGE_BUCKET: gladys-gateway-test
   GOOGLE_HOME_OAUTH_CLIENT_ID: google-home
   GOOGLE_HOME_OAUTH_CLIENT_SECRET: google-home-secret
+  ALEXA_OAUTH_CLIENT_ID: alexa
+  ALEXA_OAUTH_CLIENT_SECRET: alexa-secret
+  ALEXA_GRANT_CLIENT_ID: alexa-grant
+  ALEXA_GRANT_CLIENT_SECRET: alexa-grand-secret
   BACKUP_CHUNK_SIZE_IN_BYTES: 5242880
   BACKUP_MAX_FILE_SIZE_IN_BYTES: 10737418240
   ENABLE_SIGNED_URL_BACKUPS: true
@@ -125,7 +129,7 @@ jobs:
       - name: Docker build
         run: docker build -t gladysassistant/gladys-gateway-server:latest ./src/gladys-gateway-server
   docker-build-and-push:
-    if: ${{ github.ref == 'refs/heads/master' }}
+    if: github.ref == 'refs/heads/master'
     needs: test
     name: Docker build and push
     runs-on: ubuntu-20.04

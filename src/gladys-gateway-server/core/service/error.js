@@ -1,5 +1,6 @@
 const { Batcher } = require('bottleneck');
 const omitDeep = require('omit-deep');
+const get = require('get-value');
 const { ForbiddenError, UnauthorizedError, NotFoundError } = require('../common/error');
 
 const PROPERTIES_TO_OMIT = [
@@ -39,7 +40,12 @@ module.exports = async function ErrorService(logger, statDb) {
         !(data.error instanceof UnauthorizedError) &&
         !(data.error instanceof NotFoundError)
       ) {
-        const cleanPayload = omitDeep(data, PROPERTIES_TO_OMIT);
+        const dataModified = data;
+        // if the error is an error from an axios call
+        if (get(data.error, 'response.data')) {
+          dataModified.error = get(data.error, 'response.data');
+        }
+        const cleanPayload = omitDeep(dataModified, PROPERTIES_TO_OMIT);
         logger.error(cleanPayload);
         batcher.add({
           event_type: eventName,

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
 const axios = require('axios');
+const get = require('get-value');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
@@ -185,9 +186,20 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
       data: params,
       url: 'https://api.amazon.com/auth/o2/token',
     };
-    const { data } = await axios(options);
-    await saveAlexaAccessTokenAndRefreshToken(deviceId, data);
-    return data.access_token;
+    try {
+      const { data } = await axios(options);
+      await saveAlexaAccessTokenAndRefreshToken(deviceId, data);
+      return data.access_token;
+    } catch (e) {
+      // if status is 400, token is invalid, revoke token
+      if (get(e, 'response.status') === 400) {
+        await db.t_device.update(deviceId, {
+          revoked: true,
+        });
+      }
+
+      throw e;
+    }
   }
 
   async function reportState(instanceId, payload) {

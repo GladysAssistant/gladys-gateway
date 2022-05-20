@@ -2,7 +2,17 @@ const request = require('supertest');
 const { expect } = require('chai');
 const nock = require('nock');
 const qs = require('querystring');
+const redis = require('redis');
+const Promise = require('bluebird');
 const configTest = require('../../../tasks/config');
+
+const redisClient = redis.createClient({
+  host: process.env.REDIS_HOST,
+  port: process.env.REDIS_PORT,
+  password: process.env.REDIS_PASSWORD,
+});
+
+Promise.promisifyAll(redis);
 
 describe('POST /alexa/authorize', () => {
   it('should return authorization code', async () => {
@@ -284,6 +294,30 @@ describe('POST /alexa/report_state', () => {
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
+  });
+  it('should report a new state and revoke token', async () => {
+    // flush redis so no access token is accessible
+    await redisClient.flushallAsync();
+    nock('https://api.amazon.com:443', { encodedQueryParams: true })
+      .post('/auth/o2/token', (body) => true)
+      .reply(400, {
+        code: 'BAD_REQUEST',
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/alexa/report_state')
+      .send({
+        test_data: true,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    const deviceModified = await TEST_DATABASE_INSTANCE.t_device.findOne({
+      user_id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+      client_id: 'alexa',
+    });
+    expect(deviceModified).to.have.property('revoked', true);
   });
 });
 

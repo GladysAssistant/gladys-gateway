@@ -357,6 +357,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     middlewares.gladysUsage,
     asyncMiddleware(controllers.versionController.getCurrentVersion),
   );
+  app.post(
+    '/v1/api/gladys/version',
+    middlewares.rateLimiter,
+    middlewares.gladysUsage,
+    asyncMiddleware(controllers.versionController.getCurrentVersion),
+  );
 
   // Backup
   app.post('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.create);

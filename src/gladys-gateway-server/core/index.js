@@ -132,6 +132,7 @@ module.exports = async () => {
       services.fingerprint,
       services.statsService,
       services.instrumentalAgentService,
+      services.errorService,
     ),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: Invitation(logger, db, redisClient, services.mailService, services.telegramService),

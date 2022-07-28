@@ -156,7 +156,7 @@ module.exports = function SocketModel(
       return io.of('/').adapter.customRequest({ socket_id: socketId, message }, (err, replies) => {
         if (err) {
           errorService.track('IO_CUSTOM_REQUEST_ERROR', {
-            err,
+            error: err,
             user_id: user.id,
           });
           const notFound = new NotFoundError('NO_INSTANCE_FOUND');
@@ -190,7 +190,7 @@ module.exports = function SocketModel(
       });
     } catch (e) {
       errorService.track('HANDLE_NEW_MESSAGE_FROM_USER_ERROR', {
-        err: e,
+        error: e,
         user_id: user.id,
       });
       const notFound = new NotFoundError('NO_INSTANCE_FOUND');

@@ -10,6 +10,7 @@ module.exports = function SocketModel(
   fingerprint,
   statsService,
   instrumentalAgentService,
+  errorService,
 ) {
   const ioAdapter = io;
   // handle messages from different nodes
@@ -154,6 +155,10 @@ module.exports = function SocketModel(
 
       return io.of('/').adapter.customRequest({ socket_id: socketId, message }, (err, replies) => {
         if (err) {
+          errorService.track('IO_CUSTOM_REQUEST_ERROR', {
+            err,
+            user_id: user.id,
+          });
           const notFound = new NotFoundError('NO_INSTANCE_FOUND');
           return callback(notFound.jsonError());
         }
@@ -184,6 +189,10 @@ module.exports = function SocketModel(
         return callback(filteredReplies[0]);
       });
     } catch (e) {
+      errorService.track('HANDLE_NEW_MESSAGE_FROM_USER_ERROR', {
+        err: e,
+        user_id: user.id,
+      });
       const notFound = new NotFoundError('NO_INSTANCE_FOUND');
       return callback(notFound.jsonError());
     }

@@ -84,6 +84,9 @@ module.exports = async () => {
       host: process.env.REDIS_HOST,
       port: process.env.REDIS_PORT,
       password: process.env.REDIS_PASSWORD,
+      // increase requests timeout because some local instances
+      // can be sometimes slow to answer
+      requestsTimeout: 15000,
     }),
   );
 

@@ -25,8 +25,7 @@ const data = {
   },
 };
 
-describe('GET /enedis/api/v4/metering_data/consumption_load_curve', function Describe() {
-  this.timeout(8000);
+describe('GET /enedis/api/v4/metering_data/consumption_load_curve', async () => {
   it('should return enedis consumption load curve data', async () => {
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)

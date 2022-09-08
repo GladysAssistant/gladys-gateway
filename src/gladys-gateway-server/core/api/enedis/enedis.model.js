@@ -159,6 +159,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       try {
         return makeRequestWithQueue(url, query, accessToken);
       } catch (e) {
+        logger.warn(e);
         // we only retry 5xx error
         if (get(e, 'response.status') < 500) {
           bail(e);

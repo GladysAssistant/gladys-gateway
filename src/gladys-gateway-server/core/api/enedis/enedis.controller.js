@@ -17,7 +17,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
    * @apiGroup Enedis
    */
   async function finalize(req, res) {
-    logger.info(`Enedis.finalize}`);
+    logger.info(`Enedis.finalize`);
     try {
       const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user);
       res.json(usagePoints);
@@ -38,7 +38,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
    * @apiGroup Enedis
    */
   async function meteringDataConsumptionLoadCurve(req, res) {
-    logger.info(`Enedis.meteringDataConsumptionLoadCurve}`);
+    logger.info(`Enedis.meteringDataConsumptionLoadCurve`);
     const url = '/v4/metering_data/consumption_load_curve';
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
@@ -62,7 +62,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
    * @apiGroup Enedis
    */
   async function meteringDataDailyConsumptionMaxPower(req, res) {
-    logger.info(`Enedis.meteringDataDailyConsumptionMaxPower}`);
+    logger.info(`Enedis.meteringDataDailyConsumptionMaxPower`);
     const url = '/v4/metering_data/daily_consumption_max_power';
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
@@ -86,7 +86,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
    * @apiGroup Enedis
    */
   async function meteringDataDailyConsumption(req, res) {
-    logger.info(`Enedis.meteringDataDailyConsumption}`);
+    logger.info(`Enedis.meteringDataDailyConsumption`);
     const url = '/v4/metering_data/daily_consumption';
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);

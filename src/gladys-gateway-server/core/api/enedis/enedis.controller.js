@@ -41,7 +41,9 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
     logger.info(`Enedis.meteringDataConsumptionLoadCurve`);
     const url = '/v4/metering_data/consumption_load_curve';
     try {
+      logger.info(`Enedis.meteringDataConsumptionLoadCurve.getAccessToken`);
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
+      logger.info(`Enedis.meteringDataConsumptionLoadCurve.makeRequestWithQueueAndRetry`);
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
       res.json(response);
     } catch (e) {

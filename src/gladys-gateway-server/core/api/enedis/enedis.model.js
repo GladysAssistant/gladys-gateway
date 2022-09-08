@@ -36,9 +36,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     },
   });
 
-  async function saveEnedisAccessTokenAndRefreshToken(userId, deviceId, data) {
+  async function saveEnedisAccessTokenAndRefreshToken(instanceId, deviceId, data) {
     await redisClient.setAsync(
-      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${userId}`,
+      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`,
       data.access_token,
       'EX',
       data.expires_in - 60, // We remove 1 minute to be safe

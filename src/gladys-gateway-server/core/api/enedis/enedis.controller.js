@@ -25,7 +25,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       errorService.track('ENEDIS_FINALIZE_ERROR', {
         error: e,
         payload: req.body,
-        instance: req.instance.id,
+        user: req.user.id,
       });
       throw parseError(e);
     }

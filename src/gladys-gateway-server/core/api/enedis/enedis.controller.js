@@ -22,6 +22,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user);
       res.json(usagePoints);
     } catch (e) {
+      logger.warn(e);
       errorService.track('ENEDIS_FINALIZE_ERROR', {
         error: e,
         payload: req.body,
@@ -44,7 +45,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
       res.json(response);
     } catch (e) {
-      logger.debug(e);
+      logger.warn(e);
       errorService.track('ENEDIS_API_CALL_ERROR', {
         error: e,
         url,
@@ -68,7 +69,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
       res.json(response);
     } catch (e) {
-      logger.debug(e);
+      logger.warn(e);
       errorService.track('ENEDIS_API_CALL_ERROR', {
         error: e,
         url,
@@ -92,7 +93,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
       res.json(response);
     } catch (e) {
-      logger.debug(e);
+      logger.warn(e);
       errorService.track('ENEDIS_API_CALL_ERROR', {
         error: e,
         url,

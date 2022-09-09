@@ -88,6 +88,21 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         is_deleted: true,
       },
     );
+    // Clear Redis
+    const getInstanceIdByUserId = `
+      SELECT t_instance.id
+      FROM t_user
+      INNER JOIN t_account ON t_account.id = t_user.account_id
+      INNER JOIN t_instance ON t_instance.account_id = t_account.id
+      WHERE t_user.id = $1
+      AND t_instance.primary_instance = true
+      AND t_instance.is_deleted = false;
+      
+    `;
+    const instances = await db.query(getInstanceIdByUserId, [user.id]);
+    if (instances.length > 0) {
+      await redisClient.delAsync(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].id}`);
+    }
     // Create a new device to store the refresh token
     const newDevice = {
       id: uuid.v4(),
@@ -129,12 +144,10 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     params.append('refresh_token', device.provider_refresh_token);
     params.append('client_id', ENEDIS_GRANT_CLIENT_ID);
     params.append('client_secret', ENEDIS_GRANT_CLIENT_SECRET);
+    params.append('redirect_uri', ENEDIS_GLADYS_PLUS_REDIRECT_URI);
     const options = {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      query: {
-        redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
-      },
       data: params,
       url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
     };
@@ -159,7 +172,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   async function makeRequest(url, query, accessToken) {
     const options = {
       method: 'GET',
-      query,
+      params: query,
       headers: {
         authorization: `Bearer ${accessToken}`,
       },

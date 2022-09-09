@@ -89,7 +89,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       errorService.track('ENEDIS_API_CALL_ERROR', {
         error: e,
         url,
-        payload: req.body,
+        payload: req.query,
         instance: req.instance.id,
       });
       throw parseError(e);
@@ -113,7 +113,7 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       errorService.track('ENEDIS_API_CALL_ERROR', {
         error: e,
         url,
-        payload: req.body,
+        payload: req.query,
         instance: req.instance.id,
       });
       throw parseError(e);

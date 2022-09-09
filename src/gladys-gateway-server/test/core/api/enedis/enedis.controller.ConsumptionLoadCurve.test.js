@@ -26,9 +26,8 @@ const data = {
 };
 
 describe('GET /enedis/api/v4/metering_data/consumption_load_curve', async function Describe() {
-  this.timeout(15000);
+  this.timeout(5000);
   it('should return enedis consumption load curve data', async () => {
-    console.log('FINALIZE ENEDIS OAUTH');
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .post('/v1/oauth2/token', (body) => {
@@ -58,7 +57,6 @@ describe('GET /enedis/api/v4/metering_data/consumption_load_curve', async functi
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
       .expect(200);
-    console.log('SEND FIRST REQUEST');
     // Then, send first request
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .post('/v1/oauth2/token', (body) => {
@@ -94,7 +92,6 @@ describe('GET /enedis/api/v4/metering_data/consumption_load_curve', async functi
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.deep.equal(data);
-    console.log('SECOND REQUEST');
     // second call: it'll get the access token from Redis
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get('/v4/metering_data/consumption_load_curve').reply(200, data);
     const response2 = await request(TEST_BACKEND_APP)

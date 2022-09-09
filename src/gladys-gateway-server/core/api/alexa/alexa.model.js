@@ -191,8 +191,8 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
       await saveAlexaAccessTokenAndRefreshToken(deviceId, data);
       return data.access_token;
     } catch (e) {
-      // if status is 400, token is invalid, revoke token
-      if (get(e, 'response.status') === 400) {
+      // if status is 403, token is invalid, revoke token
+      if (get(e, 'response.status') === 403) {
         await db.t_device.update(deviceId, {
           revoked: true,
         });

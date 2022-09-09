@@ -157,7 +157,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     return retry(async (bail) => {
       try {
-        return makeRequestWithQueue(url, query, accessToken);
+        const res = await makeRequestWithQueue(url, query, accessToken);
+        return res;
       } catch (e) {
         logger.warn(e);
         // we only retry 5xx error

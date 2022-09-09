@@ -33,7 +33,14 @@ const openApiSchema = Joi.object().keys({
   name: Joi.string().required(),
 });
 
+const enedisApiQuerySchema = Joi.object().keys({
+  usage_point_id: Joi.string().required(),
+  start: Joi.string().required(),
+  end: Joi.string().required(),
+});
+
 module.exports.signupSchema = signupSchema;
 module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
+module.exports.enedisApiQuerySchema = enedisApiQuerySchema;

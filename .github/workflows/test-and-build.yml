@@ -35,6 +35,10 @@ env:
   ENABLE_SIGNED_URL_BACKUPS: true
   AWS_REGION: eu-central-1
   ADMIN_API_AUTHORIZATION_TOKEN: testtesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttesttest
+  ENEDIS_BACKEND_URL: enedistest.fr
+  ENEDIS_GRANT_CLIENT_ID: fa6e6bbe-50eb-49c6-9b37-982478485cd9
+  ENEDIS_GRANT_CLIENT_SECRET: kjsfljdflkjdskfjdslkjfs
+  ENEDIS_GLADYS_PLUS_REDIRECT_URI: https://plus.gladysassistant.com
 
 jobs:
   test:
@@ -56,7 +60,7 @@ jobs:
         ports:
           - 5432:5432
       redis:
-        image: redis
+        image: redis:4-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s

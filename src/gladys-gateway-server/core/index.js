@@ -33,6 +33,7 @@ const Backup = require('./api/backup/backup.model');
 const StatModel = require('./api/stat/stat.model.js');
 const GoogleModel = require('./api/google/google.model.js');
 const AlexaModel = require('./api/alexa/alexa.model.js');
+const EnedisModel = require('./api/enedis/enedis.model');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -49,6 +50,7 @@ const BackupController = require('./api/backup/backup.controller');
 const StatController = require('./api/stat/stat.controller');
 const GoogleController = require('./api/google/google.controller');
 const AlexaController = require('./api/alexa/alexa.controller');
+const EnedisController = require('./api/enedis/enedis.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -155,6 +157,7 @@ module.exports = async () => {
     statModel: StatModel(logger, db, redisClient),
     googleModel: GoogleModel(logger, db, redisClient, services.jwtService, services.errorService),
     alexaModel: AlexaModel(logger, db, redisClient, services.jwtService, services.errorService),
+    enedisModel: EnedisModel(logger, db, redisClient),
   };
 
   const controllers = {
@@ -190,6 +193,7 @@ module.exports = async () => {
       services.instrumentalAgentService,
       services.errorService,
     ),
+    enedisController: EnedisController(logger, models.enedisModel, services.errorService),
   };
 
   const middlewares = {

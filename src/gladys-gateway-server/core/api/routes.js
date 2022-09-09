@@ -350,6 +350,33 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.post('/v1/api/alexa/token', asyncMiddleware(controllers.alexaController.token));
 
+  // Enedis API routes
+  app.get(
+    '/enedis/initialize',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.enedisController.initialize),
+  );
+  app.post(
+    '/enedis/finalize',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.enedisController.finalize),
+  );
+  app.get(
+    '/enedis/api/v4/metering_data/consumption_load_curve',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.enedisController.meteringDataConsumptionLoadCurve),
+  );
+  app.get(
+    '/enedis/api/v4/metering_data/daily_consumption_max_power',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.enedisController.meteringDataDailyConsumptionMaxPower),
+  );
+  app.get(
+    '/enedis/api/v4/metering_data/daily_consumption',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.enedisController.meteringDataDailyConsumption),
+  );
+
   // Gladys version
   app.get(
     '/v1/api/gladys/version',

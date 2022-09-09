@@ -1,5 +1,5 @@
 const get = require('get-value');
-const { ServerError, ForbiddenError } = require('../../common/error');
+const { ServerError, ForbiddenError, BadRequestError } = require('../../common/error');
 
 module.exports = function EnedisController(logger, enedisModel, errorService) {
   const parseError = (e) => {
@@ -8,6 +8,9 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
     }
     if (get(e, 'response.status') === 403) {
       return new ForbiddenError();
+    }
+    if (get(e, 'response.status') === 400) {
+      return new BadRequestError();
     }
     return new ServerError();
   };

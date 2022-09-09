@@ -124,6 +124,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     } catch (e) {
       // if status is 400, token is invalid, revoke token
       if (get(e, 'response.status') === 400) {
+        logger.warn(e);
         await db.t_device.update(device.id, {
           revoked: true,
         });

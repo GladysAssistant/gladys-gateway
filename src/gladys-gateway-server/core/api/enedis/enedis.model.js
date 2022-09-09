@@ -36,6 +36,17 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     },
   });
 
+  async function getRedirectUri() {
+    const url = `https://${ENEDIS_BACKEND_URL}/dataconnect/v1/oauth2/authorize`;
+    const params = new URLSearchParams({
+      client_id: ENEDIS_GRANT_CLIENT_ID,
+      response_type: 'code',
+      state: uuid.v4(),
+      duration: 'P3Y',
+    });
+    return `${url}?${params.toString()}`;
+  }
+
   async function saveEnedisAccessTokenAndRefreshToken(instanceId, deviceId, data) {
     await redisClient.setAsync(
       `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`,
@@ -56,12 +67,10 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     params.append('code', authorizationCode);
     params.append('client_id', ENEDIS_GRANT_CLIENT_ID);
     params.append('client_secret', ENEDIS_GRANT_CLIENT_SECRET);
+    params.append('redirect_uri', ENEDIS_GLADYS_PLUS_REDIRECT_URI);
     const options = {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      query: {
-        redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
-      },
       data: params,
       url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
     };
@@ -177,5 +186,6 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     makeRequestWithQueueAndRetry,
     getAccessToken,
     handleAcceptGrantMessage,
+    getRedirectUri,
   };
 };

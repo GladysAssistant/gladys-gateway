@@ -351,6 +351,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post('/v1/api/alexa/token', asyncMiddleware(controllers.alexaController.token));
 
   // Enedis API routes
+  app.get(
+    '/enedis/initialize',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.enedisController.initialize),
+  );
   app.post(
     '/enedis/finalize',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),

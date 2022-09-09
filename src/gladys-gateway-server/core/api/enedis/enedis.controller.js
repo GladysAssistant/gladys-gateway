@@ -14,6 +14,19 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
     }
     return new ServerError();
   };
+
+  /**
+   * @api {get} /enedis/initialize Get redirect uri
+   * @apiName Get redirect uri
+   * @apiGroup Enedis
+   */
+  async function initialize(req, res) {
+    const redirectUri = await enedisModel.getRedirectUri();
+    return res.json({
+      redirect_uri: redirectUri,
+    });
+  }
+
   /**
    * @api {post} /enedis/finalize Finalize Oauth 2.0 process
    * @apiName Finalize Oauth 2.0 process
@@ -112,5 +125,6 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
     meteringDataConsumptionLoadCurve,
     meteringDataDailyConsumptionMaxPower,
     meteringDataDailyConsumption,
+    initialize,
   };
 };

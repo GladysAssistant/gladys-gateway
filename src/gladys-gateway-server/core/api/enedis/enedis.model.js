@@ -189,7 +189,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const options = {
       retries: 3,
       factor: 2,
-      minTimeout: 1000,
+      minTimeout: 200,
     };
     return retry(async (bail) => {
       try {

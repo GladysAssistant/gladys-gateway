@@ -31,6 +31,12 @@ const data = {
   },
 };
 
+const queryParams = {
+  usage_point_id: 16401220101758,
+  start: '2022-08-01',
+  end: '2022-08-03',
+};
+
 describe('Enedis API', () => {
   ENEDIS_ROUTES.forEach((enedisRoute) => {
     const gladysPlusRoute = `/enedis/api${enedisRoute}`;
@@ -88,28 +94,20 @@ describe('Enedis API', () => {
           });
 
         // First call: it'll refresh the access token from the API
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(200, data);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
         const response = await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
           .expect(200);
         expect(response.body).to.deep.equal(data);
         // second call: it'll get the access token from Redis
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(200, data);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
         const response2 = await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
@@ -166,14 +164,10 @@ describe('Enedis API', () => {
             usage_points_id: '16401220101758,16401220101710,16401220101720',
             apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
           });
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(403);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
         await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
@@ -229,14 +223,10 @@ describe('Enedis API', () => {
             usage_points_id: '16401220101758,16401220101710,16401220101720',
             apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
           });
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(400);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
         await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
@@ -292,15 +282,11 @@ describe('Enedis API', () => {
             usage_points_id: '16401220101758,16401220101710,16401220101720',
             apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
           });
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(500);
-        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(200, data);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(500);
+        nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
         const response = await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
@@ -310,11 +296,7 @@ describe('Enedis API', () => {
       it('should return 403', async () => {
         await request(TEST_BACKEND_APP)
           .get(gladysPlusRoute)
-          .query({
-            usage_point_id: 16401220101758,
-            start: '2022-08-01',
-            end: '2022-08-03',
-          })
+          .query(queryParams)
           .set('Accept', 'application/json')
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)

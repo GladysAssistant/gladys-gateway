@@ -32,7 +32,7 @@ const data = {
 };
 
 const queryParams = {
-  usage_point_id: 16401220101758,
+  usage_point_id: '16401220101758',
   start: '2022-08-01',
   end: '2022-08-03',
 };
@@ -301,6 +301,39 @@ describe('Enedis API', () => {
           .set('Authorization', configTest.jwtAccessTokenInstance)
           .expect('Content-Type', /json/)
           .expect(403);
+      });
+      it('should return 422', async () => {
+        const response = await request(TEST_BACKEND_APP)
+          .get(gladysPlusRoute)
+          .query({ toto: 'toto' })
+          .set('Accept', 'application/json')
+          .set('Authorization', configTest.jwtAccessTokenInstance)
+          .expect('Content-Type', /json/)
+          .expect(422);
+        expect(response.body).to.deep.equal({
+          status: 422,
+          error_code: 'UNPROCESSABLE_ENTITY',
+          details: [
+            {
+              message: '"usage_point_id" is required',
+              path: ['usage_point_id'],
+              type: 'any.required',
+              context: { key: 'usage_point_id', label: 'usage_point_id' },
+            },
+            {
+              message: '"start" is required',
+              path: ['start'],
+              type: 'any.required',
+              context: { key: 'start', label: 'start' },
+            },
+            {
+              message: '"end" is required',
+              path: ['end'],
+              type: 'any.required',
+              context: { key: 'end', label: 'end' },
+            },
+          ],
+        });
       });
     });
   });

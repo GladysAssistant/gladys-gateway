@@ -1,5 +1,7 @@
 const get = require('get-value');
-const { ServerError, ForbiddenError, BadRequestError } = require('../../common/error');
+const Joi = require('joi');
+const { ServerError, ForbiddenError, BadRequestError, ValidationError } = require('../../common/error');
+const schema = require('../../common/schema');
 
 module.exports = function EnedisController(logger, enedisModel, errorService) {
   const parseError = (e) => {
@@ -13,6 +15,21 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       return new BadRequestError();
     }
     return new ServerError();
+  };
+
+  const validateEnedisQuery = (data) => {
+    const { error, value } = Joi.validate(data, schema.enedisApiQuerySchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('Enedis', error);
+    }
+
+    return value;
   };
 
   /**
@@ -56,9 +73,10 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
   async function meteringDataConsumptionLoadCurve(req, res) {
     logger.info(`Enedis.meteringDataConsumptionLoadCurve`);
     const url = '/v4/metering_data/consumption_load_curve';
+    const data = validateEnedisQuery(req.query);
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
+      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
       logger.warn(e);
@@ -80,9 +98,10 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
   async function meteringDataDailyConsumptionMaxPower(req, res) {
     logger.info(`Enedis.meteringDataDailyConsumptionMaxPower`);
     const url = '/v4/metering_data/daily_consumption_max_power';
+    const data = validateEnedisQuery(req.query);
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
+      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
       logger.warn(e);
@@ -104,9 +123,10 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
   async function meteringDataDailyConsumption(req, res) {
     logger.info(`Enedis.meteringDataDailyConsumption`);
     const url = '/v4/metering_data/daily_consumption';
+    const data = validateEnedisQuery(req.query);
     try {
       const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, req.query, accessToken);
+      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
       logger.warn(e);

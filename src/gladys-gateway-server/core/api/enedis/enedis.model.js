@@ -75,6 +75,19 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
     };
     const { data } = await axios(options);
+    // Delete all devices that could exist prior to this operation
+    await db.t_device.update(
+      {
+        client_id: ENEDIS_GRANT_CLIENT_ID,
+        user_id: user.id,
+        revoked: false,
+        is_deleted: false,
+      },
+      {
+        revoked: true,
+        is_deleted: true,
+      },
+    );
     // Create a new device to store the refresh token
     const newDevice = {
       id: uuid.v4(),

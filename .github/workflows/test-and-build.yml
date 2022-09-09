@@ -60,7 +60,7 @@ jobs:
         ports:
           - 5432:5432
       redis:
-        image: redis
+        image: redis:4-alpine
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s

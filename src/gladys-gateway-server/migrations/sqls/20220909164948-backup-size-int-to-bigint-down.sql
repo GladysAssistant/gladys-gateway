@@ -1,0 +1,3 @@
+ALTER TABLE t_backup
+    ALTER COLUMN size TYPE INTEGER;
+

@@ -113,8 +113,12 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
         Key: key,
         Expires: 6 * 60 * 60, // URL is valid 6 hours
       });
+      // MAX_SAFE_INTEGER is the equivalent of 9000 GB
+      // So we are safe to convert here to JS integer
+      const newSize = parseInt(backup.size, 10);
       return {
         ...backup,
+        size: newSize,
         path: ENABLE_SIGNED_URL_BACKUPS ? signedUrl : backup.path,
       };
     });

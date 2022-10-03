@@ -41,7 +41,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const params = new URLSearchParams({
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
-      state: uuid.v4(),
+      state: `${uuid.v4()}7`, // add a 7 for the sandbox
       duration: 'P3Y',
     });
     return `${url}?${params.toString()}`;

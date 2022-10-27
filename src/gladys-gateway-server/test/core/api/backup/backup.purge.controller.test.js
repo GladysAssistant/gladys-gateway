@@ -32,7 +32,10 @@ describe('POST /admin/api/backups/purge', () => {
     expect(response.body).to.be.instanceOf(Array);
     const userWithBackups = response.body.find((u) => u.id === 'b2d23f66-487d-493f-8acb-9c8adb400def');
     expect(userWithBackups).to.have.property('nb_backups_to_keep');
-    expect(userWithBackups).to.have.property('nb_backups_to_delete', 355);
+    const expectedLength = 355;
+    expect(userWithBackups.nb_backups_to_delete).to.satisfy(
+      (nb) => nb >= expectedLength - 3 && nb <= expectedLength + 3,
+    );
   });
   it('should execute the purge backup command', async function Test() {
     this.timeout(20000);
@@ -96,7 +99,10 @@ describe('POST /admin/api/backups/purge', () => {
     expect(response.body).to.be.instanceOf(Array);
     const userWithBackups = response.body.find((u) => u.id === 'b2d23f66-487d-493f-8acb-9c8adb400def');
     expect(userWithBackups).to.have.property('nb_backups_to_keep');
-    expect(userWithBackups).to.have.property('nb_backups_to_delete', 26);
+    const expectedLength = 26;
+    expect(userWithBackups.nb_backups_to_delete).to.satisfy(
+      (nb) => nb >= expectedLength - 3 && nb <= expectedLength + 3,
+    );
     try {
       await s3.headObject(params).promise();
       assert.fail();

@@ -16,7 +16,7 @@ const Slack = require('./service/slack');
 const Telegram = require('./service/telegram');
 const Stat = require('./service/stat');
 const ErrorService = require('./service/error');
-const InstrumentalAgentService = require('./service/instrumentalAgent');
+const AnalyticsService = require('./service/analytics');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -123,7 +123,7 @@ module.exports = async () => {
     telegramService: Telegram(logger),
     statsService: await Stat(logger, statDb),
     errorService: await ErrorService(logger, statDb),
-    instrumentalAgentService: InstrumentalAgentService(logger),
+    analyticsService: AnalyticsService(logger),
   };
 
   const models = {
@@ -136,7 +136,7 @@ module.exports = async () => {
       io,
       services.fingerprint,
       services.statsService,
-      services.instrumentalAgentService,
+      services.analyticsService,
       services.errorService,
     ),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
@@ -180,7 +180,7 @@ module.exports = async () => {
       models.instanceModel,
       models.userModel,
       models.deviceModel,
-      services.instrumentalAgentService,
+      services.analyticsService,
       services.errorService,
     ),
     alexaController: AlexaController(
@@ -190,7 +190,7 @@ module.exports = async () => {
       models.instanceModel,
       models.userModel,
       models.deviceModel,
-      services.instrumentalAgentService,
+      services.analyticsService,
       services.errorService,
     ),
     enedisController: EnedisController(logger, models.enedisModel, services.errorService),
@@ -212,7 +212,7 @@ module.exports = async () => {
       services.statsService,
     ),
     gladysUsage: gladysUsageMiddleware(logger, db),
-    requestExecutionTime: requestExecutionTime(logger, services.instrumentalAgentService),
+    requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, redisClient),
   };
 

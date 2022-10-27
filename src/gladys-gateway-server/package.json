@@ -71,7 +71,6 @@
     "express-rate-limit": "^3.2.1",
     "geoip-lite": "^1.4.0",
     "get-value": "^3.0.1",
-    "instrumental-agent": "^2.3.0",
     "joi": "^13.6.0",
     "jsonwebtoken": "^8.3.0",
     "massive": "^6.9.0",

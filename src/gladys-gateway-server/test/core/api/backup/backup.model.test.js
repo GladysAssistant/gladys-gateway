@@ -29,6 +29,9 @@ describe('backupModel', () => {
     expect(res).to.have.property('backupsToDelete');
     expect(res).to.have.property('backupsToKeep');
     expect(res.backupsToKeep).to.satisfy((toKeep) => toKeep.length <= 7);
-    expect(res.backupsToDelete).to.have.lengthOf(365 - 7 - 3);
+    const expectedLength = 365 - 7 - 3;
+    expect(res.backupsToDelete).to.satisfy(
+      (list) => list.length >= expectedLength - 3 && list.length <= expectedLength + 3,
+    );
   });
 });

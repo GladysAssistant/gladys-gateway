@@ -16,7 +16,7 @@ module.exports = function GoogleController(
   instanceModel,
   userModel,
   deviceModel,
-  instrumentalAgentService,
+  analyticsService,
   errorService,
 ) {
   /**
@@ -25,7 +25,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function smartHome(req, res) {
-    instrumentalAgentService.increment('backend.requests.google-home.smart-home');
+    analyticsService.sendMetric('google-home.smart-home', 1, req.user.id);
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
     const firstOrderIntent = get(req.body, 'inputs.0.intent');
@@ -90,7 +90,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function authorize(req, res) {
-    instrumentalAgentService.increment('backend.requests.google-home.authorize');
+    analyticsService.sendMetric('google-home.authorize', 1, req.body.client_id);
     const { GOOGLE_HOME_OAUTH_CLIENT_ID } = process.env;
     if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
@@ -113,7 +113,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function token(req, res, next) {
-    instrumentalAgentService.increment('backend.requests.google-home.token');
+    analyticsService.sendMetric('google-home.token', 1, req.body.client_id);
     const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_OAUTH_CLIENT_SECRET } = process.env;
     try {
       if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
@@ -151,7 +151,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function requestSync(req, res) {
-    instrumentalAgentService.increment('backend.requests.google-home.request-sync');
+    analyticsService.sendMetric('google-home.request-sync', 1, req.instance.id);
     await googleModel.requestSync(req.instance.id);
     res.json({
       status: 200,
@@ -163,7 +163,7 @@ module.exports = function GoogleController(
    * @apiGroup Google Home
    */
   async function reportState(req, res) {
-    instrumentalAgentService.increment('backend.requests.google-home.report-state');
+    analyticsService.sendMetric('google-home.report-state', 1, req.instance.id);
     await googleModel.reportState(req.instance.id, req.body);
     res.json({
       status: 200,

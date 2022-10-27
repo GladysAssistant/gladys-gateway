@@ -18,7 +18,7 @@ module.exports = function AlexaController(
   instanceModel,
   userModel,
   deviceModel,
-  instrumentalAgentService,
+  analyticsService,
   errorService,
 ) {
   /**
@@ -29,7 +29,7 @@ module.exports = function AlexaController(
   async function smartHome(req, res) {
     logger.debug(`Alexa : smartHome request`);
     logger.debug(req.body);
-    instrumentalAgentService.increment('backend.requests.alexa.smart-home');
+    analyticsService.sendMetric('alexa.smart-home', 1, req.user.id);
     const user = await userModel.getMySelf({ id: req.user.id });
     const directiveNamespace = get(req.body, 'directive.header.namespace');
     const directiveName = get(req.body, 'directive.header.name');
@@ -86,7 +86,7 @@ module.exports = function AlexaController(
    */
   async function authorize(req, res) {
     logger.info(`Alexa.authorize : ${req.body.client_id}`);
-    instrumentalAgentService.increment('backend.requests.alexa.authorize');
+    analyticsService.sendMetric('alexa.authorize', 1, req.body.client_id);
     const { ALEXA_OAUTH_CLIENT_ID } = process.env;
     if (req.body.client_id !== ALEXA_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
@@ -110,7 +110,7 @@ module.exports = function AlexaController(
    */
   async function token(req, res, next) {
     logger.info(`Alexa.token : ${req.body.client_id} - ${req.body.grant_type}`);
-    instrumentalAgentService.increment('backend.requests.alexa.token');
+    analyticsService.sendMetric('alexa.token', 1, req.body.client_id);
     const { ALEXA_OAUTH_CLIENT_ID, ALEXA_OAUTH_CLIENT_SECRET } = process.env;
     try {
       if (req.body.client_id !== ALEXA_OAUTH_CLIENT_ID) {
@@ -149,7 +149,7 @@ module.exports = function AlexaController(
    * @apiGroup Alexa
    */
   async function reportState(req, res) {
-    instrumentalAgentService.increment('backend.requests.alexa.report-state');
+    analyticsService.sendMetric('alexa.report-state', 1, req.instance.id);
     await alexaModel.reportState(req.instance.id, req.body);
     res.json({
       status: 200,

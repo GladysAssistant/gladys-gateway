@@ -9,7 +9,7 @@ module.exports = function SocketModel(
   io,
   fingerprint,
   statsService,
-  instrumentalAgentService,
+  analyticsService,
   errorService,
 ) {
   const ioAdapter = io;
@@ -140,7 +140,7 @@ module.exports = function SocketModel(
       received_at: receivedAt,
     });
 
-    instrumentalAgentService.sendMetric('backend.requests.message-to-instance.message-size', messageSize);
+    analyticsService.sendMetric('message-to-instance', messageSize, user.id);
 
     const message = messageParam;
 
@@ -184,7 +184,7 @@ module.exports = function SocketModel(
           response_received_at: new Date().getTime(),
         });
 
-        instrumentalAgentService.sendMetric('backend.requests.message-to-instance-response.message-size', replySize);
+        analyticsService.sendMetric('message-to-instance-response', replySize, user.id);
 
         return callback(filteredReplies[0]);
       });
@@ -210,7 +210,7 @@ module.exports = function SocketModel(
       received_at: new Date().getTime(),
     });
 
-    instrumentalAgentService.sendMetric('backend.requests.message-to-user.message-size', messageSize);
+    analyticsService.sendMetric('message-to-user', messageSize, instance.id);
 
     const message = messageParam;
 

@@ -14,8 +14,6 @@ const Jwt = require('./service/jwt');
 const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
 const Telegram = require('./service/telegram');
-const Stat = require('./service/stat');
-const ErrorService = require('./service/error');
 const AnalyticsService = require('./service/analytics');
 
 // Models
@@ -98,24 +96,21 @@ module.exports = async () => {
     password: process.env.REDIS_PASSWORD,
   });
 
-  const db = await massive({
+  const dbOptions = {
     host: process.env.POSTGRESQL_HOST,
     port: process.env.POSTGRESQL_PORT,
     database: process.env.POSTGRESQL_DATABASE,
     user: process.env.POSTGRESQL_USER,
     password: process.env.POSTGRESQL_PASSWORD,
-    ssl: {
-      rejectUnauthorized: false,
-    },
-  });
+  };
 
-  const statDb = await massive({
-    host: process.env.POSTGRESQL_HOST,
-    port: process.env.POSTGRESQL_PORT,
-    database: process.env.POSTGRESQL_STAT_DATABASE,
-    user: process.env.POSTGRESQL_USER,
-    password: process.env.POSTGRESQL_PASSWORD,
-  });
+  if (process.env.POSTGRESQL_SSL) {
+    dbOptions.ssl = {
+      rejectUnauthorized: false,
+    };
+  }
+
+  const db = await massive(dbOptions);
 
   const services = {
     fingerprint: Fingerprint(logger),
@@ -124,24 +119,13 @@ module.exports = async () => {
     stripeService: Stripe(logger),
     slackService: Slack(logger),
     telegramService: Telegram(logger),
-    statsService: await Stat(logger, statDb),
-    errorService: await ErrorService(logger, statDb),
     analyticsService: AnalyticsService(logger),
   };
 
   const models = {
     pingModel: Ping(logger, db, redisClient),
     userModel: User(logger, db, redisClient, services.jwtService, services.mailService),
-    socketModel: Socket(
-      logger,
-      db,
-      redisClient,
-      io,
-      services.fingerprint,
-      services.statsService,
-      services.analyticsService,
-      services.errorService,
-    ),
+    socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.analyticsService),
     instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
     invitationModel: Invitation(logger, db, redisClient, services.mailService, services.telegramService),
     accountModel: Account(
@@ -158,8 +142,8 @@ module.exports = async () => {
     versionModel: Version(logger, db),
     backupModel: Backup(logger, db),
     statModel: StatModel(logger, db, redisClient),
-    googleModel: GoogleModel(logger, db, redisClient, services.jwtService, services.errorService),
-    alexaModel: AlexaModel(logger, db, redisClient, services.jwtService, services.errorService),
+    googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
+    alexaModel: AlexaModel(logger, db, redisClient, services.jwtService),
     enedisModel: EnedisModel(logger, db, redisClient),
   };
 
@@ -184,7 +168,6 @@ module.exports = async () => {
       models.userModel,
       models.deviceModel,
       services.analyticsService,
-      services.errorService,
     ),
     alexaController: AlexaController(
       logger,
@@ -194,9 +177,8 @@ module.exports = async () => {
       models.userModel,
       models.deviceModel,
       services.analyticsService,
-      services.errorService,
     ),
-    enedisController: EnedisController(logger, models.enedisModel, services.errorService),
+    enedisController: EnedisController(logger, models.enedisModel),
   };
 
   const middlewares = {
@@ -205,15 +187,10 @@ module.exports = async () => {
     refreshTokenAuth: RefreshTokenAuthMiddleware(logger),
     refreshTokenInstanceAuth: RefreshTokenInstanceAuthMiddleware(logger),
     accessTokenInstanceAuth: AccessTokenInstanceAuthMiddleware(logger),
-    errorMiddleware: ErrorMiddleware(services.errorService),
+    errorMiddleware: ErrorMiddleware(logger),
     rateLimiter: RateLimiterMiddleware(redisClient),
     isSuperAdmin: IsSuperAdminMiddleware(logger),
-    openApiKeyAuth: OpenApiKeyAuthMiddleware(
-      models.openApiModel,
-      models.userModel,
-      models.instanceModel,
-      services.statsService,
-    ),
+    openApiKeyAuth: OpenApiKeyAuthMiddleware(models.openApiModel, models.userModel, models.instanceModel),
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, redisClient),

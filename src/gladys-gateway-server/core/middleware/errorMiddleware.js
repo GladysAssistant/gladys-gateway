@@ -10,9 +10,12 @@ const {
   TooManyRequestsError,
 } = require('../common/error');
 
-module.exports = function getErrorMiddleware(errorService) {
+module.exports = function getErrorMiddleware(logger) {
   return function ErrorMiddleware(error, req, res, next) {
-    errorService.track('ERROR_MIDDLEWARE', { error, path: req.route && req.route.path, user: req.user && req.user.id });
+    logger.error('ERROR_MIDDLEWARE');
+    logger.error(error);
+    logger.error({ path: req.route && req.route.path, user: req.user && req.user.id });
+
     if (
       error instanceof ValidationError ||
       error instanceof AlreadyExistError ||

@@ -2,16 +2,7 @@ const jwt = require('jsonwebtoken');
 const sizeof = require('object-sizeof');
 const { NotFoundError } = require('../../common/error');
 
-module.exports = function SocketModel(
-  logger,
-  db,
-  redisClient,
-  io,
-  fingerprint,
-  statsService,
-  analyticsService,
-  errorService,
-) {
+module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {
   const ioAdapter = io;
   // handle messages from different nodes
   ioAdapter.of('/').adapter.customHook = (data, cb) => {
@@ -129,16 +120,7 @@ module.exports = function SocketModel(
   async function handleNewMessageFromUser(user, messageParam, callback) {
     logger.debug(`Received message from user ${user.id}`);
 
-    const receivedAt = new Date().getTime();
-
     const messageSize = sizeof(messageParam);
-
-    statsService.track('MESSAGE_TO_INSTANCE', {
-      user_id: user.id,
-      message_size: messageSize,
-      sent_at: messageParam.sent_at,
-      received_at: receivedAt,
-    });
 
     analyticsService.sendMetric('message-to-instance', messageSize, user.id);
 
@@ -155,10 +137,8 @@ module.exports = function SocketModel(
 
       return io.of('/').adapter.customRequest({ socket_id: socketId, message }, (err, replies) => {
         if (err) {
-          errorService.track('IO_CUSTOM_REQUEST_ERROR', {
-            error: err,
-            user_id: user.id,
-          });
+          logger.error(`IO_CUSTOM_REQUEST_ERROR - user_id = ${user.id}`);
+          logger.error(err);
           const notFound = new NotFoundError('NO_INSTANCE_FOUND');
           return callback(notFound.jsonError());
         }
@@ -167,32 +147,19 @@ module.exports = function SocketModel(
         const filteredReplies = replies.filter((reply) => reply !== null);
 
         if (filteredReplies.length === 0) {
-          statsService.track('NO_INSTANCE_FOUND', {
-            user_id: user.id,
-          });
+          logger.error(`No instance found, user_id = ${user.id}`);
           const notFound = new NotFoundError('NO_INSTANCE_FOUND');
           return callback(notFound.jsonError());
         }
 
         const replySize = sizeof(filteredReplies[0]);
 
-        statsService.track('MESSAGE_TO_INSTANCE_RESPONSE', {
-          user_id: user.id,
-          message_size: replySize,
-          sent_at: messageParam.sent_at,
-          received_at: receivedAt,
-          response_received_at: new Date().getTime(),
-        });
-
         analyticsService.sendMetric('message-to-instance-response', replySize, user.id);
 
         return callback(filteredReplies[0]);
       });
     } catch (e) {
-      errorService.track('HANDLE_NEW_MESSAGE_FROM_USER_ERROR', {
-        error: e,
-        user_id: user.id,
-      });
+      logger.error(`HANDLE_NEW_MESSAGE_FROM_USER_ERROR, user = ${user.id}`);
       const notFound = new NotFoundError('NO_INSTANCE_FOUND');
       return callback(notFound.jsonError());
     }
@@ -202,13 +169,6 @@ module.exports = function SocketModel(
     logger.debug(`New message from instance ${instance.id}`);
 
     const messageSize = sizeof(messageParam);
-
-    statsService.track('MESSAGE_TO_USER', {
-      instance_id: instance.id,
-      message_size: messageSize,
-      sent_at: messageParam.sent_at,
-      received_at: new Date().getTime(),
-    });
 
     analyticsService.sendMetric('message-to-user', messageSize, instance.id);
 

@@ -17,7 +17,7 @@ const cleanNullProperties = (obj) =>
     // eslint-disable-next-line
     .reduce((a, [k, v]) => (v == null ? a : ((a[k] = v), a)), {});
 
-module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService, errorService) {
+module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL, GOOGLE_HOME_ACCOUNT_PRIVATE_KEY } =
     process.env;
 
@@ -152,11 +152,9 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService, e
       try {
         await smartHomeApp.reportState(request);
       } catch (e) {
-        errorService.track('GOOGLE_HOME_REPORT_STATE_ERROR', {
-          error: e,
-          payload: payloadCleaned,
-          user: users[0].id,
-        });
+        logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}`);
+        logger.error(e);
+        logger.error(payloadCleaned);
       }
     }
   }

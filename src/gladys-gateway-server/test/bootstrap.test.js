@@ -26,20 +26,27 @@ before(async function Before() {
   process.env.POSTGRESQL_STAT_DATABASE = process.env.POSTGRESQL_DATABASE_TEST;
   process.env.STRIPE_SECRET_KEY = 'test';
 
-  const { app, db, redisClient } = await server();
+  // starting 2 backends to try multi-server socket exchange
+  const { io, app, db, redisClient } = await server(process.env.SERVER_PORT);
+  const { io: iosServer2, app: appServer2 } = await server(process.env.SERVER_PORT + 1);
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);
   global.TEST_BACKEND_APP = app;
+  global.TEST_BACKEND_APP_2 = appServer2;
+  global.TEST_IO = io;
+  global.TEST_IO_SERVER_2 = iosServer2;
   global.TEST_DATABASE_INSTANCE = db;
 });
 
-beforeEach(function BeforeEach() {
+beforeEach(async function BeforeEach() {
   this.timeout(6000);
-  return databaseTask
-    .clean()
-    .then(() => databaseTask.fill())
-    .then(() => redisTask.clean())
-    .then(() => redisTask.fill());
+  await databaseTask.clean();
+  await databaseTask.fill();
+  await redisTask.clean();
+  await redisTask.fill();
+  // Disconnecting all websockets clients between each tests
+  TEST_IO.disconnectSockets();
+  TEST_IO_SERVER_2.disconnectSockets();
 });
 
 afterEach(() => {});

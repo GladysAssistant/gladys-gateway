@@ -9,5 +9,5 @@ const server = require('./core/index');
   });
   await dbmigrate.up();
   // then, we start server
-  server();
+  server(process.env.SERVER_PORT);
 })();

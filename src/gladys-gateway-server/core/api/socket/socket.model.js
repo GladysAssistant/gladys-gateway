@@ -2,6 +2,8 @@ const jwt = require('jsonwebtoken');
 const sizeof = require('object-sizeof');
 const { NotFoundError } = require('../../common/error');
 
+const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
+
 module.exports = function SocketModel(
   logger,
   db,
@@ -12,17 +14,7 @@ module.exports = function SocketModel(
   analyticsService,
   errorService,
 ) {
-  const ioAdapter = io;
-  // handle messages from different nodes
-  ioAdapter.of('/').adapter.customHook = (data, cb) => {
-    // we look if we have the socket here
-    const socket = io.sockets.connected[data.socket_id];
-
-    // if no, we return null
-    if (!socket) {
-      return cb(null);
-    }
-
+  function sendMessage(socket, data, cb) {
     if (data.disconnect === true) {
       // if message is a disconnect instruction
       socket.disconnect();
@@ -34,50 +26,52 @@ module.exports = function SocketModel(
       // else, we emit the message
       socket.emit('message', data.message, cb);
     }
+  }
+
+  // handle messages from different nodes
+  io.on(SERVER_TO_SERVER_COMMUNICATION, (data, cb) => {
+    // we look if we have the socket here
+    const socket = io.of('/').sockets.get(data.socket_id);
+
+    // if no, we return null
+    if (!socket) {
+      return cb(null);
+    }
+
+    sendMessage(socket, data, cb);
 
     return null;
-  };
+  });
 
-  function getInstanceSocketId(instanceId) {
-    return new Promise((resolve, reject) => {
-      const roomName = `instance:${instanceId}`;
+  async function getInstanceSocketId(instanceId) {
+    const sockets = await io.in(`instance:${instanceId}`).fetchSockets();
 
-      io.in(roomName).clients((err, clients) => {
-        if (err || clients.length === 0) {
-          reject();
-        } else {
-          resolve(clients[0]);
-        }
-      });
-    });
+    if (sockets.length === 0) {
+      throw new Error('INSTANCE_NOT_FOUND');
+    }
+
+    const [firstInstance] = sockets;
+    return firstInstance;
   }
 
   async function getUserSocketId(userId) {
-    return new Promise((resolve, reject) => {
-      const roomName = `user:${userId}`;
+    const sockets = await io.in(`user:${userId}`).fetchSockets();
 
-      io.in(roomName).clients((err, clients) => {
-        if (err || clients.length === 0) {
-          reject();
-        } else {
-          resolve(clients[0]);
-        }
-      });
-    });
+    if (sockets.length === 0) {
+      throw new Error('USER_NOT_FOUND');
+    }
+
+    const [firstUser] = sockets;
+    return firstUser;
   }
 
   async function isUserConnected(userId) {
-    return new Promise((resolve, reject) => {
-      const roomName = `user:${userId}`;
-
-      io.in(roomName).clients((err, clients) => {
-        if (err || clients.length === 0) {
-          resolve(false);
-        } else {
-          resolve(true);
-        }
-      });
-    });
+    try {
+      await getUserSocketId(userId);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   async function authenticateUser(accessToken, socketId) {
@@ -151,43 +145,38 @@ module.exports = function SocketModel(
     message.local_user_id = user.gladys_4_user_id;
 
     try {
-      const socketId = await getInstanceSocketId(message.instance_id);
+      const socket = await getInstanceSocketId(message.instance_id);
 
-      return io.of('/').adapter.customRequest({ socket_id: socketId, message }, (err, replies) => {
-        if (err) {
-          errorService.track('IO_CUSTOM_REQUEST_ERROR', {
-            error: err,
-            user_id: user.id,
-          });
-          const notFound = new NotFoundError('NO_INSTANCE_FOUND');
-          return callback(notFound.jsonError());
-        }
+      // If the socket was found on a remote server
+      if (socket.constructor.name === 'RemoteSocket') {
+        io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socket.id, message }, (err, replies) => {
+          if (err) {
+            logger.error(err);
+            const notFound = new NotFoundError('NO_INSTANCE_FOUND');
+            return callback(notFound.jsonError());
+          }
 
-        // remove null response from other instances
-        const filteredReplies = replies.filter((reply) => reply !== null);
+          // remove null response from other instances
+          const filteredReplies = replies.filter((reply) => reply !== null);
 
-        if (filteredReplies.length === 0) {
-          statsService.track('NO_INSTANCE_FOUND', {
-            user_id: user.id,
-          });
-          const notFound = new NotFoundError('NO_INSTANCE_FOUND');
-          return callback(notFound.jsonError());
-        }
+          if (filteredReplies.length === 0) {
+            logger.error('NO_INSTANCE_FOUND');
+            const notFound = new NotFoundError('NO_INSTANCE_FOUND');
+            return callback(notFound.jsonError());
+          }
 
-        const replySize = sizeof(filteredReplies[0]);
+          const replySize = sizeof(filteredReplies[0]);
 
-        statsService.track('MESSAGE_TO_INSTANCE_RESPONSE', {
-          user_id: user.id,
-          message_size: replySize,
-          sent_at: messageParam.sent_at,
-          received_at: receivedAt,
-          response_received_at: new Date().getTime(),
+          analyticsService.sendMetric('message-to-instance-response', replySize, user.id);
+
+          return callback(filteredReplies[0]);
         });
+      } else {
+        // if the socket was found on the same server
+        sendMessage(socket, { message }, callback);
+      }
 
-        analyticsService.sendMetric('message-to-instance-response', replySize, user.id);
-
-        return callback(filteredReplies[0]);
-      });
+      return null;
     } catch (e) {
       errorService.track('HANDLE_NEW_MESSAGE_FROM_USER_ERROR', {
         error: e,
@@ -241,7 +230,7 @@ module.exports = function SocketModel(
     try {
       const socketId = await getUserSocketId(userId);
 
-      io.of('/').adapter.customRequest({ socket_id: socketId, disconnect: true }, (err, replies) => {
+      io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socketId, disconnect: true }, (err, replies) => {
         if (err) {
           logger.debug(`socketModel.disconnectUser : error while trying to disconnect user ${userId}`);
         }

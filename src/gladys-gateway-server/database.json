@@ -13,10 +13,7 @@
     "password": { "ENV": "POSTGRESQL_PASSWORD" },
     "host": { "ENV": "POSTGRESQL_HOST" },
     "port": { "ENV": "POSTGRESQL_PORT" },
-    "database": { "ENV": "POSTGRESQL_DATABASE" },
-    "ssl": {
-      "rejectUnauthorized": false
-    }
+    "database": { "ENV": "POSTGRESQL_DATABASE" }
   },
   "test": {
     "driver": "pg",

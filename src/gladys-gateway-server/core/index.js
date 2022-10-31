@@ -3,9 +3,9 @@ const express = require('express');
 const massive = require('massive');
 const redis = require('redis');
 const tracer = require('tracer');
-const http = require('http');
-const socketIo = require('socket.io');
-const redisAdapter = require('socket.io-redis');
+const { createServer } = require('http');
+const { Server } = require('socket.io');
+const { createAdapter } = require('@socket.io/redis-adapter');
 
 // Services
 const Fingerprint = require('./service/fingerprint');
@@ -67,7 +67,7 @@ const AdminApiAuth = require('./middleware/adminApiAuth');
 // Routes
 const routes = require('./api/routes');
 
-module.exports = async () => {
+module.exports = async (port) => {
   Promise.promisifyAll(redis);
 
   const logger = tracer.colorConsole({
@@ -76,25 +76,26 @@ module.exports = async () => {
 
   const app = express();
   app.enable('trust proxy');
-  const server = http.Server(app);
-  const io = socketIo(server);
+  const server = createServer(app);
 
-  io.adapter(
-    redisAdapter({
-      host: process.env.REDIS_HOST,
-      port: process.env.REDIS_PORT,
-      password: process.env.REDIS_PASSWORD,
-      // increase requests timeout because some local instances
-      // can be sometimes slow to answer
-      requestsTimeout: 15000,
-    }),
-  );
+  const io = new Server(server, {
+    allowEIO3: true,
+    maxHttpBufferSize: 25 * 1024 * 1024, // 25 MB
+    cors: {
+      origin: '*',
+      methods: ['GET', 'HEAD', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+    },
+  });
 
   const redisClient = redis.createClient({
     host: process.env.REDIS_HOST,
     port: process.env.REDIS_PORT,
     password: process.env.REDIS_PASSWORD,
   });
+
+  const subClient = redisClient.duplicate();
+
+  io.adapter(createAdapter(redisClient, subClient, { requestsTimeout: 15000 }));
 
   const dbOptions = {
     host: process.env.POSTGRESQL_HOST,
@@ -198,7 +199,7 @@ module.exports = async () => {
 
   routes.load(app, io, controllers, middlewares);
 
-  server.listen(process.env.SERVER_PORT);
+  server.listen(port);
 
   return {
     app,

@@ -1,6 +1,6 @@
 module.exports = function SocketController(logger, socketModel, io, instanceModel) {
   async function connection(socket) {
-    logger.debug(`New socket joined, socket_id = ${socket.id}`);
+    logger.debug(`New socket joined, socket_id = ${socket.id}, version = ${socket.conn.protocol}`);
 
     let isClientAuthenticated = false;
 

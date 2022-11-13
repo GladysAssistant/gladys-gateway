@@ -1,190 +1,205 @@
 /* Replace with your SQL commands */
-
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE EXTENSION IF NOT EXISTS plpgsql WITH SCHEMA pg_catalog;
 
 ------------------
 -- CREATE TABLE --
 ------------------
-
-CREATE TYPE user_role AS ENUM ('user', 'admin');
+CREATE TYPE user_role AS ENUM (
+    'user',
+    'admin'
+);
 
 CREATE TABLE t_user (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     name character varying(255),
-    email character varying(255) NOT NULL ,
-    language character varying(10) NOT NULL,
+    email character varying(255) NOT NULL,
+    language character
+    varying(10) NOT NULL,
     email_confirmation_token_hash character varying NOT NULL,
-    email_confirmed boolean DEFAULT false NOT NULL,
+    email_confirmed boolean DEFAULT FALSE NOT NULL,
     profile_url character varying(255),
-    role user_role DEFAULT 'user' NOT NULL,
+    ROLE user_role DEFAULT 'user' NOT NULL,
     gladys_user_id integer,
     srp_salt character varying,
     srp_verifier character varying,
     two_factor_secret character varying,
-    two_factor_enabled boolean DEFAULT false NOT NULL,
+    two_factor_enabled boolean DEFAULT FALSE NOT NULL,
     rsa_public_key character varying,
     rsa_encrypted_private_key character varying,
     ecdsa_public_key character varying,
     ecdsa_encrypted_private_key character varying,
     account_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_user ADD CONSTRAINT t_user_pkey PRIMARY KEY (id);
-ALTER TABLE t_user OWNER TO postgres;
+ALTER TABLE ONLY t_user
+    ADD CONSTRAINT t_user_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_device (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     name character varying(255),
     push_notification_token character varying(255),
     refresh_token_hash character varying,
-    revoked boolean DEFAULT false NOT NULL,
+    revoked boolean DEFAULT FALSE NOT NULL,
     user_id uuid NOT NULL,
-    last_seen timestamptz NOT NULL default now(),
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    last_seen timestamptz NOT NULL DEFAULT now(),
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_device ADD CONSTRAINT t_device_pkey PRIMARY KEY (id);
-ALTER TABLE t_device OWNER TO postgres;
+ALTER TABLE ONLY t_device
+    ADD CONSTRAINT t_device_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_reset_password (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     token_hash character varying NOT NULL,
-    used boolean DEFAULT false NOT NULL,
+    used boolean DEFAULT FALSE NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_reset_password ADD CONSTRAINT t_reset_password_pkey PRIMARY KEY (id);
-ALTER TABLE t_reset_password OWNER TO postgres;
+ALTER TABLE ONLY t_reset_password
+    ADD CONSTRAINT t_reset_password_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_account (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     name character varying(255) NOT NULL,
     stripe_customer_id character varying,
     stripe_subscription_id character varying,
     current_period_end timestamptz,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_account ADD CONSTRAINT t_account_pkey PRIMARY KEY (id);
-ALTER TABLE t_account OWNER TO postgres;
+ALTER TABLE ONLY t_account
+    ADD CONSTRAINT t_account_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_instance (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     name character varying(255) NOT NULL,
-    primary_instance boolean NOT NULL DEFAULT true,
+    primary_instance boolean NOT NULL DEFAULT TRUE,
     rsa_public_key character varying,
     ecdsa_public_key character varying,
     refresh_token_hash character varying,
     account_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_instance ADD CONSTRAINT t_instance_pkey PRIMARY KEY (id);
-ALTER TABLE t_instance OWNER TO postgres;
+ALTER TABLE ONLY t_instance
+    ADD CONSTRAINT t_instance_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_invitation (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     email character varying(255) NOT NULL,
     token_hash character varying,
-    role user_role DEFAULT 'user' NOT NULL,
-    revoked boolean DEFAULT false NOT NULL,
-    accepted boolean DEFAULT false NOT NULL,
+    ROLE user_role DEFAULT 'user' NOT NULL,
+    revoked boolean DEFAULT FALSE NOT NULL,
+    accepted boolean DEFAULT FALSE NOT NULL,
     account_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_invitation ADD CONSTRAINT t_invitation_pkey PRIMARY KEY (id);
-ALTER TABLE t_invitation OWNER TO postgres;
+ALTER TABLE ONLY t_invitation
+    ADD CONSTRAINT t_invitation_pkey PRIMARY KEY (id);
 
-CREATE TYPE history_action AS ENUM ('login', 'logout', 'invite-user', 'sent-message');
+CREATE TYPE history_action AS ENUM (
+    'login',
+    'logout',
+    'invite-user',
+    'sent-message'
+);
 
 CREATE TABLE t_history (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     action history_action NOT NULL,
     params jsonb DEFAULT '{}' NOT NULL,
     user_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_history ADD CONSTRAINT t_history_pkey PRIMARY KEY (id);
-ALTER TABLE t_history OWNER TO postgres;
+ALTER TABLE ONLY t_history
+    ADD CONSTRAINT t_history_pkey PRIMARY KEY (id);
 
 CREATE TABLE t_account_payment_activity (
-    id uuid DEFAULT uuid_generate_v4() NOT NULL,
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
     stripe_event character varying(255) NOT NULL,
     hosted_invoice_url character varying,
     invoice_pdf character varying,
     amount_paid integer,
     closed boolean,
-    currency  character varying(255),
+    currency character varying(255),
     params jsonb DEFAULT '{}' NOT NULL,
     account_id uuid NOT NULL,
-    created_at timestamptz NOT NULL default now(),
-    updated_at timestamptz NOT NULL default now(),
-    is_deleted boolean DEFAULT false NOT NULL
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    is_deleted boolean DEFAULT FALSE NOT NULL
 );
 
-ALTER TABLE ONLY t_account_payment_activity ADD CONSTRAINT t_account_payment_activity_pkey PRIMARY KEY (id);
-ALTER TABLE t_account_payment_activity OWNER TO postgres;
+ALTER TABLE ONLY t_account_payment_activity
+    ADD CONSTRAINT t_account_payment_activity_pkey PRIMARY KEY (id);
 
 -------------------------
 -- CREATE FOREIGN KEYS --
 -------------------------
-
 ALTER TABLE ONLY t_user
-    ADD CONSTRAINT fk_t_user__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account(id);
+    ADD CONSTRAINT fk_t_user__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id);
 
 ALTER TABLE ONLY t_device
-    ADD CONSTRAINT fk_t_device__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user(id);
+    ADD CONSTRAINT fk_t_device__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user (id);
 
 ALTER TABLE ONLY t_reset_password
-    ADD CONSTRAINT fk_t_reset_password__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user(id);
+    ADD CONSTRAINT fk_t_reset_password__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user (id);
 
 ALTER TABLE ONLY t_instance
-    ADD CONSTRAINT fk_t_instance__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account(id);
+    ADD CONSTRAINT fk_t_instance__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id);
 
 ALTER TABLE ONLY t_invitation
-    ADD CONSTRAINT fk_t_invitation__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account(id);
+    ADD CONSTRAINT fk_t_invitation__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id);
 
 ALTER TABLE ONLY t_history
-    ADD CONSTRAINT fk_t_history__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user(id);
+    ADD CONSTRAINT fk_t_history__user_id_t_user FOREIGN KEY (user_id) REFERENCES t_user (id);
 
 ALTER TABLE ONLY t_account_payment_activity
-    ADD CONSTRAINT fk_t_account_payment_activity__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account(id);
+    ADD CONSTRAINT fk_t_account_payment_activity__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id);
 
 --------------------
 -- CREATE INDEXES --
 --------------------
-
 CREATE INDEX ix_t_user_email ON t_user USING btree (lower(email));
+
 CREATE INDEX ix_t_device_user_id ON t_device USING btree (user_id);
+
 CREATE INDEX ix_t_reset_password_user_id ON t_reset_password USING btree (user_id);
+
 CREATE INDEX ix_t_instance_account_id ON t_instance USING btree (account_id);
+
 CREATE INDEX ix_t_invitation_account_id ON t_invitation USING btree (account_id);
+
 CREATE INDEX ix_t_history_user_id ON t_history USING btree (user_id);
+
 CREATE INDEX ix_t_account_payment_activity_account_id ON t_account_payment_activity USING btree (account_id);
 
 ---------------------------
 -- CREATE UNIQUE INDEXES --
 ---------------------------
-
 -- We don't want to have duplicate emails in database
-CREATE UNIQUE INDEX idx_unique_email on t_user(LOWER(email))  WHERE (is_deleted = false AND email_confirmed = true);
-CREATE UNIQUE INDEX idx_unique_primary_instance on t_instance(primary_instance, account_id)  WHERE (primary_instance = true AND is_deleted = false);
+CREATE UNIQUE INDEX idx_unique_email ON t_user (LOWER(email))
+WHERE (is_deleted = FALSE AND email_confirmed = TRUE);
+
+CREATE UNIQUE INDEX idx_unique_primary_instance ON t_instance (primary_instance, account_id)
+WHERE (primary_instance = TRUE AND is_deleted = FALSE);
+

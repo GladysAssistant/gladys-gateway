@@ -4,16 +4,7 @@ const { NotFoundError } = require('../../common/error');
 
 const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
 
-module.exports = function SocketModel(
-  logger,
-  db,
-  redisClient,
-  io,
-  fingerprint,
-  statsService,
-  analyticsService,
-  errorService,
-) {
+module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {
   function sendMessage(socket, data, cb) {
     if (data.disconnect === true) {
       // if message is a disconnect instruction
@@ -123,17 +114,7 @@ module.exports = function SocketModel(
   async function handleNewMessageFromUser(user, messageParam, callback) {
     logger.debug(`Received message from user ${user.id}`);
 
-    const receivedAt = new Date().getTime();
-
     const messageSize = sizeof(messageParam);
-
-    statsService.track('MESSAGE_TO_INSTANCE', {
-      user_id: user.id,
-      message_size: messageSize,
-      sent_at: messageParam.sent_at,
-      received_at: receivedAt,
-    });
-
     analyticsService.sendMetric('message-to-instance', messageSize, user.id);
 
     const message = messageParam;
@@ -151,6 +132,7 @@ module.exports = function SocketModel(
       if (socket.constructor.name === 'RemoteSocket') {
         io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socket.id, message }, (err, replies) => {
           if (err) {
+            logger.error('NO_INSTANCE_FOUND (error)');
             logger.error(err);
             const notFound = new NotFoundError('NO_INSTANCE_FOUND');
             return callback(notFound.jsonError());
@@ -160,7 +142,7 @@ module.exports = function SocketModel(
           const filteredReplies = replies.filter((reply) => reply !== null);
 
           if (filteredReplies.length === 0) {
-            logger.error('NO_INSTANCE_FOUND');
+            logger.error('NO_INSTANCE_FOUND (no replies)');
             const notFound = new NotFoundError('NO_INSTANCE_FOUND');
             return callback(notFound.jsonError());
           }
@@ -178,10 +160,8 @@ module.exports = function SocketModel(
 
       return null;
     } catch (e) {
-      errorService.track('HANDLE_NEW_MESSAGE_FROM_USER_ERROR', {
-        error: e,
-        user_id: user.id,
-      });
+      logger.error(`HANDLE_NEW_MESSAGE_FROM_USER_ERROR - user_id = ${user.id}`);
+      logger.error(e);
       const notFound = new NotFoundError('NO_INSTANCE_FOUND');
       return callback(notFound.jsonError());
     }
@@ -191,14 +171,6 @@ module.exports = function SocketModel(
     logger.debug(`New message from instance ${instance.id}`);
 
     const messageSize = sizeof(messageParam);
-
-    statsService.track('MESSAGE_TO_USER', {
-      instance_id: instance.id,
-      message_size: messageSize,
-      sent_at: messageParam.sent_at,
-      received_at: new Date().getTime(),
-    });
-
     analyticsService.sendMetric('message-to-user', messageSize, instance.id);
 
     const message = messageParam;

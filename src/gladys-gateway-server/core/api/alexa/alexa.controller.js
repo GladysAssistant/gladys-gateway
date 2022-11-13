@@ -19,7 +19,6 @@ module.exports = function AlexaController(
   userModel,
   deviceModel,
   analyticsService,
-  errorService,
 ) {
   /**
    * @api {post} /v1/api/alexa/smart_home Entrypoint for alexa smart home
@@ -70,11 +69,9 @@ module.exports = function AlexaController(
       const response = await socketModel.sendMessageOpenApi(user, message);
       return res.json(response);
     } catch (e) {
-      errorService.track('ALEXA_SMART_HOME_ERROR', {
-        error: e,
-        payload: req.body,
-        user: user.id,
-      });
+      logger.error(`ALEXA_SMART_HOME_ERROR, user_id = ${user.id}`);
+      logger.error(req.body);
+      logger.error(e);
 
       return res.status(404).json(e);
     }

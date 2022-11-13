@@ -17,7 +17,6 @@ module.exports = function GoogleController(
   userModel,
   deviceModel,
   analyticsService,
-  errorService,
 ) {
   /**
    * @api {post} /v1/api/google/smart_home Entrypoint for google smart home
@@ -74,12 +73,10 @@ module.exports = function GoogleController(
         },
       };
 
-      errorService.track('GOOGLE_HOME_SMART_HOME_ERROR', {
-        error: e,
-        payload: req.body,
-        user: user.id,
-        errorResponse,
-      });
+      logger.error(`GOOGLE_HOME_SMART_HOME_ERROR, user = ${user.id}`);
+      logger.error(req.body);
+      logger.error(e);
+      logger.error(errorResponse);
 
       return res.status(404).json(errorResponse);
     }

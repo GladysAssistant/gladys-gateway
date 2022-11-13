@@ -21,7 +21,7 @@ const cleanNullProperties = (obj) =>
     // eslint-disable-next-line
     .reduce((a, [k, v]) => (v == null ? a : ((a[k] = v), a)), {});
 
-module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorService) {
+module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   const { ALEXA_OAUTH_CLIENT_ID } = process.env;
 
   async function getRefreshTokenAndAccessToken(code) {
@@ -217,11 +217,9 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService, errorS
           await axios(options);
           // report state
         } catch (e) {
-          errorService.track('ALEXA_REPORT_STATE_ERROR', {
-            error: e,
-            payload,
-            user: users[0].id,
-          });
+          logger.error(`ALEXA_REPORT_STATE_ERROR, user_id = ${users[0].id}`);
+          logger.error(payload);
+          logger.error(e);
         }
       });
     }

@@ -3,7 +3,7 @@ const Joi = require('joi');
 const { ServerError, ForbiddenError, BadRequestError, ValidationError } = require('../../common/error');
 const schema = require('../../common/schema');
 
-module.exports = function EnedisController(logger, enedisModel, errorService) {
+module.exports = function EnedisController(logger, enedisModel) {
   const parseError = (e) => {
     if (e instanceof ForbiddenError) {
       return e;
@@ -55,12 +55,8 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user);
       res.json(usagePoints);
     } catch (e) {
-      logger.warn(e);
-      errorService.track('ENEDIS_FINALIZE_ERROR', {
-        error: e,
-        payload: req.body,
-        user: req.user.id,
-      });
+      logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}`);
+      logger.error(e);
       throw parseError(e);
     }
   }
@@ -79,13 +75,10 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
-      logger.warn(e);
-      errorService.track('ENEDIS_API_CALL_ERROR', {
-        error: e,
-        url,
-        payload: req.query,
-        instance: req.instance.id,
-      });
+      logger.error('ENEDIS_API_CALL_ERROR');
+      logger.error(req.query);
+      logger.error(e);
+
       throw parseError(e);
     }
   }
@@ -104,13 +97,9 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
-      logger.warn(e);
-      errorService.track('ENEDIS_API_CALL_ERROR', {
-        error: e,
-        url,
-        payload: req.query,
-        instance: req.instance.id,
-      });
+      logger.error('ENEDIS_API_CALL_ERROR');
+      logger.error(req.query);
+      logger.error(e);
       throw parseError(e);
     }
   }
@@ -129,13 +118,9 @@ module.exports = function EnedisController(logger, enedisModel, errorService) {
       const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
       res.json(response);
     } catch (e) {
-      logger.warn(e);
-      errorService.track('ENEDIS_API_CALL_ERROR', {
-        error: e,
-        url,
-        payload: req.query,
-        instance: req.instance.id,
-      });
+      logger.error('ENEDIS_API_CALL_ERROR');
+      logger.error(req.query);
+      logger.error(e);
       throw parseError(e);
     }
   }

@@ -51,7 +51,7 @@
     "pify": "^5.0.0",
     "prettier": "^2.3.2",
     "should": "^13.2.3",
-    "socket.io-client": "^2.3.0",
+    "socket.io-client": "^4.5.3",
     "supertest": "^3.3.0"
   },
   "dependencies": {

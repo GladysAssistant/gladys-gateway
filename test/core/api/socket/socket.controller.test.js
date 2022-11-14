@@ -1,4 +1,4 @@
-const io = require('socket.io-client');
+const { io } = require('socket.io-client');
 const { expect } = require('chai');
 const Jwt = require('../../../../core/service/jwt');
 

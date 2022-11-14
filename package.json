@@ -30,7 +30,7 @@
     "automation"
   ],
   "author": "Pierre-Gilles Leymarie",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "bugs": {
     "url": "https://github.com/gladysassistant/gladys-gateway/issues"
   },

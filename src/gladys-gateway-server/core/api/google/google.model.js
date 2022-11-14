@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
+const get = require('get-value');
 const { homegraph, auth } = require('@googleapis/homegraph');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
@@ -165,8 +166,11 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
         });
       } catch (e) {
         logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}`);
-        logger.error(e);
-        logger.error(payloadCleaned);
+        // We only log error only if status is not 404
+        if (get(e, 'response.status') !== 404) {
+          logger.error(e);
+          logger.error(payloadCleaned);
+        }
       }
     }
   }

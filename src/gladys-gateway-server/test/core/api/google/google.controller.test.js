@@ -308,4 +308,45 @@ describe('POST /google/report_state', () => {
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
   });
+  it('should report a new state and have a 404 (device not found google side)', async () => {
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        const brightnessValid = get(body, 'payload.devices.states.light-123.brightness') === undefined;
+        const spectrumRgbValid = get(body, 'payload.devices.states.light-123.color.spectrumRgb') === undefined;
+        const temperatureKValid = get(body, 'payload.devices.states.light-123.color.temperatureK') === 2000;
+        return validAgentUserId && payloadValid && brightnessValid && spectrumRgbValid && temperatureKValid;
+      })
+      .reply(404, {
+        status: 404,
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send({
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+              online: true,
+              brightness: null,
+              color: {
+                spectrumRgb: null,
+                temperatureK: 2000,
+              },
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+  });
 });

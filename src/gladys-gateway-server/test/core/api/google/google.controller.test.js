@@ -225,7 +225,7 @@ describe('POST /google/request_sync', () => {
         accessToken: 'toto',
       });
     nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:requestSync', { agent_user_id: 'b2d23f66-487d-493f-8acb-9c8adb400def' })
+      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def' })
       .reply(200, {
         status: 200,
       });

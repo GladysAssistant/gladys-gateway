@@ -2,7 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
-const { smarthome } = require('actions-on-google');
+const { homegraph, auth } = require('@googleapis/homegraph');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
@@ -21,11 +21,17 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   const { GOOGLE_HOME_OAUTH_CLIENT_ID, GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL, GOOGLE_HOME_ACCOUNT_PRIVATE_KEY } =
     process.env;
 
-  const smartHomeApp = smarthome({
-    jwt: {
-      private_key: GOOGLE_HOME_ACCOUNT_PRIVATE_KEY,
-      client_email: GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL,
-    },
+  const homegraphClient = homegraph({
+    version: 'v1',
+    auth: new auth.GoogleAuth({
+      scopes: 'https://www.googleapis.com/auth/homegraph',
+      credentials: {
+        // `client_email` property from the service account Key file downloaded as JSON
+        client_email: GOOGLE_HOME_ACCOUNT_CLIENT_EMAIL,
+        // `private_key` property from the service account Key file downloaded as JSON
+        private_key: GOOGLE_HOME_ACCOUNT_PRIVATE_KEY,
+      },
+    }),
   });
 
   async function getRefreshTokenAndAccessToken(code) {
@@ -136,7 +142,11 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   async function requestSync(instanceId) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
     if (users.length > 0) {
-      await smartHomeApp.requestSync(users[0].account_id);
+      await homegraphClient.devices.requestSync({
+        requestBody: {
+          agentUserId: users[0].account_id,
+        },
+      });
     }
   }
 
@@ -144,13 +154,15 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
     if (users.length > 0) {
       const payloadCleaned = cleanNullProperties(payload);
-      const request = {
+      const requestBody = {
         requestId: uuid.v4(),
         agentUserId: users[0].account_id,
         payload: payloadCleaned,
       };
       try {
-        await smartHomeApp.reportState(request);
+        await homegraphClient.devices.reportStateAndNotification({
+          requestBody,
+        });
       } catch (e) {
         logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}`);
         logger.error(e);

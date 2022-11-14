@@ -295,6 +295,35 @@ describe('POST /alexa/report_state', () => {
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
   });
+  it('should report a new state and get a 404', async () => {
+    nock('https://api.amazon.com:443', { encodedQueryParams: true })
+      .post('/auth/o2/token', (body) => {
+        const grandTypeValid = body.grand_type === 'refresh_token';
+        const refreshTokenValid = body.refresh_token === 'refresh_token';
+        const clientIdValid = body.client_id === process.env.ALEXA_OAUTH_CLIENT_ID;
+        const clientSecretValid = body.client_secret === process.env.ALEXA_OAUTH_CLIENT_SECRET;
+        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
+      })
+      .reply(200, {
+        access_token: 'toto',
+        expires_in: 100,
+      });
+    nock('https://api.eu.amazonalexa.com:443', { encodedQueryParams: true })
+      .post('/v3/events', (body) => body.test_data === true)
+      .reply(404, {
+        status: 404,
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/alexa/report_state')
+      .send({
+        test_data: true,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+  });
   it('should report a new state and revoke token', async () => {
     // flush redis so no access token is accessible
     await redisClient.flushallAsync();

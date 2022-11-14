@@ -218,8 +218,11 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
           // report state
         } catch (e) {
           logger.error(`ALEXA_REPORT_STATE_ERROR, user_id = ${users[0].id}`);
-          logger.error(payload);
-          logger.error(e);
+          // We only log error only if status is not 404
+          if (get(e, 'response.status') !== 404) {
+            logger.error(payload);
+            logger.error(e);
+          }
         }
       });
     }

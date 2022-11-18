@@ -66,11 +66,12 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       { fields: ['id', 'account_id'] },
     );
 
-    // get all instances in this account
+    // get only the primary instance
     const instances = await db.t_instance.find(
       {
         account_id: userWithAccount.account_id,
         is_deleted: false,
+        primary_instance: true,
       },
       { fields: ['id', 'name', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] },
     );

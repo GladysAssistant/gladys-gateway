@@ -326,7 +326,8 @@ describe('POST /alexa/report_state', () => {
   });
   it('should report a new state and revoke token', async () => {
     // flush redis so no access token is accessible
-    await redisClient.flushallAsync();
+    await redisClient.connect();
+    await redisClient.flushAll();
     nock('https://api.amazon.com:443', { encodedQueryParams: true })
       .post('/auth/o2/token', (body) => true)
       .reply(400, {

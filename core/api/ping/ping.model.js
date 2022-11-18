@@ -5,7 +5,7 @@ module.exports = function PingModel(logger, db, redisClient) {
    */
   async function ping() {
     await db.query('SELECT 1 FROM user');
-    await redisClient.getAsync('random-key');
+    await redisClient.get('random-key');
   }
 
   return {

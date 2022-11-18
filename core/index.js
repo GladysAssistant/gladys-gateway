@@ -1,4 +1,3 @@
-const Promise = require('bluebird');
 const express = require('express');
 const massive = require('massive');
 const redis = require('redis');
@@ -68,8 +67,6 @@ const AdminApiAuth = require('./middleware/adminApiAuth');
 const routes = require('./api/routes');
 
 module.exports = async (port) => {
-  Promise.promisifyAll(redis);
-
   const logger = tracer.colorConsole({
     level: process.env.LOG_LEVEL || 'debug',
   });
@@ -93,7 +90,26 @@ module.exports = async (port) => {
     password: process.env.REDIS_PASSWORD,
   });
 
+  const legacyRedisClient = redis.createClient({
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+    password: process.env.REDIS_PASSWORD,
+    legacyMode: true,
+    enable_offline_queue: false,
+  });
+
   const subClient = redisClient.duplicate();
+  const rateLimitRedisClient = redisClient.duplicate();
+
+  // Connect Redis clients
+  await redisClient.connect();
+  await redisClient.ping();
+  await subClient.connect();
+  await subClient.ping();
+  await rateLimitRedisClient.connect();
+  await rateLimitRedisClient.ping();
+  await legacyRedisClient.connect();
+  await legacyRedisClient.ping();
 
   io.adapter(createAdapter(redisClient, subClient, { requestsTimeout: 15000 }));
 
@@ -189,12 +205,12 @@ module.exports = async (port) => {
     refreshTokenInstanceAuth: RefreshTokenInstanceAuthMiddleware(logger),
     accessTokenInstanceAuth: AccessTokenInstanceAuthMiddleware(logger),
     errorMiddleware: ErrorMiddleware(logger),
-    rateLimiter: RateLimiterMiddleware(redisClient),
+    rateLimiter: RateLimiterMiddleware(rateLimitRedisClient),
     isSuperAdmin: IsSuperAdminMiddleware(logger),
     openApiKeyAuth: OpenApiKeyAuthMiddleware(models.openApiModel, models.userModel, models.instanceModel),
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
-    adminApiAuth: AdminApiAuth(logger, redisClient),
+    adminApiAuth: AdminApiAuth(logger, legacyRedisClient),
   };
 
   routes.load(app, io, controllers, middlewares);

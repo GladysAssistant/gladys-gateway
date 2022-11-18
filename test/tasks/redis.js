@@ -1,12 +1,12 @@
 const srpFixture = require('./srp-fixture.json');
 
 module.exports = function initRedis(redisClient) {
-  function clean() {
-    return redisClient.FLUSHALLAsync();
+  async function clean() {
+    await redisClient.flushAll();
   }
 
-  function fill() {
-    return redisClient
+  async function fill() {
+    await redisClient
       .multi()
       .set(
         `login_session:2b2aa099-4323-44e8-bb07-0b9b55dbe1dc`,
@@ -22,7 +22,7 @@ module.exports = function initRedis(redisClient) {
           clientEphemeralPublic: srpFixture.clientEphemeral.public,
         }),
       )
-      .execAsync();
+      .exec();
   }
 
   return {

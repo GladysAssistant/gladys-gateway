@@ -31,7 +31,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   }
 
   async function saveEnedisAccessTokenAndRefreshToken(instanceId, deviceId, data) {
-    await redisClient.setAsync(
+    await redisClient.set(
       `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`,
       data.access_token,
       'EX',
@@ -84,7 +84,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
     if (instances.length > 0) {
-      await redisClient.delAsync(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].id}`);
+      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].id}`);
     }
     // Create a new device to store the refresh token
     const newDevice = {
@@ -101,7 +101,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   }
 
   async function getAccessToken(instanceId) {
-    const accessTokenInRedis = await redisClient.getAsync(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`);
+    const accessTokenInRedis = await redisClient.get(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`);
     if (accessTokenInRedis) {
       return accessTokenInRedis;
     }

@@ -36,7 +36,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   });
 
   async function getRefreshTokenAndAccessToken(code) {
-    const userId = await redisClient.getAsync(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
+    const userId = await redisClient.get(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
     if (userId === null) {
       throw new ForbiddenError('INVALID_CODE');
     }
@@ -120,12 +120,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     // we generate a random code
     const code = (await randomBytes(64)).toString('hex');
     // we save the code in Redis
-    await redisClient.setAsync(
-      `${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`,
-      userId,
-      'EX',
-      GOOGLE_CODE_EXPIRY_IN_SECONDS,
-    );
+    await redisClient.set(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, 'EX', GOOGLE_CODE_EXPIRY_IN_SECONDS);
     return code;
   }
 

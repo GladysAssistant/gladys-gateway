@@ -225,7 +225,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       clientEphemeralPublic: data.client_ephemeral_public,
     };
 
-    await redisClient.setAsync(
+    await redisClient.set(
       `login_session:${loginSessionKey}`,
       JSON.stringify(loginSessionState),
       'EX',
@@ -239,7 +239,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function loginDeriveSession(data) {
-    const loginSessionState = await redisClient.getAsync(`login_session:${data.login_session_key}`);
+    const loginSessionState = await redisClient.get(`login_session:${data.login_session_key}`);
 
     if (loginSessionState === null) {
       throw new NotFoundError('Login session not found');

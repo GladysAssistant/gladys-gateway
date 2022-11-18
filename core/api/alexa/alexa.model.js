@@ -25,7 +25,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   const { ALEXA_OAUTH_CLIENT_ID } = process.env;
 
   async function getRefreshTokenAndAccessToken(code) {
-    const userId = await redisClient.getAsync(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`);
+    const userId = await redisClient.get(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`);
     if (userId === null) {
       throw new ForbiddenError('INVALID_CODE');
     }
@@ -109,7 +109,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     // we generate a random code
     const code = (await randomBytes(64)).toString('hex');
     // we save the code in Redis
-    await redisClient.setAsync(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, 'EX', ALEXA_CODE_EXPIRY_IN_SECONDS);
+    await redisClient.set(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, 'EX', ALEXA_CODE_EXPIRY_IN_SECONDS);
     return code;
   }
 
@@ -126,7 +126,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     `;
 
   async function saveAlexaAccessTokenAndRefreshToken(deviceId, data) {
-    await redisClient.setAsync(
+    await redisClient.set(
       `${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`,
       data.access_token,
       'EX',
@@ -170,7 +170,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   }
 
   async function getAlexaAccessToken(deviceId, refreshToken) {
-    const accessTokenInRedis = await redisClient.getAsync(`${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`);
+    const accessTokenInRedis = await redisClient.get(`${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`);
     if (accessTokenInRedis) {
       return accessTokenInRedis;
     }

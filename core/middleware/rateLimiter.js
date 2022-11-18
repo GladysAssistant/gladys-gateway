@@ -9,10 +9,10 @@ module.exports = function RateLimiterMiddleware(redisClient) {
     rateLimit({
       max: MAX_REQUEST_PER_HOUR, // limit each IP to 100 requests per window
       delayMs: 0, // disable delaying - full speed until the max limit is reached
+      standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+      legacyHeaders: false, // Disable the `X-RateLimit-*` headers
       store: new RedisStore({
-        expiry: 60 * 60,
-        prefix: 'rate-limit:',
-        client: redisClient,
+        sendCommand: (...args) => redisClient.sendCommand(args),
       }),
     }),
   );

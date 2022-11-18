@@ -46,7 +46,7 @@ jobs:
     runs-on: ubuntu-20.04
     services:
       postgres:
-        image: postgres:10
+        image: postgres:14
         env:
           POSTGRES_PASSWORD: test
           POSTGRES_DB: ci_test
@@ -60,7 +60,7 @@ jobs:
         ports:
           - 5432:5432
       redis:
-        image: redis:4-alpine
+        image: redis:7
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s

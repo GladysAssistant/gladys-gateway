@@ -9,31 +9,14 @@ const { ForbiddenError } = require('../../common/error');
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
 module.exports = function EnedisModel(logger, db, redisClient) {
-  const {
-    ENEDIS_GRANT_CLIENT_ID,
-    ENEDIS_GRANT_CLIENT_SECRET,
-    ENEDIS_BACKEND_URL,
-    ENEDIS_GLADYS_PLUS_REDIRECT_URI,
-    REDIS_HOST,
-    REDIS_PORT,
-    REDIS_PASSWORD,
-  } = process.env;
+  const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
+    process.env;
 
   const enedisApiLimiter = new Bottleneck({
     // Enedis API is limited at 5 req/sec so we take
     // a little margin and take 5 reqs per 5 * 210 = 1050 ms
     maxConcurrent: 5,
     minTime: 210,
-    id: 'gladys-gateway',
-    /* Clustering options */
-    datastore: 'redis',
-    clearDatastore: false,
-    clientOptions: {
-      host: REDIS_HOST,
-      port: REDIS_PORT,
-      password: REDIS_PASSWORD,
-      requestsTimeout: 15000,
-    },
   });
 
   async function getRedirectUri() {

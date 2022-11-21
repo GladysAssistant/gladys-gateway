@@ -85,14 +85,18 @@ module.exports = async (port) => {
   });
 
   const redisClient = redis.createClient({
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
+    socket: {
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    },
     password: process.env.REDIS_PASSWORD,
   });
 
   const legacyRedisClient = redis.createClient({
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
+    socket: {
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+    },
     password: process.env.REDIS_PASSWORD,
     legacyMode: true,
     enable_offline_queue: false,
@@ -110,6 +114,8 @@ module.exports = async (port) => {
   await rateLimitRedisClient.ping();
   await legacyRedisClient.connect();
   await legacyRedisClient.ping();
+
+  logger.info('Connected to Redis!');
 
   io.adapter(createAdapter(redisClient, subClient, { requestsTimeout: 15000 }));
 

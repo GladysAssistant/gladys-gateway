@@ -50,8 +50,12 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
   this.timeout(5000);
   let enedisModel;
   let db;
+  let worker;
   before(async () => {
-    ({ enedisModel, db } = await initEnedisListener());
+    ({ enedisModel, db, worker } = await initEnedisListener());
+  });
+  after(async () => {
+    await worker.close();
   });
   it('should return enedis data', async () => {
     // First, finalize Enedis Oauth process

@@ -1,5 +1,6 @@
 const get = require('get-value');
 const Joi = require('joi');
+
 const { ServerError, ForbiddenError, ValidationError } = require('../../common/error');
 const schema = require('../../common/schema');
 
@@ -87,10 +88,21 @@ module.exports = function EnedisController(logger, enedisModel) {
     res.json(response);
   }
 
+  /**
+   * @api {post} /enedis/refresh_all Refresh all data
+   * @apiName Refresh all data
+   * @apiGroup Enedis
+   */
+  async function refreshAllData(req, res) {
+    await enedisModel.refreshAlldata(req.user.id);
+    res.json({ success: true });
+  }
+
   return {
     finalize,
     meteringDataConsumptionLoadCurve,
     meteringDataDailyConsumption,
     initialize,
+    refreshAllData,
   };
 };

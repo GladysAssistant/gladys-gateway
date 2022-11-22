@@ -67,6 +67,7 @@
     "bottleneck": "^2.19.5",
     "bullmq": "^3.2.2",
     "clone": "^2.1.2",
+    "dayjs": "^1.11.6",
     "db-migrate": "^0.11.13",
     "db-migrate-pg": "^1.2.2",
     "dotenv": "^6.2.0",

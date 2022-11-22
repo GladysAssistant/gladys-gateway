@@ -4,6 +4,7 @@ const massive = require('massive');
 const { Worker } = require('bullmq');
 
 const EnedisModel = require('./enedis');
+const { ENEDIS_WORKER_KEY } = require('./enedis.constants');
 
 const initEnedisListener = async () => {
   const logger = tracer.colorConsole({
@@ -39,7 +40,7 @@ const initEnedisListener = async () => {
   await redisClient.ping();
   // Init Enedis model
   const enedisModel = EnedisModel(logger, db, redisClient);
-  const worker = new Worker('enedis-sync-data', enedisModel.enedisSyncData, {
+  const worker = new Worker(ENEDIS_WORKER_KEY, enedisModel.enedisSyncData, {
     concurrency: 1,
     limiter: {
       max: 2,

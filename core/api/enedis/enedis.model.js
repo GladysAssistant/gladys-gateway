@@ -1,11 +1,26 @@
 const uuid = require('uuid');
 const axios = require('axios');
+const { Queue } = require('bullmq');
+
+const {
+  ENEDIS_WORKER_KEY,
+  BULLMQ_PUBLISH_JOB_OPTIONS,
+  ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+} = require('../../enedis/enedis.constants');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
 module.exports = function EnedisModel(logger, db, redisClient) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
     process.env;
+
+  const queue = new Queue(ENEDIS_WORKER_KEY, {
+    connection: {
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      password: process.env.REDIS_PASSWORD,
+    },
+  });
 
   async function getRedirectUri() {
     const url = `https://${ENEDIS_BACKEND_URL}/dataconnect/v1/oauth2/authorize`;
@@ -121,10 +136,15 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return dailyConsumptions;
   }
 
+  async function refreshAlldata(userId) {
+    await queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId }, BULLMQ_PUBLISH_JOB_OPTIONS);
+  }
+
   return {
     handleAcceptGrantMessage,
     getRedirectUri,
     getDailyConsumption,
     getConsumptionLoadCurve,
+    refreshAlldata,
   };
 };

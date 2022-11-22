@@ -1,18 +1,12 @@
 const get = require('get-value');
 const Joi = require('joi');
-const { ServerError, ForbiddenError, BadRequestError, ValidationError } = require('../../common/error');
+const { ServerError, ForbiddenError, ValidationError } = require('../../common/error');
 const schema = require('../../common/schema');
 
 module.exports = function EnedisController(logger, enedisModel) {
   const parseError = (e) => {
-    if (e instanceof ForbiddenError) {
-      return e;
-    }
     if (get(e, 'response.status') === 403) {
       return new ForbiddenError();
-    }
-    if (get(e, 'response.status') === 400) {
-      return new BadRequestError();
     }
     return new ServerError();
   };

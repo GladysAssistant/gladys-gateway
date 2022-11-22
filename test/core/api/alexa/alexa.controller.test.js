@@ -409,6 +409,6 @@ describe('POST /v1/api/alexa/smart_home', () => {
       .set('Authorization', accessToken)
       .expect('Content-Type', /json/)
       .expect(404);
-    expect(response.body).to.deep.equal({ code: 404, errorMessage: 'NO_INSTANCE_FOUND' });
+    expect(response.body).to.deep.equal({ error_code: 'NOT_FOUND', error_message: 'NO_INSTANCE_FOUND', status: 404 });
   });
 });

@@ -73,7 +73,7 @@ module.exports = function AlexaController(
       logger.error(req.body);
       logger.error(e);
 
-      return res.status(404).json(e);
+      throw e;
     }
   }
   /**

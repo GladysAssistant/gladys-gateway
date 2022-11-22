@@ -371,6 +371,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.enedisController.meteringDataDailyConsumption),
   );
+  app.post(
+    '/enedis/refresh_all',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.enedisController.refreshAllData),
+  );
 
   // Gladys version
   app.get(

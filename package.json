@@ -41,6 +41,7 @@
   "homepage": "https://github.com/gladysassistant/gladys-gateway#readme",
   "devDependencies": {
     "chai": "^4.2.0",
+    "chai-as-promised": "^7.1.1",
     "eslint": "^5.6.0",
     "eslint-config-airbnb-base": "^13.1.0",
     "eslint-plugin-import": "^2.16.0",
@@ -64,6 +65,7 @@
     "bluebird": "^3.5.3",
     "body-parser": "^1.18.3",
     "bottleneck": "^2.19.5",
+    "bullmq": "^3.2.2",
     "clone": "^2.1.2",
     "db-migrate": "^0.11.13",
     "db-migrate-pg": "^1.2.2",

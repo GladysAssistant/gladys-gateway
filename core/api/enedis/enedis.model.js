@@ -1,8 +1,6 @@
 const uuid = require('uuid');
 const axios = require('axios');
 const get = require('get-value');
-const Bottleneck = require('bottleneck');
-const retry = require('async-retry');
 
 const { ForbiddenError } = require('../../common/error');
 
@@ -11,13 +9,6 @@ const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 module.exports = function EnedisModel(logger, db, redisClient) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
     process.env;
-
-  const enedisApiLimiter = new Bottleneck({
-    // Enedis API is limited at 5 req/sec so we take
-    // a little margin and take 5 reqs per 5 * 210 = 1050 ms
-    maxConcurrent: 5,
-    minTime: 210,
-  });
 
   async function getRedirectUri() {
     const url = `https://${ENEDIS_BACKEND_URL}/dataconnect/v1/oauth2/authorize`;
@@ -152,49 +143,57 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     }
   }
 
-  async function makeRequest(url, query, accessToken) {
-    const options = {
-      method: 'GET',
-      params: query,
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      url: `https://${ENEDIS_BACKEND_URL}${url}`,
-    };
-    const { data } = await axios(options);
-    return data;
+  async function getDailyConsumption(instanceId, usagePointId, take, after) {
+    const getDailyConsumptions = `
+        SELECT t_enedis_daily_consumption.value, 
+        t_enedis_daily_consumption.created_at::text
+        FROM t_enedis_daily_consumption
+        INNER JOIN t_enedis_usage_point ON t_enedis_daily_consumption.usage_point_id = t_enedis_usage_point.usage_point_id
+        INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
+        WHERE t_instance.id = $1
+        AND t_enedis_daily_consumption.usage_point_id = $3
+        AND t_enedis_daily_consumption.created_at >= $5
+        ORDER BY created_at ASC
+        LIMIT $4;
+    `;
+    const dailyConsumptions = await db.query(getDailyConsumptions, [
+      instanceId,
+      ENEDIS_GRANT_CLIENT_ID,
+      usagePointId,
+      take,
+      after,
+    ]);
+
+    return dailyConsumptions;
   }
 
-  const makeRequestWithQueue = enedisApiLimiter.wrap(makeRequest);
+  async function getConsumptionLoadCurve(instanceId, usagePointId, take, after) {
+    const getConsumptionLoadCurveSql = `
+        SELECT t_enedis_consumption_load_curve.*
+        FROM t_enedis_consumption_load_curve
+        INNER JOIN t_enedis_usage_point ON t_enedis_consumption_load_curve.usage_point_id = t_enedis_usage_point.usage_point_id
+        INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
+        WHERE t_instance.id = $1
+        AND t_enedis_consumption_load_curve.usage_point_id = $3
+        AND t_enedis_consumption_load_curve.created_at >= $5
+        LIMIT $4;
+    `;
+    const dailyConsumptions = await db.query(getConsumptionLoadCurveSql, [
+      instanceId,
+      ENEDIS_GRANT_CLIENT_ID,
+      usagePointId,
+      take,
+      after,
+    ]);
 
-  const makeRequestWithQueueAndRetry = (url, query, accessToken) => {
-    // we retry failed (5xx)requests with an exponential backoff
-    const options = {
-      retries: 3,
-      factor: 2,
-      minTimeout: 200,
-    };
-    return retry(async (bail) => {
-      try {
-        const res = await makeRequestWithQueue(url, query, accessToken);
-        return res;
-      } catch (e) {
-        logger.warn(e);
-        // we only retry 5xx error
-        if (get(e, 'response.status') < 500) {
-          bail(e);
-          return null;
-        }
-        throw e;
-      }
-    }, options);
-  };
+    return dailyConsumptions;
+  }
 
   return {
-    makeRequest,
-    makeRequestWithQueueAndRetry,
     getAccessToken,
     handleAcceptGrantMessage,
     getRedirectUri,
+    getDailyConsumption,
+    getConsumptionLoadCurve,
   };
 };

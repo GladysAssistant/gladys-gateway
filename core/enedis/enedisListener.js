@@ -52,13 +52,16 @@ const initEnedisListener = async () => {
       password: process.env.REDIS_PASSWORD,
     },
   });
-  process.on('SIGINT', async () => {
+  const shutdown = async () => {
     await worker.close();
-  });
+  };
+  process.on('SIGINT', shutdown);
+  logger.info(`Enedis worker: listening!`);
   return {
     db,
     enedisModel,
     worker,
+    shutdown,
   };
 };
 

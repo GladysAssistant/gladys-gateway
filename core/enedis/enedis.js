@@ -26,6 +26,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     },
   });
 
+  // queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId: 'd35d2615-5a56-4aae-95a9-1b29a3b827ce' });
+
   async function saveEnedisAccessTokenAndRefreshToken(accountId, deviceId, data) {
     await redisClient.set(
       `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`,
@@ -101,7 +103,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       // if status is 400, token is invalid, revoke token
       if (get(e, 'response.status') === 400) {
         logger.warn(e);
-        await db.t_device.update(device.id, {
+        await db.t_device.update(device.device_id, {
           revoked: true,
         });
       }
@@ -171,6 +173,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return rows.map((row) => row.usage_point_id);
   }
   async function refreshAllData(job) {
+    logger.info(`Enedis: refreshing all data for user ${job.userId}`);
     // find account per user id
     const getAccountPerUserSql = `
       SELECT t_account.id
@@ -219,12 +222,14 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     });
   }
   async function enedisSyncData(job) {
+    // logger.debug(job);
     if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
-      await getDataDailyConsumption(job.account_id, job.usage_point_id, job.start, job.end);
+      return getDataDailyConsumption(job.data.account_id, job.data.usage_point_id, job.data.start, job.data.end);
     }
     if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
-      await refreshAllData(job);
+      return refreshAllData(job.data);
     }
+    return null;
   }
   return {
     queue,

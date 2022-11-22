@@ -11,6 +11,7 @@
     "prettier": "prettier --write core test index.js",
     "prettier-check": "prettier --check core test index.js",
     "start": "nodemon index.js",
+    "start-worker": "nodemon worker.js",
     "apidoc": "apidoc -i core/ -o apidoc/",
     "setup-db-dev": "db-migrate up -e dev",
     "setup-db-test": "db-migrate up -e test",

@@ -26,9 +26,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     },
   });
 
-  async function saveEnedisAccessTokenAndRefreshToken(instanceId, deviceId, data) {
+  async function saveEnedisAccessTokenAndRefreshToken(accountId, deviceId, data) {
     await redisClient.set(
-      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`,
+      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`,
       data.access_token,
       'EX',
       data.expires_in - 60, // We remove 1 minute to be safe
@@ -52,8 +52,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       },
     );
   }
-  async function getAccessToken(instanceId) {
-    const accessTokenInRedis = await redisClient.get(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`);
+  async function getAccessToken(accountId) {
+    const accessTokenInRedis = await redisClient.get(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`);
     if (accessTokenInRedis) {
       return accessTokenInRedis;
     }
@@ -62,13 +62,12 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         t_device.id as device_id, t_device.provider_refresh_token
         FROM t_user
         INNER JOIN t_device ON t_user.id = t_device.user_id
-        INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
-        WHERE t_instance.id = $1
+        WHERE t_user.account_id = $1
         AND t_device.revoked = false
         AND t_device.is_deleted = false
         AND t_device.client_id = $2;
     `;
-    const devices = await db.query(getDevicesWithEnedisActivated, [instanceId, ENEDIS_GRANT_CLIENT_ID]);
+    const devices = await db.query(getDevicesWithEnedisActivated, [accountId, ENEDIS_GRANT_CLIENT_ID]);
     if (devices.length === 0) {
       logger.warn(`Forbidden: Enedis Oauth process was not done`);
       throw new ForbiddenError();
@@ -89,7 +88,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     try {
       const { data } = await axios(options);
       // save new refresh token
-      await saveEnedisAccessTokenAndRefreshToken(instanceId, device.id, data);
+      await saveEnedisAccessTokenAndRefreshToken(accountId, device.id, data);
       // save usage points if not exist
       if (data.usage_points_id) {
         const usagePointsIds = data.usage_points_id.split(',');
@@ -123,9 +122,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const { data } = await axios(options);
     return data;
   }
-  async function getDataDailyConsumption(instanceId, usagePointId, start, end) {
+  async function getDataDailyConsumption(accountId, usagePointId, start, end) {
     logger.info(`Enedis - get data daily consumption for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
-    const accessToken = await getAccessToken(instanceId);
+    const accessToken = await getAccessToken(accountId);
     const data = {
       usage_point_id: usagePointId,
       start,
@@ -172,24 +171,22 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return rows.map((row) => row.usage_point_id);
   }
   async function refreshAllData(job) {
-    // find instance id per user id
-    const getInstanceIdSql = `
-      SELECT t_instance.id, t_instance.account_id
-      FROM t_instance
-      INNER JOIN t_account ON t_account.id = t_instance.account_id
+    // find account per user id
+    const getAccountPerUserSql = `
+      SELECT t_account.id
+      FROM t_account
       INNER JOIN t_user ON t_user.account_id = t_account.id
-      WHERE t_user.id = $1
-      AND t_instance.primary_instance = TRUE;
+      WHERE t_user.id = $1;
     `;
-    const rows = await db.query(getInstanceIdSql, [job.userId]);
+    const rows = await db.query(getAccountPerUserSql, [job.userId]);
     if (rows.length === 0) {
-      throw new NotFoundError('NO_INSTANCE_FOUND');
+      throw new NotFoundError('ACCOUNT_NOT_FOUND');
     }
-    const instance = rows[0];
+    const account = rows[0];
     // Get access token to eventuall refresh usage points ids
-    await getAccessToken(instance.id);
+    await getAccessToken(account.id);
     // Find all usage points
-    const usagePointIds = await getUsagePoints(instance.account_id);
+    const usagePointIds = await getUsagePoints(account.id);
 
     // Foreach usage points, we generate one job per request to make
     await Promise.each(usagePointIds, async (usagePointId) => {
@@ -215,6 +212,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         const toPublish = {
           usage_point_id: usagePointId,
           ...task,
+          account_id: account.id,
         };
         await queue.add(ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY, toPublish, BULLMQ_PUBLISH_JOB_OPTIONS);
       });
@@ -222,7 +220,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   }
   async function enedisSyncData(job) {
     if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
-      await getDataDailyConsumption(job.instance_id, job.usage_point_id, job.start, job.end);
+      await getDataDailyConsumption(job.account_id, job.usage_point_id, job.start, job.end);
     }
     if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
       await refreshAllData(job);

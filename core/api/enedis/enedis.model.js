@@ -63,7 +63,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     );
     // Clear Redis
     const getInstanceIdByUserId = `
-      SELECT t_instance.id
+      SELECT t_instance.id, t_instance.account_id
       FROM t_user
       INNER JOIN t_account ON t_account.id = t_user.account_id
       INNER JOIN t_instance ON t_instance.account_id = t_account.id
@@ -74,7 +74,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
     if (instances.length > 0) {
-      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].id}`);
+      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].account_id}`);
     }
     // Create a new device to store the refresh token
     const newDevice = {

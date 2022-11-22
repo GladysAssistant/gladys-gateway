@@ -111,7 +111,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
     const response = await enedisModel.getDataDailyConsumption(
-      '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
@@ -120,7 +120,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
     // second call: it'll get the access token from Redis
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
     const response2 = await enedisModel.getDataDailyConsumption(
-      '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
@@ -198,7 +198,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
     const response = enedisModel.getDataDailyConsumption(
-      '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
@@ -257,7 +257,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
     const response = enedisModel.getDataDailyConsumption(
-      '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,

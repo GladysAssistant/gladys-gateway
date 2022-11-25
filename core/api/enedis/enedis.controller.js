@@ -98,11 +98,22 @@ module.exports = function EnedisController(logger, enedisModel) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {post} /admin/api/enedis/daily_refresh Daily refresh for all users
+   * @apiName Daily refresh for all users
+   * @apiGroup Enedis
+   */
+  async function dailyRefreshForAllUsers(req, res) {
+    await enedisModel.dailyRefreshForAllUsers();
+    res.json({ success: true });
+  }
+
   return {
     finalize,
     meteringDataConsumptionLoadCurve,
     meteringDataDailyConsumption,
     initialize,
     refreshAllData,
+    dailyRefreshForAllUsers,
   };
 };

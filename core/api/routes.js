@@ -377,6 +377,13 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.enedisController.refreshAllData),
   );
 
+  // Admin API enedis daily refresh
+  app.post(
+    '/admin/api/enedis/daily_refresh',
+    middlewares.adminApiAuth,
+    controllers.enedisController.dailyRefreshForAllUsers,
+  );
+
   // Gladys version
   app.get(
     '/v1/api/gladys/version',

@@ -6,6 +6,7 @@ const {
   ENEDIS_WORKER_KEY,
   BULLMQ_PUBLISH_JOB_OPTIONS,
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+  ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
 } = require('../../enedis/enedis.constants');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
@@ -139,11 +140,16 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     await queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId }, BULLMQ_PUBLISH_JOB_OPTIONS);
   }
 
+  async function dailyRefreshForAllUsers() {
+    await queue.add(ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY, {}, BULLMQ_PUBLISH_JOB_OPTIONS);
+  }
+
   return {
     handleAcceptGrantMessage,
     getRedirectUri,
     getDailyConsumption,
     getConsumptionLoadCurve,
     refreshAlldata,
+    dailyRefreshForAllUsers,
   };
 };

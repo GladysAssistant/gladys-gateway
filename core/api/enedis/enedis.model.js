@@ -29,6 +29,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
       state: `${uuid.v4()}7`, // add a 7 for the sandbox
+      redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
     });
     return `${url}?${params.toString()}`;
   }

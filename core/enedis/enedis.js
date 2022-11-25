@@ -107,6 +107,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       }
       return data.access_token;
     } catch (e) {
+      logger.error(e);
       // if status is 400, token is invalid, revoke token
       if (get(e, 'response.status') === 400) {
         logger.warn(e);
@@ -250,7 +251,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     await getAccessToken(account.id);
     // Find all usage points
     const usagePointIds = await getUsagePoints(account.id);
-
+    logger.info(`Enedis: Found ${usagePointIds.length} usage points for user ${job.userId}`);
     // Foreach usage points, we generate one job per request to make
     await Promise.each(usagePointIds, async (usagePointId) => {
       const oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
@@ -304,30 +305,35 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     });
   }
   async function enedisSyncData(job) {
-    // logger.debug(job);
-    if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
-      return getDataDailyConsumption(
-        job.data.account_id,
-        job.data.usage_point_id,
-        job.data.start,
-        job.data.end,
-        job.data.sync_id,
-      );
-    }
-    if (job.name === ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY) {
-      return getConsumptionLoadCurve(
-        job.data.account_id,
-        job.data.usage_point_id,
-        job.data.start,
-        job.data.end,
-        job.data.sync_id,
-      );
-    }
-    if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
-      return refreshAllData(job.data);
-    }
-    if (job.name === ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY) {
-      return dailyRefreshOfAllUsers(job.data);
+    try {
+      // logger.debug(job);
+      if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
+        return getDataDailyConsumption(
+          job.data.account_id,
+          job.data.usage_point_id,
+          job.data.start,
+          job.data.end,
+          job.data.sync_id,
+        );
+      }
+      if (job.name === ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY) {
+        return getConsumptionLoadCurve(
+          job.data.account_id,
+          job.data.usage_point_id,
+          job.data.start,
+          job.data.end,
+          job.data.sync_id,
+        );
+      }
+      if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
+        return refreshAllData(job.data);
+      }
+      if (job.name === ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY) {
+        return dailyRefreshOfAllUsers(job.data);
+      }
+    } catch (e) {
+      logger.error(e);
+      throw e;
     }
     return null;
   }

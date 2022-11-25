@@ -131,7 +131,16 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const { data } = await axios(options);
     return data;
   }
-  async function getDataDailyConsumption(accountId, usagePointId, start, end) {
+  async function increaseSyncJobDone(syncId) {
+    const updateSyncQuery = `
+      UPDATE t_enedis_sync
+      SET jobs_done = jobs_done + 1, 
+      updated_at = NOW()
+      WHERE id = $1;
+    `;
+    await db.query(updateSyncQuery, [syncId]);
+  }
+  async function getDataDailyConsumption(accountId, usagePointId, start, end, syncId) {
     logger.info(`Enedis - get data daily consumption for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
     const accessToken = await getAccessToken(accountId);
     const data = {
@@ -168,9 +177,10 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         },
       );
     });
+    await increaseSyncJobDone(syncId);
     return response;
   }
-  async function getConsumptionLoadCurve(accountId, usagePointId, start, end) {
+  async function getConsumptionLoadCurve(accountId, usagePointId, start, end, syncId) {
     logger.info(`Enedis - get consumption load curve for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
     const accessToken = await getAccessToken(accountId);
     const data = {
@@ -208,6 +218,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         },
       );
     });
+
+    await increaseSyncJobDone(syncId);
+
     return response;
   }
   async function getUsagePoints(accountId) {
@@ -257,14 +270,20 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         currendEndDate = startDate;
       }
       syncTasksArray.reverse();
+      const syncInserted = await db.t_enedis_sync.insert({
+        usage_point_id: usagePointId,
+        jobs_total: syncTasksArray.length * 2,
+      });
       // We publish one BullMQ job per request
       await Promise.each(syncTasksArray, async (task) => {
         const toPublish = {
           usage_point_id: usagePointId,
           ...task,
           account_id: account.id,
+          sync_id: syncInserted.id,
         };
         await queue.add(ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY, toPublish, BULLMQ_PUBLISH_JOB_OPTIONS);
+        await queue.add(ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY, toPublish, BULLMQ_PUBLISH_JOB_OPTIONS);
       });
     });
   }
@@ -287,10 +306,22 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   async function enedisSyncData(job) {
     // logger.debug(job);
     if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
-      return getDataDailyConsumption(job.data.account_id, job.data.usage_point_id, job.data.start, job.data.end);
+      return getDataDailyConsumption(
+        job.data.account_id,
+        job.data.usage_point_id,
+        job.data.start,
+        job.data.end,
+        job.data.sync_id,
+      );
     }
     if (job.name === ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY) {
-      return getConsumptionLoadCurve(job.data.account_id, job.data.usage_point_id, job.data.start, job.data.end);
+      return getConsumptionLoadCurve(
+        job.data.account_id,
+        job.data.usage_point_id,
+        job.data.start,
+        job.data.end,
+        job.data.sync_id,
+      );
     }
     if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
       return refreshAllData(job.data);

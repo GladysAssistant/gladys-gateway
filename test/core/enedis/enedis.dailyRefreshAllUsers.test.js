@@ -12,7 +12,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     ({ enedisModel, shutdown } = await initEnedisListener());
     await shutdown();
   });
-  it('should publish 1 job', async () => {
+  it('should publish 2 jobs', async () => {
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .post('/oauth2/v3/token', (body) => {
@@ -63,7 +63,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
       });
     await enedisModel.dailyRefreshOfAllUsers();
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 1, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process
@@ -119,6 +119,6 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
       data: {},
     });
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 1, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
   });
 });

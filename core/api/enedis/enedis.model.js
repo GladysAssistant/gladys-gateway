@@ -136,6 +136,22 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return dailyConsumptions;
   }
 
+  async function getEnedisSync(userId, take = 10) {
+    const getEnedisSyncSql = `
+        SELECT es.*
+        FROM t_user u
+        INNER JOIN t_account a ON a.id = u.account_id
+        INNER JOIN t_enedis_usage_point eup ON eup.account_id = a.id
+        INNER JOIN t_enedis_sync es ON es.usage_point_id = eup.usage_point_id
+        WHERE u.id = $1
+        ORDER BY es.created_at DESC
+        LIMIT $2
+    `;
+    const enedisSync = await db.query(getEnedisSyncSql, [userId, take]);
+
+    return enedisSync;
+  }
+
   async function refreshAlldata(userId) {
     await queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId }, BULLMQ_PUBLISH_JOB_OPTIONS);
   }
@@ -151,5 +167,6 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     getConsumptionLoadCurve,
     refreshAlldata,
     dailyRefreshForAllUsers,
+    getEnedisSync,
   };
 };

@@ -8,8 +8,9 @@ describe('EnedisWorker.refreshAllData', function Describe() {
   this.timeout(5000);
   let enedisModel;
   let shutdown;
+  let db;
   before(async () => {
-    ({ enedisModel, shutdown } = await initEnedisListener());
+    ({ enedisModel, shutdown, db } = await initEnedisListener());
     await shutdown();
   });
   it('should publish one job per week', async () => {
@@ -63,7 +64,20 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       });
     await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 105, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 210, completed: 0, failed: 0 });
+    const syncs = await db.t_enedis_sync.find(
+      {},
+      {
+        fields: ['usage_point_id', 'jobs_done', 'jobs_total'],
+      },
+    );
+    expect(syncs).to.deep.equal([
+      {
+        usage_point_id: '16401220101758',
+        jobs_done: 0,
+        jobs_total: 210,
+      },
+    ]);
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process
@@ -119,6 +133,6 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       data: { userId: '29770e0d-26a9-444e-91a1-f175c99a5218' },
     });
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 105, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 210, completed: 0, failed: 0 });
   });
 });

@@ -89,6 +89,16 @@ module.exports = function EnedisController(logger, enedisModel) {
   }
 
   /**
+   * @api {get} /enedis/sync Get user sync
+   * @apiName Get user sync
+   * @apiGroup Enedis
+   */
+  async function getEnedisSync(req, res) {
+    const syncs = await enedisModel.getEnedisSync(req.user.id, req.query.take);
+    res.json(syncs);
+  }
+
+  /**
    * @api {post} /enedis/refresh_all Refresh all data
    * @apiName Refresh all data
    * @apiGroup Enedis
@@ -115,5 +125,6 @@ module.exports = function EnedisController(logger, enedisModel) {
     initialize,
     refreshAllData,
     dailyRefreshForAllUsers,
+    getEnedisSync,
   };
 };

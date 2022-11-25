@@ -110,11 +110,21 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
 
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
+
+    // Refresh the usage point id
+    await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
+
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 2,
+    });
+
     const response = await enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
+      createdSync.id,
     );
     expect(response).to.deep.equal(data);
     // second call: it'll get the access token from Redis
@@ -124,6 +134,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
+      createdSync.id,
     );
     expect(response2).to.deep.equal(data);
     const consumptionLoadCurve = await db.t_enedis_consumption_load_curve.find(
@@ -145,6 +156,10 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       { usage_point_id: '16401220101758', value: 200, created_at: new Date('2022-08-01T22:30:00.000Z') },
       { usage_point_id: '16401220101758', value: 300, created_at: new Date('2022-08-02T23:00:00.000Z') },
     ]);
+    const syncUpdated = await db.t_enedis_sync.findOne({
+      usage_point_id: '16401220101758',
+    });
+    expect(syncUpdated).to.have.property('jobs_done', 2);
   });
   it('should play jobs and return enedis data', async () => {
     // First, finalize Enedis Oauth process
@@ -199,10 +214,20 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
 
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
+
+    // Refresh the usage point id
+    await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
+
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 2,
+    });
+
     await enedisModel.enedisSyncData({
       name: 'consumption-load-curve',
       data: {
         account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+        sync_id: createdSync.id,
         ...queryParams,
       },
     });
@@ -277,11 +302,21 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
+
+    // Refresh the usage point id
+    await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
+
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 2,
+    });
+
     const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
+      createdSync.id,
     );
     await assert.isRejected(response, 'Request failed with status code 403');
   });
@@ -336,11 +371,21 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
+
+    // Refresh the usage point id
+    await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
+
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 2,
+    });
+
     const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
+      createdSync.id,
     );
     await assert.isRejected(response, 'Request failed with status code 400');
   });
@@ -389,6 +434,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
+      'useless-id-because-we-will-not-reach-this-stage',
     );
     await assert.isRejected(response, 'Request failed with status code 400');
     const device = await db.t_device.findOne({

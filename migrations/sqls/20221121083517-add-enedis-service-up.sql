@@ -34,3 +34,18 @@ CREATE UNIQUE INDEX idx_unique_enedis_daily_consumption ON t_enedis_daily_consum
 ALTER TABLE ONLY t_enedis_daily_consumption
     ADD CONSTRAINT fk_t_enedis_daily_consumption__usage_point_id_t_enedis_usage_point FOREIGN KEY (usage_point_id) REFERENCES t_enedis_usage_point (usage_point_id);
 
+CREATE TABLE t_enedis_sync (
+    id uuid DEFAULT uuid_generate_v4 () NOT NULL,
+    usage_point_id character varying(255) NOT NULL,
+    jobs_done integer NOT NULL DEFAULT 0,
+    jobs_total integer NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+);
+
+ALTER TABLE ONLY t_enedis_sync
+    ADD CONSTRAINT t_enedis_sync_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY t_enedis_sync
+    ADD CONSTRAINT fk_t_enedis_sync__usage_point_id_t_enedis_usage_point FOREIGN KEY (usage_point_id) REFERENCES t_enedis_usage_point (usage_point_id);
+

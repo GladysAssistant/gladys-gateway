@@ -376,6 +376,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.enedisController.refreshAllData),
   );
+  app.get(
+    '/enedis/sync',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    asyncMiddleware(controllers.enedisController.getEnedisSync),
+  );
 
   // Admin API enedis daily refresh
   app.post(

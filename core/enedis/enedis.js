@@ -3,11 +3,18 @@ const get = require('get-value');
 const Promise = require('bluebird');
 const dayjs = require('dayjs');
 const { Queue } = require('bullmq');
+const utc = require('dayjs/plugin/utc');
+const timezone = require('dayjs/plugin/timezone');
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const { ForbiddenError, NotFoundError } = require('../common/error');
 const {
   ENEDIS_WORKER_KEY,
   ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY,
+  ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY,
+  ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
   BULLMQ_PUBLISH_JOB_OPTIONS,
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
 } = require('./enedis.constants');
@@ -85,7 +92,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       data: params,
-      url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
+      url: `https://${ENEDIS_BACKEND_URL}/oauth2/v3/token`,
     };
     try {
       const { data } = await axios(options);
@@ -134,7 +141,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/v4/metering_data/daily_consumption', data, accessToken);
+      response = await makeRequest('/daily_consumption', data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -152,6 +159,46 @@ module.exports = function EnedisModel(logger, db, redisClient) {
           usage_point_id: usagePointId,
           value: reading.value,
           created_at: reading.date,
+        },
+        {
+          onConflict: {
+            target: ['usage_point_id', 'created_at'],
+            action: 'update',
+          },
+        },
+      );
+    });
+    return response;
+  }
+  async function getConsumptionLoadCurve(accountId, usagePointId, start, end) {
+    logger.info(`Enedis - get consumption load curve for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
+    const accessToken = await getAccessToken(accountId);
+    const data = {
+      usage_point_id: usagePointId,
+      start,
+      end,
+    };
+    let response;
+    try {
+      response = await makeRequest('/consumption_load_curve', data, accessToken);
+    } catch (e) {
+      // if the response is 404 not found
+      // It just mean the user has no data at this period so it's fine
+      if (get(e, 'response.status') === 404) {
+        return null;
+      }
+      // Else, it's a problem, we exit to be replayed
+      throw e;
+    }
+
+    // Foreach data points, we insert in DB if not exist
+    await Promise.each(response.meter_reading.interval_reading, async (reading) => {
+      await db.t_enedis_consumption_load_curve.insert(
+        {
+          usage_point_id: usagePointId,
+          value: reading.value,
+          // Enedis integration is for french users, so timezone is always french one
+          created_at: dayjs.tz(reading.date, 'Europe/Paris'),
         },
         {
           onConflict: {
@@ -193,15 +240,15 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
     // Foreach usage points, we generate one job per request to make
     await Promise.each(usagePointIds, async (usagePointId) => {
-      const twoYearAgo = dayjs().subtract(2, 'years');
+      const oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
 
       let currendEndDate = dayjs();
       const syncTasksArray = [];
 
-      while (currendEndDate > twoYearAgo) {
+      while (currendEndDate > oldestDate) {
         let startDate = currendEndDate.subtract(7, 'days');
-        if (startDate < twoYearAgo) {
-          startDate = twoYearAgo;
+        if (startDate < oldestDate) {
+          startDate = oldestDate;
         }
         syncTasksArray.push({
           start: startDate.format('YYYY-MM-DD'),
@@ -221,13 +268,35 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       });
     });
   }
+  async function dailyRefreshOfAllUsers() {
+    const getAllUsersWithEnedisSql = `
+        SELECT DISTINCT t_user.id
+        FROM t_user
+        INNER JOIN t_device ON t_user.id = t_device.user_id
+        WHERE t_device.revoked = false
+        AND t_device.is_deleted = false
+        AND t_device.client_id = $1;
+    `;
+    const usersToRefresh = await db.query(getAllUsersWithEnedisSql, [ENEDIS_GRANT_CLIENT_ID]);
+    const twoDaysAgo = dayjs().subtract(2, 'day');
+    logger.info(`Enedis: Daily refresh of all users. Refreshing ${usersToRefresh.length} users`);
+    await Promise.each(usersToRefresh, async (userToRefresh) => {
+      await refreshAllData({ userId: userToRefresh.id, start: twoDaysAgo });
+    });
+  }
   async function enedisSyncData(job) {
     // logger.debug(job);
     if (job.name === ENEDIS_GET_DAILY_CONSUMPTION_JOB_KEY) {
       return getDataDailyConsumption(job.data.account_id, job.data.usage_point_id, job.data.start, job.data.end);
     }
+    if (job.name === ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY) {
+      return getConsumptionLoadCurve(job.data.account_id, job.data.usage_point_id, job.data.start, job.data.end);
+    }
     if (job.name === ENEDIS_REFRESH_ALL_DATA_JOB_KEY) {
       return refreshAllData(job.data);
+    }
+    if (job.name === ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY) {
+      return dailyRefreshOfAllUsers(job.data);
     }
     return null;
   }
@@ -236,7 +305,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     makeRequest,
     getAccessToken,
     getDataDailyConsumption,
+    getConsumptionLoadCurve,
     enedisSyncData,
     refreshAllData,
+    dailyRefreshOfAllUsers,
   };
 };

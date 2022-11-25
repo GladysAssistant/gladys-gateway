@@ -24,19 +24,19 @@ const data = {
     interval_reading: [
       {
         value: '100',
-        date: '2022-08-01',
+        date: '2022-08-01 00:00:00',
         interval_length: 'PT30M',
         measure_type: 'B',
       },
       {
         value: '200',
-        date: '2022-08-02',
+        date: '2022-08-02 00:30:00',
         interval_length: 'PT30M',
         measure_type: 'B',
       },
       {
         value: '300',
-        date: '2022-08-03',
+        date: '2022-08-03 01:00:00',
         interval_length: 'PT30M',
         measure_type: 'B',
       },
@@ -44,9 +44,9 @@ const data = {
   },
 };
 
-const enedisRoute = '/daily_consumption';
+const enedisRoute = '/consumption_load_curve';
 
-describe('EnedisWorker.getDataDailyConsumption', function Describe() {
+describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
   this.timeout(5000);
   let enedisModel;
   let db;
@@ -110,7 +110,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
 
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
-    const response = await enedisModel.getDataDailyConsumption(
+    const response = await enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
@@ -119,19 +119,19 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
     expect(response).to.deep.equal(data);
     // second call: it'll get the access token from Redis
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
-    const response2 = await enedisModel.getDataDailyConsumption(
+    const response2 = await enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
       queryParams.end,
     );
     expect(response2).to.deep.equal(data);
-    const dailyConsumptions = await db.t_enedis_daily_consumption.find(
+    const consumptionLoadCurve = await db.t_enedis_consumption_load_curve.find(
       {
         usage_point_id: queryParams.usage_point_id,
       },
       {
-        fields: ['usage_point_id', 'value'],
+        fields: ['usage_point_id', 'value', 'created_at'],
         order: [
           {
             field: 'created_at',
@@ -140,10 +140,10 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
         ],
       },
     );
-    expect(dailyConsumptions).to.deep.equal([
-      { usage_point_id: '16401220101758', value: 100 },
-      { usage_point_id: '16401220101758', value: 200 },
-      { usage_point_id: '16401220101758', value: 300 },
+    expect(consumptionLoadCurve).to.deep.equal([
+      { usage_point_id: '16401220101758', value: 100, created_at: new Date('2022-07-31T22:00:00.000Z') },
+      { usage_point_id: '16401220101758', value: 200, created_at: new Date('2022-08-01T22:30:00.000Z') },
+      { usage_point_id: '16401220101758', value: 300, created_at: new Date('2022-08-02T23:00:00.000Z') },
     ]);
   });
   it('should play jobs and return enedis data', async () => {
@@ -200,18 +200,18 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
     await enedisModel.enedisSyncData({
-      name: 'daily-consumption',
+      name: 'consumption-load-curve',
       data: {
         account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
         ...queryParams,
       },
     });
-    const dailyConsumptions = await db.t_enedis_daily_consumption.find(
+    const consumptionLoadCurve = await db.t_enedis_consumption_load_curve.find(
       {
         usage_point_id: queryParams.usage_point_id,
       },
       {
-        fields: ['usage_point_id', 'value'],
+        fields: ['usage_point_id', 'value', 'created_at'],
         order: [
           {
             field: 'created_at',
@@ -220,10 +220,10 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
         ],
       },
     );
-    expect(dailyConsumptions).to.deep.equal([
-      { usage_point_id: '16401220101758', value: 100 },
-      { usage_point_id: '16401220101758', value: 200 },
-      { usage_point_id: '16401220101758', value: 300 },
+    expect(consumptionLoadCurve).to.deep.equal([
+      { usage_point_id: '16401220101758', value: 100, created_at: new Date('2022-07-31T22:00:00.000Z') },
+      { usage_point_id: '16401220101758', value: 200, created_at: new Date('2022-08-01T22:30:00.000Z') },
+      { usage_point_id: '16401220101758', value: 300, created_at: new Date('2022-08-02T23:00:00.000Z') },
     ]);
   });
   it('should return 403', async () => {
@@ -277,7 +277,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
-    const response = enedisModel.getDataDailyConsumption(
+    const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
@@ -336,7 +336,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
-    const response = enedisModel.getDataDailyConsumption(
+    const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,
@@ -384,7 +384,7 @@ describe('EnedisWorker.getDataDailyConsumption', function Describe() {
         return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
       })
       .reply(400);
-    const response = enedisModel.getDataDailyConsumption(
+    const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,
       queryParams.start,

@@ -23,12 +23,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   });
 
   async function getRedirectUri() {
-    const url = `https://${ENEDIS_BACKEND_URL}/dataconnect/v1/oauth2/authorize`;
+    const url = `https://${ENEDIS_BACKEND_URL}/oauth2/v3/authorize`;
     const params = new URLSearchParams({
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
       state: `${uuid.v4()}7`, // add a 7 for the sandbox
-      duration: 'P3Y',
     });
     return `${url}?${params.toString()}`;
   }
@@ -45,7 +44,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       data: params,
-      url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
+      url: `https://${ENEDIS_BACKEND_URL}/oauth2/v3/token`,
     };
     const { data } = await axios(options);
     // Delete all devices that could exist prior to this operation

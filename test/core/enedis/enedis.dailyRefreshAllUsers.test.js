@@ -4,7 +4,7 @@ const nock = require('nock');
 const configTest = require('../../tasks/config');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
-describe('EnedisWorker.refreshAllData', function Describe() {
+describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
   this.timeout(5000);
   let enedisModel;
   let shutdown;
@@ -12,7 +12,7 @@ describe('EnedisWorker.refreshAllData', function Describe() {
     ({ enedisModel, shutdown } = await initEnedisListener());
     await shutdown();
   });
-  it('should publish one job per week', async () => {
+  it('should publish 1 job', async () => {
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .post('/oauth2/v3/token', (body) => {
@@ -61,9 +61,9 @@ describe('EnedisWorker.refreshAllData', function Describe() {
         usage_points_id: '16401220101758',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
-    await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
+    await enedisModel.dailyRefreshOfAllUsers();
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 105, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 1, completed: 0, failed: 0 });
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process
@@ -115,10 +115,10 @@ describe('EnedisWorker.refreshAllData', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     await enedisModel.enedisSyncData({
-      name: 'refresh-all-data',
-      data: { userId: '29770e0d-26a9-444e-91a1-f175c99a5218' },
+      name: 'daily-refresh-all-users',
+      data: {},
     });
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 105, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 1, completed: 0, failed: 0 });
   });
 });

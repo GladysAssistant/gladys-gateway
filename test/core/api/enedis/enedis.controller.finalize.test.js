@@ -6,7 +6,7 @@ const configTest = require('../../../tasks/config');
 describe('POST /enedis/finalize', () => {
   it('should save refresh token in DB and return list of usage_points_id', async () => {
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/v1/oauth2/token', (body) => {
+      .post('/oauth2/v3/token', (body) => {
         const grandTypeValid = body.grant_type === 'authorization_code';
         const codeValid = body.code === 'someAuthCode';
         const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
@@ -39,7 +39,7 @@ describe('POST /enedis/finalize', () => {
   });
   it('should not save refresh token in DB, invalid code', async () => {
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/v1/oauth2/token', (body) => {
+      .post('/oauth2/v3/token', (body) => {
         const grandTypeValid = body.grant_type === 'authorization_code';
         const codeValid = body.code === 'someAuthCode';
         const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
@@ -59,7 +59,7 @@ describe('POST /enedis/finalize', () => {
   });
   it('should return 500 internal server error', async () => {
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/v1/oauth2/token', (body) => {
+      .post('/oauth2/v3/token', (body) => {
         const grandTypeValid = body.grant_type === 'authorization_code';
         const codeValid = body.code === 'someAuthCode';
         const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;

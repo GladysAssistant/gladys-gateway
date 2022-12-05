@@ -1,3 +1,5 @@
+/* eslint-disable max-classes-per-file */
+
 class NotFoundError extends Error {
   constructor(errorMessage) {
     super(errorMessage);

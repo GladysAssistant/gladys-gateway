@@ -1,14 +1,14 @@
 let databaseTask;
 let redisTask;
 const should = require('should'); // eslint-disable-line no-unused-vars
-require('./tasks/nock.js');
+require('./tasks/nock');
 const Dotenv = require('dotenv');
 
 Dotenv.config();
 
-const server = require('../core/index.js');
-const DatabaseTask = require('./tasks/database.js');
-const RedisTask = require('./tasks/redis.js');
+const server = require('../core/index');
+const DatabaseTask = require('./tasks/database');
+const RedisTask = require('./tasks/redis');
 
 before(async function Before() {
   this.timeout(10000);

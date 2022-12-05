@@ -24,12 +24,12 @@ const Invitation = require('./api/invitation/invitation.model');
 const Account = require('./api/account/account.model');
 const Device = require('./api/device/device.model');
 const Admin = require('./api/admin/admin.models');
-const OpenApi = require('./api/openapi/openapi.model.js');
-const Version = require('./api/version/version.model.js');
+const OpenApi = require('./api/openapi/openapi.model');
+const Version = require('./api/version/version.model');
 const Backup = require('./api/backup/backup.model');
-const StatModel = require('./api/stat/stat.model.js');
-const GoogleModel = require('./api/google/google.model.js');
-const AlexaModel = require('./api/alexa/alexa.model.js');
+const StatModel = require('./api/stat/stat.model');
+const GoogleModel = require('./api/google/google.model');
+const AlexaModel = require('./api/alexa/alexa.model');
 const EnedisModel = require('./api/enedis/enedis.model');
 
 // Controllers
@@ -55,7 +55,7 @@ const AccessTokenAuthMiddleware = require('./middleware/accessTokenAuth');
 const RefreshTokenAuthMiddleware = require('./middleware/refreshTokenAuth');
 const RefreshTokenInstanceAuthMiddleware = require('./middleware/refreshTokenInstanceAuth');
 const AccessTokenInstanceAuthMiddleware = require('./middleware/accessTokenInstanceAuth');
-const ErrorMiddleware = require('./middleware/errorMiddleware.js');
+const ErrorMiddleware = require('./middleware/errorMiddleware');
 const RateLimiterMiddleware = require('./middleware/rateLimiter');
 const IsSuperAdminMiddleware = require('./middleware/isSuperAdmin');
 const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');

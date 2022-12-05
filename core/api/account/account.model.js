@@ -562,13 +562,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     };
   }
 
-  async function createBillingPortalSession(stripePortalKey) {
+  async function createBillingPortalSession(stripePortalKey, geo) {
     const account = await db.t_account.findOne({
       stripe_portal_key: stripePortalKey,
     });
     if (account === null) {
       throw new NotFoundError('Account not found');
     }
+    telegramService.sendAlert(`Customer opening billing portal, email = ${account.name}, country = ${geo?.country}`);
     return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 

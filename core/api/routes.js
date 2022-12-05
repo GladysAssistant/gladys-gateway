@@ -1,8 +1,8 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
 const beforeSendSentry = require('../service/beforeSendSentry');
-const asyncMiddleware = require('../middleware/asyncMiddleware.js');
-const { NotFoundError } = require('../common/error.js');
+const asyncMiddleware = require('../middleware/asyncMiddleware');
+const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
   // the gateway is behing a proxy

@@ -1,3 +1,5 @@
+const geoip = require('geoip-lite');
+
 module.exports = function InvitationController(invitationModel) {
   /**
    * @api {post} /invitations Send invitation
@@ -50,7 +52,8 @@ module.exports = function InvitationController(invitationModel) {
    * }
    */
   async function accept(req, res, next) {
-    await invitationModel.accept(req.body);
+    const geo = geoip.lookup(req.ip);
+    await invitationModel.accept(req.body, geo);
 
     res.status(201).json({
       status: 201,

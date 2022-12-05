@@ -1,4 +1,4 @@
-const asyncMiddleware = require('./asyncMiddleware.js');
+const asyncMiddleware = require('./asyncMiddleware');
 
 module.exports = function RequestExecutionTime(logger, analyticsService) {
   return asyncMiddleware(async (req, res, next) => {

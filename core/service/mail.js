@@ -1,6 +1,6 @@
 const Promise = require('bluebird');
 const nodemailer = require('nodemailer');
-const emails = require('../common/email.js');
+const emails = require('../common/email');
 
 const SUPPORTED_LANGUAGE = ['en', 'fr'];
 

@@ -92,7 +92,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
     return invitation;
   }
 
-  async function accept(dataParam) {
+  async function accept(dataParam, geo) {
     const data = dataParam;
     const tokenHash = crypto.createHash('sha256').update(data.token).digest('hex');
 
@@ -121,7 +121,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       throw new ValidationError('user', error);
     }
 
-    telegramService.sendAlert(`User ${data.email} is accepting the invitation`);
+    telegramService.sendAlert(`User ${data.email} is accepting the invitation, country = ${geo?.country}`);
 
     return db.withTransaction(async (tx) => {
       // email of the user is already confirmed as he clicked on the link in his email

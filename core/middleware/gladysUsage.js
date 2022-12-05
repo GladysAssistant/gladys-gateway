@@ -1,6 +1,6 @@
 const geoip = require('geoip-lite');
 const get = require('get-value');
-const asyncMiddleware = require('./asyncMiddleware.js');
+const asyncMiddleware = require('./asyncMiddleware');
 
 module.exports = function GladysUsage(logger, db) {
   return asyncMiddleware(async (req, res, next) => {

@@ -3,8 +3,8 @@ const aws = require('aws-sdk');
 const Promise = require('bluebird');
 const uuid = require('uuid');
 
-const asyncMiddleware = require('../../middleware/asyncMiddleware.js');
-const { BadRequestError } = require('../../common/error.js');
+const asyncMiddleware = require('../../middleware/asyncMiddleware');
+const { BadRequestError } = require('../../common/error');
 
 aws.config.update({
   signatureVersion: 'v4',

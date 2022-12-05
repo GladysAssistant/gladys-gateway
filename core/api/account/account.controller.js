@@ -1,3 +1,5 @@
+const geoip = require('geoip-lite');
+
 module.exports = function AccountController(accountModel, socketModel) {
   /**
    * @api {get} /accounts/users Get users
@@ -226,7 +228,8 @@ module.exports = function AccountController(accountModel, socketModel) {
    * HTTP/1.1 302 REDIRECT
    */
   async function redirectToStripeCustomerPortal(req, res, next) {
-    const url = await accountModel.createBillingPortalSession(req.params.stripe_portal_key);
+    const geo = geoip.lookup(req.ip);
+    const url = await accountModel.createBillingPortalSession(req.params.stripe_portal_key, geo);
     res.redirect(url);
   }
 

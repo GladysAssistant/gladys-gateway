@@ -1,5 +1,5 @@
 const { UnauthorizedError } = require('../common/error');
-const asyncMiddleware = require('./asyncMiddleware.js');
+const asyncMiddleware = require('./asyncMiddleware');
 
 module.exports = function IsSuperAdmin(logger) {
   return asyncMiddleware((req, res, next) => {

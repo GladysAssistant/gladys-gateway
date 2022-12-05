@@ -15,12 +15,6 @@ const ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'alexa-grant-access-token:';
 const JWT_AUDIENCE = 'alexa-oauth';
 const SCOPE = ['alexa'];
 
-const cleanNullProperties = (obj) =>
-  Object.entries(obj)
-    .map(([k, v]) => [k, v && typeof v === 'object' ? cleanNullProperties(v) : v])
-    // eslint-disable-next-line
-    .reduce((a, [k, v]) => (v == null ? a : ((a[k] = v), a)), {});
-
 module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   const { ALEXA_OAUTH_CLIENT_ID } = process.env;
 

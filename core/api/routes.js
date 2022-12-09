@@ -50,6 +50,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // stats
   app.get('/stats', asyncMiddleware(controllers.statController.getStats));
 
+  // ecowatt api
+  app.get('/ecowatt/v4/signals', asyncMiddleware(controllers.ecowattController.getEcowattSignals));
+
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
   app.post('/users/verify', middlewares.rateLimiter, asyncMiddleware(controllers.userController.confirmEmail));

@@ -31,6 +31,7 @@ const StatModel = require('./api/stat/stat.model');
 const GoogleModel = require('./api/google/google.model');
 const AlexaModel = require('./api/alexa/alexa.model');
 const EnedisModel = require('./api/enedis/enedis.model');
+const EcowattModel = require('./api/ecowatt/ecowatt.model');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -48,6 +49,7 @@ const StatController = require('./api/stat/stat.controller');
 const GoogleController = require('./api/google/google.controller');
 const AlexaController = require('./api/alexa/alexa.controller');
 const EnedisController = require('./api/enedis/enedis.controller');
+const EcowattController = require('./api/ecowatt/ecowatt.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -168,6 +170,7 @@ module.exports = async (port) => {
     googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
     alexaModel: AlexaModel(logger, db, redisClient, services.jwtService),
     enedisModel: EnedisModel(logger, db, redisClient),
+    ecowattModel: EcowattModel(logger, redisClient),
   };
 
   const controllers = {
@@ -202,6 +205,7 @@ module.exports = async (port) => {
       services.analyticsService,
     ),
     enedisController: EnedisController(logger, models.enedisModel),
+    ecowattController: EcowattController(logger, models.ecowattModel),
   };
 
   const middlewares = {

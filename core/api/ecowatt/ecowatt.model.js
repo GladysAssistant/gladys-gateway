@@ -24,7 +24,7 @@ module.exports = function EcowattModel(logger, redisClient) {
       return dataFromCache;
     }
     // Get data live
-    const { data: dataToken } = await axios.post('https://digital.iservices.rte-france.com/token/oauth/', {
+    const { data: dataToken } = await axios.post('https://digital.iservices.rte-france.com/token/oauth/', null, {
       headers: {
         authorization: `Basic ${ECOWATT_BASIC_HTTP}`,
       },

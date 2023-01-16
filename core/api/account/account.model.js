@@ -63,8 +63,8 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripeService.getCustomer(session.customer),
     ]);
 
-    // we update the tax rate
-    await stripeService.addTaxRate(subscription.id);
+    // we update the tax rate - Not needed anymore
+    // await stripeService.addTaxRate(subscription.id);
 
     const { email } = customer;
 

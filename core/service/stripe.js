@@ -29,7 +29,7 @@ module.exports = function StripeService(logger) {
     // subscribe customer to monthly plan
     const result = await stripe.subscriptions.create({
       customer: stripeCustomerId,
-      default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
+      // default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
       items: [
         {
           plan: process.env.STRIPE_MONTHLY_PLAN_ID,
@@ -114,7 +114,7 @@ module.exports = function StripeService(logger) {
     return stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       subscription_data: {
-        default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
+        // default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
         items: [
           {
             plan: process.env.STRIPE_MONTHLY_PLAN_ID,

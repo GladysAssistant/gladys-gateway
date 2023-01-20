@@ -47,20 +47,6 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       provider_refresh_token: data.refresh_token,
     });
   }
-  async function saveUsagePointIfNotExist(accountId, usagePointId) {
-    await db.t_enedis_usage_point.insert(
-      {
-        account_id: accountId,
-        usage_point_id: usagePointId,
-      },
-      {
-        onConflict: {
-          target: ['usage_point_id'],
-          action: 'ignore',
-        },
-      },
-    );
-  }
   async function getAccessToken(accountId) {
     const accessTokenInRedis = await redisClient.get(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`);
     if (accessTokenInRedis) {
@@ -98,13 +84,6 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       const { data } = await axios(options);
       // save new refresh token
       await saveEnedisAccessTokenAndRefreshToken(accountId, device.id, data);
-      // save usage points if not exist
-      if (data.usage_points_id) {
-        const usagePointsIds = data.usage_points_id.split(',');
-        await Promise.each(usagePointsIds, async (usagePointId) => {
-          await saveUsagePointIfNotExist(device.account_id, usagePointId);
-        });
-      }
       return data.access_token;
     } catch (e) {
       logger.error(e);
@@ -158,6 +137,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       if (get(e, 'response.status') === 404) {
         return null;
       }
+      logger.error(e);
       // Else, it's a problem, we exit to be replayed
       throw e;
     }

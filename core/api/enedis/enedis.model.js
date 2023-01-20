@@ -1,6 +1,7 @@
 const uuid = require('uuid');
 const axios = require('axios');
 const { Queue } = require('bullmq');
+const Promise = require('bluebird');
 
 const {
   ENEDIS_WORKER_KEY,
@@ -34,7 +35,22 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return `${url}?${params.toString()}`;
   }
 
-  async function handleAcceptGrantMessage(authorizationCode, user) {
+  async function saveUsagePointIfNotExist(accountId, usagePointId) {
+    await db.t_enedis_usage_point.insert(
+      {
+        account_id: accountId,
+        usage_point_id: usagePointId,
+      },
+      {
+        onConflict: {
+          target: ['usage_point_id'],
+          action: 'ignore',
+        },
+      },
+    );
+  }
+
+  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
     logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
@@ -74,9 +90,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
+
     if (instances.length > 0) {
       await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].account_id}`);
     }
+
     // Create a new device to store the refresh token
     const newDevice = {
       id: uuid.v4(),
@@ -86,8 +104,14 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       provider_refresh_token: data.refresh_token,
     };
     await db.t_device.insert(newDevice);
+
+    // Save usage points ids
+    await Promise.each(usagePointsIds, async (usagePointId) => {
+      await saveUsagePointIfNotExist(instances[0].account_id, usagePointId);
+    });
+
     return {
-      usage_points_id: data.usage_points_id.split(','),
+      usage_points_id: usagePointsIds,
     };
   }
 

@@ -82,6 +82,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .post('/enedis/finalize')
       .send({
         code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
@@ -104,7 +105,6 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
 
@@ -179,13 +179,13 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
         code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
@@ -208,7 +208,6 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
 
@@ -269,13 +268,13 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
         code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
@@ -298,7 +297,6 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
@@ -338,13 +336,13 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
         code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
@@ -367,7 +365,6 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
@@ -407,13 +404,13 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
         scope: '/v3/metering_data/consumption_load_curve.GET',
         issued_at: '1487075532179',
         refresh_token_issued_at: '1487075532179',
-        usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
         code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)

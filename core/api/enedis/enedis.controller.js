@@ -47,7 +47,7 @@ module.exports = function EnedisController(logger, enedisModel) {
   async function finalize(req, res) {
     logger.info(`Enedis.finalize`);
     try {
-      const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user);
+      const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user, req.body.usage_points_id);
       res.json(usagePoints);
     } catch (e) {
       logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}`);

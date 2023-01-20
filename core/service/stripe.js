@@ -146,6 +146,20 @@ module.exports = function StripeService(logger) {
     });
   }
 
+  async function updateCustomerFromMonthlyToYearly(subscriptionId) {
+    const subscription = await stripe.subscriptions.retrieve(subscriptionId);
+    await stripe.subscriptions.update(subscription.id, {
+      cancel_at_period_end: false,
+      proration_behavior: 'create_prorations',
+      items: [
+        {
+          id: subscription.items.data[0].id,
+          price: process.env.STRIPE_YEARLY_PLAN_ID,
+        },
+      ],
+    });
+  }
+
   return {
     subscribeToMonthlyPlan,
     cancelMonthlySubscription,
@@ -159,5 +173,6 @@ module.exports = function StripeService(logger) {
     getCustomer,
     addTaxRate,
     createBillingPortalSession,
+    updateCustomerFromMonthlyToYearly,
   };
 };

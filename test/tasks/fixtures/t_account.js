@@ -4,6 +4,8 @@ module.exports = [
     name: 'email-confirmed-two-factor-enabled@gladysprojet.com',
     stripe_portal_key: 'fee71731-5928-4f2f-a74b-c7858d39372f',
     current_period_end: new Date('2050-11-19T16:00:00.000Z'),
+    stripe_customer_id: 'cus2',
+    stripe_subscription_id: 'sub2',
   },
   {
     id: 'be2b9666-5c72-451e-98f4-efca76ffef54',

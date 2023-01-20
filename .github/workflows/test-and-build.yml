@@ -39,6 +39,8 @@ env:
   ENEDIS_GRANT_CLIENT_ID: fa6e6bbe-50eb-49c6-9b37-982478485cd9
   ENEDIS_GRANT_CLIENT_SECRET: kjsfljdflkjdskfjdslkjfs
   ENEDIS_GLADYS_PLUS_REDIRECT_URI: https://plus.gladysassistant.com
+  STRIPE_MONTHLY_PLAN_ID: plan_De00Arwr1Or8zh
+  STRIPE_YEARLY_PLAN_ID: price_1KsN4JKgPjCBPRbMF3Uxsja8
 
 jobs:
   test:

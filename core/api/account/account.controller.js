@@ -140,6 +140,42 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
+   * @api {post} /accounts/upgrade-to-yearly Upgrade to yearly
+   * @apiName Upgrade plan to yearly
+   * @apiGroup Account
+   *
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "success": true
+   * }
+   */
+  async function upgradeFromMonthlyToYearly(req, res, next) {
+    await accountModel.upgradeFromMonthlyToYearly(req.user);
+    res.json({ success: true });
+  }
+
+  /**
+   * @api {get} /accounts/plan Get current plan
+   * @apiName Get current plan
+   * @apiGroup Account
+   *
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "plan": "yearly"
+   * }
+   */
+  async function getUserCurrentPlan(req, res, next) {
+    const accountPlan = await accountModel.getUserCurrentPlan(req.user);
+    res.json(accountPlan);
+  }
+
+  /**
    * @api {post} /accounts/resubscribe Resubscribe to plan
    * @apiName Resubscribe plan
    * @apiGroup Account
@@ -246,5 +282,7 @@ module.exports = function AccountController(accountModel, socketModel) {
     getInvoices,
     createPaymentSession,
     redirectToStripeCustomerPortal,
+    upgradeFromMonthlyToYearly,
+    getUserCurrentPlan,
   };
 };

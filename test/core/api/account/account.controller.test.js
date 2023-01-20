@@ -1,4 +1,5 @@
 const request = require('supertest');
+const nock = require('nock');
 const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 
@@ -98,5 +99,206 @@ describe('GET /accounts/stripe_customer_portal/:id', () => {
     await request(TEST_BACKEND_APP)
       .get('/accounts/stripe_customer_portal/a70ada04-3362-4e6f-b79f-c827d3604354')
       .expect(404);
+  });
+});
+
+describe('GET /accounts/plan', () => {
+  it('should return current monthly plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_NBVYq3r2lK1gEk',
+              object: 'subscription_item',
+              billing_thresholds: null,
+              created: 1673936436,
+              metadata: {},
+              price: {
+                id: 'plan_De00Arwr1Or8zh',
+                object: 'price',
+                active: true,
+                billing_scheme: 'per_unit',
+                created: 1537510859,
+                currency: 'eur',
+                custom_unit_amount: null,
+                livemode: false,
+                lookup_key: null,
+                metadata: {},
+                nickname: 'Monthly',
+                product: 'prod_De00NxBNNLv3Hg',
+                recurring: {
+                  aggregate_usage: null,
+                  interval: 'month',
+                  interval_count: 1,
+                  usage_type: 'licensed',
+                },
+                tax_behavior: 'unspecified',
+                tiers_mode: null,
+                transform_quantity: null,
+                type: 'recurring',
+                unit_amount: 999,
+                unit_amount_decimal: '999',
+              },
+              quantity: 1,
+              subscription: 'sub_1MR8X9KgPjCBPRbMXHG27mhl',
+              tax_rates: [],
+            },
+          ],
+          has_more: false,
+          url: '/v1/subscription_items?subscription=sub_1MR8X9KgPjCBPRbMXHG27mhl',
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'monthly' });
+  });
+  it('should return current yearly plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_NBVYq3r2lK1gEk',
+              object: 'subscription_item',
+              billing_thresholds: null,
+              created: 1673936436,
+              metadata: {},
+              price: {
+                id: 'price_1KsN4JKgPjCBPRbMF3Uxsja8',
+                object: 'price',
+                active: true,
+                billing_scheme: 'per_unit',
+                created: 1537510859,
+                currency: 'eur',
+                custom_unit_amount: null,
+                livemode: false,
+                lookup_key: null,
+                metadata: {},
+                nickname: 'Monthly',
+                product: 'prod_De00NxBNNLv3Hg',
+                recurring: {
+                  aggregate_usage: null,
+                  interval: 'month',
+                  interval_count: 1,
+                  usage_type: 'licensed',
+                },
+                tax_behavior: 'unspecified',
+                tiers_mode: null,
+                transform_quantity: null,
+                type: 'recurring',
+                unit_amount: 999,
+                unit_amount_decimal: '999',
+              },
+              quantity: 1,
+              subscription: 'sub_1MR8X9KgPjCBPRbMXHG27mhl',
+              tax_rates: [],
+            },
+          ],
+          has_more: false,
+          url: '/v1/subscription_items?subscription=sub_1MR8X9KgPjCBPRbMXHG27mhl',
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'yearly' });
+  });
+  it('should return 400 unknown plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [],
+          has_more: false,
+          url: '/v1/subscription_items?subscription=sub_1MR8X9KgPjCBPRbMXHG27mhl',
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(400);
+    expect(response.body).to.deep.equal({
+      error_code: 'BAD_REQUEST',
+      error_message: 'Unknown plan',
+      status: 400,
+    });
+  });
+});
+
+describe('POST /accounts/upgrade-to-yearly', () => {
+  it('should update account to yearly plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        id: 'sub2',
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_NBVYq3r2lK1gEk',
+              object: 'subscription_item',
+              billing_thresholds: null,
+              created: 1673936436,
+              metadata: {},
+              price: {
+                id: 'plan_De00Arwr1Or8zh',
+                object: 'price',
+                active: true,
+                billing_scheme: 'per_unit',
+                created: 1537510859,
+                currency: 'eur',
+                custom_unit_amount: null,
+                livemode: false,
+                lookup_key: null,
+                metadata: {},
+                nickname: 'Monthly',
+                product: 'prod_De00NxBNNLv3Hg',
+                recurring: {
+                  aggregate_usage: null,
+                  interval: 'month',
+                  interval_count: 1,
+                  usage_type: 'licensed',
+                },
+                tax_behavior: 'unspecified',
+                tiers_mode: null,
+                transform_quantity: null,
+                type: 'recurring',
+                unit_amount: 999,
+                unit_amount_decimal: '999',
+              },
+              quantity: 1,
+              subscription: 'sub_1MR8X9KgPjCBPRbMXHG27mhl',
+              tax_rates: [],
+            },
+          ],
+          has_more: false,
+          url: '/v1/subscription_items?subscription=sub_1MR8X9KgPjCBPRbMXHG27mhl',
+        },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true }).post('/v1/subscriptions/sub2').reply(200, {
+      current_period_end: 1289482682000, // in 2010
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/accounts/upgrade-to-yearly')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ success: true });
   });
 });

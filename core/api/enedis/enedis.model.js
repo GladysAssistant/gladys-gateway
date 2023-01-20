@@ -124,7 +124,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
         WHERE t_instance.id = $1
         AND t_enedis_daily_consumption.usage_point_id = $3
-        AND t_enedis_daily_consumption.created_at >= $5
+        AND t_enedis_daily_consumption.created_at > $5
         ORDER BY created_at ASC
         LIMIT $4;
     `;
@@ -147,7 +147,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
         WHERE t_instance.id = $1
         AND t_enedis_consumption_load_curve.usage_point_id = $3
-        AND t_enedis_consumption_load_curve.created_at >= $5
+        AND t_enedis_consumption_load_curve.created_at > $5
         LIMIT $4;
     `;
     const dailyConsumptions = await db.query(getConsumptionLoadCurveSql, [

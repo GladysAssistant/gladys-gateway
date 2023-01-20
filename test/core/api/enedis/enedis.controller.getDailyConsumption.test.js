@@ -34,7 +34,7 @@ describe('Enedis.getDailyConsumption', () => {
   it('should return enedis data', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get('/enedis/metering_data/daily_consumption')
-      .query({ usage_point_id: '16401220101758', after: '2022-08-01', take: 3 })
+      .query({ usage_point_id: '16401220101758', after: '2022-07-30', take: 3 })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .expect('Content-Type', /json/)

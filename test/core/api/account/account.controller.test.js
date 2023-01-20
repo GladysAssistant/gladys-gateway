@@ -103,6 +103,14 @@ describe('GET /accounts/stripe_customer_portal/:id', () => {
 });
 
 describe('GET /accounts/plan', () => {
+  beforeEach(async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { stripe_customer_id: 'cus2', stripe_subscription_id: 'sub2' },
+    );
+  });
   it('should return current monthly plan', async () => {
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
       .get('/v1/subscriptions/sub2')
@@ -241,6 +249,14 @@ describe('GET /accounts/plan', () => {
 });
 
 describe('POST /accounts/upgrade-to-yearly', () => {
+  beforeEach(async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { stripe_customer_id: 'cus2', stripe_subscription_id: 'sub2' },
+    );
+  });
   it('should update account to yearly plan', async () => {
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
       .get('/v1/subscriptions/sub2')

@@ -2,6 +2,7 @@ const request = require('supertest');
 const { expect, assert } = require('chai');
 const nock = require('nock');
 const configTest = require('../../tasks/config');
+const { mockAccessTokenRefresh } = require('./utils.test');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
 const queryParams = {
@@ -89,24 +90,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .expect('Content-Type', /json/)
       .expect(200);
     // Then, send first request
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/oauth2/v3/token', (body) => {
-        const grandTypeValid = body.grant_type === 'refresh_token';
-        const refreshTokenValid = body.refresh_token === '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w';
-        const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
-        const clientSecretValid = body.client_secret === process.env.ENEDIS_GRANT_CLIENT_SECRET;
-        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
-      })
-      .reply(200, {
-        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
-        token_type: 'Bearer',
-        expires_in: 12600,
-        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
-        scope: '/v3/metering_data/consumption_load_curve.GET',
-        issued_at: '1487075532179',
-        refresh_token_issued_at: '1487075532179',
-        apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
-      });
+    mockAccessTokenRefresh();
 
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
@@ -192,24 +176,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .expect('Content-Type', /json/)
       .expect(200);
     // Then, send first request
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/oauth2/v3/token', (body) => {
-        const grandTypeValid = body.grant_type === 'refresh_token';
-        const refreshTokenValid = body.refresh_token === '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w';
-        const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
-        const clientSecretValid = body.client_secret === process.env.ENEDIS_GRANT_CLIENT_SECRET;
-        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
-      })
-      .reply(200, {
-        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
-        token_type: 'Bearer',
-        expires_in: 12600,
-        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
-        scope: '/v3/metering_data/consumption_load_curve.GET',
-        issued_at: '1487075532179',
-        refresh_token_issued_at: '1487075532179',
-        apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
-      });
+    mockAccessTokenRefresh();
 
     // First call: it'll refresh the access token from the API
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
@@ -281,24 +248,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .expect('Content-Type', /json/)
       .expect(200);
     // Then, send first request
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/oauth2/v3/token', (body) => {
-        const grandTypeValid = body.grant_type === 'refresh_token';
-        const refreshTokenValid = body.refresh_token === '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w';
-        const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
-        const clientSecretValid = body.client_secret === process.env.ENEDIS_GRANT_CLIENT_SECRET;
-        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
-      })
-      .reply(200, {
-        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
-        token_type: 'Bearer',
-        expires_in: 12600,
-        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
-        scope: '/v3/metering_data/consumption_load_curve.GET',
-        issued_at: '1487075532179',
-        refresh_token_issued_at: '1487075532179',
-        apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
-      });
+    mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
 
     // Refresh the usage point id
@@ -349,24 +299,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .expect('Content-Type', /json/)
       .expect(200);
     // Then, send first request
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/oauth2/v3/token', (body) => {
-        const grandTypeValid = body.grant_type === 'refresh_token';
-        const refreshTokenValid = body.refresh_token === '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w';
-        const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
-        const clientSecretValid = body.client_secret === process.env.ENEDIS_GRANT_CLIENT_SECRET;
-        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
-      })
-      .reply(200, {
-        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
-        token_type: 'Bearer',
-        expires_in: 12600,
-        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
-        scope: '/v3/metering_data/consumption_load_curve.GET',
-        issued_at: '1487075532179',
-        refresh_token_issued_at: '1487075532179',
-        apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
-      });
+    mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
 
     // Refresh the usage point id
@@ -417,15 +350,7 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
       .expect('Content-Type', /json/)
       .expect(200);
     // Then, send first request
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .post('/oauth2/v3/token', (body) => {
-        const grandTypeValid = body.grant_type === 'refresh_token';
-        const refreshTokenValid = body.refresh_token === '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w';
-        const clientIdValid = body.client_id === process.env.ENEDIS_GRANT_CLIENT_ID;
-        const clientSecretValid = body.client_secret === process.env.ENEDIS_GRANT_CLIENT_SECRET;
-        return grandTypeValid && refreshTokenValid && clientIdValid && clientSecretValid;
-      })
-      .reply(400);
+    mockAccessTokenRefresh(400);
     const response = enedisModel.getConsumptionLoadCurve(
       'b2d23f66-487d-493f-8acb-9c8adb400def',
       queryParams.usage_point_id,

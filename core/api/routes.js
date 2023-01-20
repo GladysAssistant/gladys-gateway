@@ -192,6 +192,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     asyncMiddleware(controllers.accountController.getUsers),
   );
+  app.get(
+    '/accounts/plan',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    asyncMiddleware(controllers.accountController.getUserCurrentPlan),
+  );
   app.post(
     '/accounts/subscribe',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
@@ -201,6 +206,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/accounts/resubscribe',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.subscribeAgainToMonthlySubscription),
+  );
+  app.post(
+    '/accounts/upgrade-to-yearly',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.upgradeFromMonthlyToYearly),
   );
   app.patch(
     '/accounts/source',

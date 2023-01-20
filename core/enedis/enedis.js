@@ -69,8 +69,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     }
     const device = devices[0];
     const params = new URLSearchParams();
-    params.append('grant_type', 'refresh_token');
-    params.append('refresh_token', device.provider_refresh_token);
+    params.append('grant_type', 'client_credentials');
     params.append('client_id', ENEDIS_GRANT_CLIENT_ID);
     params.append('client_secret', ENEDIS_GRANT_CLIENT_SECRET);
     params.append('redirect_uri', ENEDIS_GLADYS_PLUS_REDIRECT_URI);
@@ -130,7 +129,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/daily_consumption', data, accessToken);
+      response = await makeRequest('/metering_data_dc/v5/daily_consumption', data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -171,7 +170,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/consumption_load_curve', data, accessToken);
+      response = await makeRequest('/metering_data_clc/v5/consumption_load_curve', data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine

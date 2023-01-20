@@ -44,7 +44,7 @@ const data = {
   },
 };
 
-const enedisRoute = '/daily_consumption';
+const enedisRoute = '/metering_data_dc/v5/daily_consumption';
 
 describe('EnedisWorker.getDataDailyConsumption', function Describe() {
   this.timeout(5000);

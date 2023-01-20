@@ -1,7 +1,13 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
+const {
+  AlreadyExistError,
+  ForbiddenError,
+  NotFoundError,
+  ValidationError,
+  BadRequestError,
+} = require('../../common/error');
 
 module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, telegramService) {
   async function getUsers(user) {
@@ -63,8 +69,8 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripeService.getCustomer(session.customer),
     ]);
 
-    // we update the tax rate
-    await stripeService.addTaxRate(subscription.id);
+    // we update the tax rate - Not needed anymore
+    // await stripeService.addTaxRate(subscription.id);
 
     const { email } = customer;
 
@@ -296,6 +302,58 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     );
 
     return stripeService.cancelMonthlySubscription(account.stripe_subscription_id);
+  }
+
+  async function upgradeFromMonthlyToYearly(user) {
+    // get the account_id of the currently connected user
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
+
+    // get the account
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
+    );
+
+    telegramService.sendAlert(
+      `💰 Customer upgrading from monthly to yearly. Customer email = ${userWithAccount.email}`,
+    );
+
+    return stripeService.updateCustomerFromMonthlyToYearly(account.stripe_subscription_id);
+  }
+
+  async function getUserCurrentPlan(user) {
+    // get the account_id of the currently connected user
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'email', 'account_id'] },
+    );
+
+    // get the account
+    const account = await db.t_account.findOne(
+      {
+        id: userWithAccount.account_id,
+      },
+      { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
+    );
+
+    const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
+    const firstPrice = subscription?.items?.data[0]?.price?.id;
+    if (firstPrice === process.env.STRIPE_MONTHLY_PLAN_ID) {
+      return { plan: 'monthly' };
+    }
+    if (firstPrice === process.env.STRIPE_YEARLY_PLAN_ID) {
+      return { plan: 'yearly' };
+    }
+    throw new BadRequestError('Unknown plan');
   }
 
   async function subscribeAgainToMonthlySubscription(user) {
@@ -562,13 +620,14 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     };
   }
 
-  async function createBillingPortalSession(stripePortalKey) {
+  async function createBillingPortalSession(stripePortalKey, geo) {
     const account = await db.t_account.findOne({
       stripe_portal_key: stripePortalKey,
     });
     if (account === null) {
       throw new NotFoundError('Account not found');
     }
+    telegramService.sendAlert(`Customer opening billing portal, email = ${account.name}, country = ${geo?.country}`);
     return stripeService.createBillingPortalSession(account.stripe_customer_id);
   }
 
@@ -591,5 +650,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     createPaymentSession,
     createBillingPortalSession,
     getAllAccounts,
+    upgradeFromMonthlyToYearly,
+    getUserCurrentPlan,
   };
 };

@@ -1,8 +1,8 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
 const beforeSendSentry = require('../service/beforeSendSentry');
-const asyncMiddleware = require('../middleware/asyncMiddleware.js');
-const { NotFoundError } = require('../common/error.js');
+const asyncMiddleware = require('../middleware/asyncMiddleware');
+const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
   // the gateway is behing a proxy
@@ -49,6 +49,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // stats
   app.get('/stats', asyncMiddleware(controllers.statController.getStats));
+
+  // ecowatt api
+  app.get('/ecowatt/v4/signals', asyncMiddleware(controllers.ecowattController.getEcowattSignals));
 
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
@@ -189,6 +192,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     asyncMiddleware(controllers.accountController.getUsers),
   );
+  app.get(
+    '/accounts/plan',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    asyncMiddleware(controllers.accountController.getUserCurrentPlan),
+  );
   app.post(
     '/accounts/subscribe',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
@@ -198,6 +206,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/accounts/resubscribe',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.subscribeAgainToMonthlySubscription),
+  );
+  app.post(
+    '/accounts/upgrade-to-yearly',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.upgradeFromMonthlyToYearly),
   );
   app.patch(
     '/accounts/source',

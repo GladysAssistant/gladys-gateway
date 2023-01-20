@@ -2,7 +2,7 @@ const path = require('path');
 const aws = require('aws-sdk');
 const retry = require('async-retry');
 
-const { NotFoundError } = require('../../common/error.js');
+const { NotFoundError } = require('../../common/error');
 
 module.exports = function BackupModel(logger, db) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);

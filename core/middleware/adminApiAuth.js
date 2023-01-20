@@ -1,7 +1,7 @@
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const { UnauthorizedError, TooManyRequestsError } = require('../common/error');
-const asyncMiddleware = require('./asyncMiddleware.js');
+const asyncMiddleware = require('./asyncMiddleware');
 
 if (!process.env.ADMIN_API_AUTHORIZATION_TOKEN) {
   throw new Error('ADMIN_API_AUTHORIZATION_TOKEN is not defined');

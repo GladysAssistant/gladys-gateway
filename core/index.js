@@ -42,6 +42,7 @@ const InvitationController = require('./api/invitation/invitation.controller');
 const AccountController = require('./api/account/account.controller');
 const DeviceController = require('./api/device/device.controller');
 const AdminController = require('./api/admin/admin.controller');
+const OpenAIController = require('./api/openai/openai.controller');
 const OpenApiController = require('./api/openapi/openapi.controller');
 const VersionController = require('./api/version/version.controller');
 const BackupController = require('./api/backup/backup.controller');
@@ -64,6 +65,7 @@ const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
 const gladysUsageMiddleware = require('./middleware/gladysUsage');
 const requestExecutionTime = require('./middleware/requestExecutionTime');
 const AdminApiAuth = require('./middleware/adminApiAuth');
+const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
 
 // Routes
 const routes = require('./api/routes');
@@ -182,6 +184,7 @@ module.exports = async (port) => {
     accountController: AccountController(models.accountModel, models.socketModel),
     deviceController: DeviceController(models.deviceModel),
     adminController: AdminController(models.adminModel),
+    openAIController: OpenAIController(),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
     versionController: VersionController(models.versionModel),
     backupController: BackupController(models.backupModel, models.accountModel, logger),
@@ -221,6 +224,7 @@ module.exports = async (port) => {
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, legacyRedisClient),
+    openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
   };
 
   routes.load(app, io, controllers, middlewares);
@@ -232,6 +236,7 @@ module.exports = async (port) => {
     io,
     db,
     redisClient,
+    legacyRedisClient,
     models,
     controllers,
   };

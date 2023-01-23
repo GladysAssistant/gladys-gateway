@@ -53,6 +53,14 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // ecowatt api
   app.get('/ecowatt/v4/signals', asyncMiddleware(controllers.ecowattController.getEcowattSignals));
 
+  // OpenAI ask
+  app.post(
+    '/openai/ask',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.openAIAuthAndRateLimit,
+    asyncMiddleware(controllers.openAIController.ask),
+  );
+
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
   app.post('/users/verify', middlewares.rateLimiter, asyncMiddleware(controllers.userController.confirmEmail));

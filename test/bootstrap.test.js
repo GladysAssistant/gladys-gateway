@@ -30,7 +30,7 @@ before(async function Before() {
   process.env.STRIPE_SECRET_KEY = 'test';
 
   // starting 2 backends to try multi-server socket exchange
-  const { io, app, db, redisClient } = await server(process.env.SERVER_PORT);
+  const { io, app, db, redisClient, legacyRedisClient } = await server(process.env.SERVER_PORT);
   const { io: iosServer2, app: appServer2 } = await server(process.env.SERVER_PORT + 1);
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);
@@ -39,6 +39,7 @@ before(async function Before() {
   global.TEST_IO = io;
   global.TEST_IO_SERVER_2 = iosServer2;
   global.TEST_DATABASE_INSTANCE = db;
+  global.TEST_LEGACY_REDIS_CLIENT = legacyRedisClient;
 });
 
 beforeEach(async function BeforeEach() {

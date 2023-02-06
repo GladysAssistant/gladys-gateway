@@ -1,18 +1,13 @@
 const get = require('get-value');
 const Joi = require('joi');
-const { ServerError, ForbiddenError, BadRequestError, ValidationError } = require('../../common/error');
+
+const { ServerError, ForbiddenError, ValidationError } = require('../../common/error');
 const schema = require('../../common/schema');
 
 module.exports = function EnedisController(logger, enedisModel) {
   const parseError = (e) => {
-    if (e instanceof ForbiddenError) {
-      return e;
-    }
     if (get(e, 'response.status') === 403) {
       return new ForbiddenError();
-    }
-    if (get(e, 'response.status') === 400) {
-      return new BadRequestError();
     }
     return new ServerError();
   };
@@ -52,7 +47,7 @@ module.exports = function EnedisController(logger, enedisModel) {
   async function finalize(req, res) {
     logger.info(`Enedis.finalize`);
     try {
-      const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user);
+      const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user, req.body.usage_points_id);
       res.json(usagePoints);
     } catch (e) {
       logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}`);
@@ -62,74 +57,74 @@ module.exports = function EnedisController(logger, enedisModel) {
   }
 
   /**
-   * @api {get} /enedis/api/v4/metering_data/consumption_load_curve Consumption load curve
-   * @apiName Consumption load curve
-   * @apiGroup Enedis
-   */
-  async function meteringDataConsumptionLoadCurve(req, res) {
-    logger.info(`Enedis.meteringDataConsumptionLoadCurve`);
-    const url = '/v4/metering_data/consumption_load_curve';
-    const data = validateEnedisQuery(req.query);
-    try {
-      const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
-      res.json(response);
-    } catch (e) {
-      logger.error('ENEDIS_API_CALL_ERROR');
-      logger.error(req.query);
-      logger.error(e);
-
-      throw parseError(e);
-    }
-  }
-
-  /**
-   * @api {get} /enedis/api/v4/metering_data/daily_consumption_max_power Daily consumption max power
-   * @apiName Daily consumption max power
-   * @apiGroup Enedis
-   */
-  async function meteringDataDailyConsumptionMaxPower(req, res) {
-    logger.info(`Enedis.meteringDataDailyConsumptionMaxPower`);
-    const url = '/v4/metering_data/daily_consumption_max_power';
-    const data = validateEnedisQuery(req.query);
-    try {
-      const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
-      res.json(response);
-    } catch (e) {
-      logger.error('ENEDIS_API_CALL_ERROR');
-      logger.error(req.query);
-      logger.error(e);
-      throw parseError(e);
-    }
-  }
-
-  /**
-   * @api {get} /enedis/api/v4/metering_data/daily_consumption Daily consumption
+   * @api {get} /enedis/metering_data/daily_consumption Daily consumption
    * @apiName Daily consumption
    * @apiGroup Enedis
    */
   async function meteringDataDailyConsumption(req, res) {
-    logger.info(`Enedis.meteringDataDailyConsumption`);
-    const url = '/v4/metering_data/daily_consumption';
-    const data = validateEnedisQuery(req.query);
-    try {
-      const accessToken = await enedisModel.getAccessToken(req.instance.id);
-      const response = await enedisModel.makeRequestWithQueueAndRetry(url, data, accessToken);
-      res.json(response);
-    } catch (e) {
-      logger.error('ENEDIS_API_CALL_ERROR');
-      logger.error(req.query);
-      logger.error(e);
-      throw parseError(e);
-    }
+    const queryParams = validateEnedisQuery(req.query);
+    const response = await enedisModel.getDailyConsumption(
+      req.instance.id,
+      queryParams.usage_point_id,
+      queryParams.take,
+      queryParams.after,
+    );
+    res.json(response);
+  }
+
+  /**
+   * @api {get} /enedis/metering_data/consumption_load_curve Consumption load curve
+   * @apiName Consumption load curve
+   * @apiGroup Enedis
+   */
+  async function meteringDataConsumptionLoadCurve(req, res) {
+    const queryParams = validateEnedisQuery(req.query);
+    const response = await enedisModel.getConsumptionLoadCurve(
+      req.instance.id,
+      queryParams.usage_point_id,
+      queryParams.take,
+      queryParams.after,
+    );
+    res.json(response);
+  }
+
+  /**
+   * @api {get} /enedis/sync Get user sync
+   * @apiName Get user sync
+   * @apiGroup Enedis
+   */
+  async function getEnedisSync(req, res) {
+    const syncs = await enedisModel.getEnedisSync(req.user.id, req.query.take);
+    res.json(syncs);
+  }
+
+  /**
+   * @api {post} /enedis/refresh_all Refresh all data
+   * @apiName Refresh all data
+   * @apiGroup Enedis
+   */
+  async function refreshAllData(req, res) {
+    await enedisModel.refreshAlldata(req.user.id);
+    res.json({ success: true });
+  }
+
+  /**
+   * @api {post} /admin/api/enedis/daily_refresh Daily refresh for all users
+   * @apiName Daily refresh for all users
+   * @apiGroup Enedis
+   */
+  async function dailyRefreshForAllUsers(req, res) {
+    await enedisModel.dailyRefreshForAllUsers();
+    res.json({ success: true });
   }
 
   return {
     finalize,
     meteringDataConsumptionLoadCurve,
-    meteringDataDailyConsumptionMaxPower,
     meteringDataDailyConsumption,
     initialize,
+    refreshAllData,
+    dailyRefreshForAllUsers,
+    getEnedisSync,
   };
 };

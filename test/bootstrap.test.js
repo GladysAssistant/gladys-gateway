@@ -3,12 +3,16 @@ let redisTask;
 const should = require('should'); // eslint-disable-line no-unused-vars
 require('./tasks/nock');
 const Dotenv = require('dotenv');
+const chai = require('chai');
+const chaiAsPromised = require('chai-as-promised');
 
 Dotenv.config();
 
 const server = require('../core/index');
 const DatabaseTask = require('./tasks/database');
 const RedisTask = require('./tasks/redis');
+
+chai.use(chaiAsPromised);
 
 before(async function Before() {
   this.timeout(10000);

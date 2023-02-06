@@ -3,6 +3,10 @@ const Promise = require('bluebird');
 module.exports = function Database(db) {
   function clean() {
     const tablesToClean = [
+      't_enedis_sync',
+      't_enedis_daily_consumption',
+      't_enedis_consumption_load_curve',
+      't_enedis_usage_point',
       't_gladys_usage',
       't_backup',
       't_gladys_version',

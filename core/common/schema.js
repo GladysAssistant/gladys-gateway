@@ -35,8 +35,8 @@ const openApiSchema = Joi.object().keys({
 
 const enedisApiQuerySchema = Joi.object().keys({
   usage_point_id: Joi.string().required(),
-  start: Joi.string().required(),
-  end: Joi.string().required(),
+  after: Joi.string().required(),
+  take: Joi.number().integer().required(),
 });
 
 module.exports.signupSchema = signupSchema;

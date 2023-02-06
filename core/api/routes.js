@@ -383,19 +383,31 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.enedisController.finalize),
   );
   app.get(
-    '/enedis/api/v4/metering_data/consumption_load_curve',
+    '/enedis/metering_data/consumption_load_curve',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.enedisController.meteringDataConsumptionLoadCurve),
   );
   app.get(
-    '/enedis/api/v4/metering_data/daily_consumption_max_power',
-    asyncMiddleware(middlewares.accessTokenInstanceAuth),
-    asyncMiddleware(controllers.enedisController.meteringDataDailyConsumptionMaxPower),
-  );
-  app.get(
-    '/enedis/api/v4/metering_data/daily_consumption',
+    '/enedis/metering_data/daily_consumption',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.enedisController.meteringDataDailyConsumption),
+  );
+  app.post(
+    '/enedis/refresh_all',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.enedisController.refreshAllData),
+  );
+  app.get(
+    '/enedis/sync',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    asyncMiddleware(controllers.enedisController.getEnedisSync),
+  );
+
+  // Admin API enedis daily refresh
+  app.post(
+    '/admin/api/enedis/daily_refresh',
+    middlewares.adminApiAuth,
+    controllers.enedisController.dailyRefreshForAllUsers,
   );
 
   // Gladys version

@@ -1,10 +1,14 @@
 const uuid = require('uuid');
 const axios = require('axios');
-const get = require('get-value');
-const Bottleneck = require('bottleneck');
-const retry = require('async-retry');
+const { Queue } = require('bullmq');
+const Promise = require('bluebird');
 
-const { ForbiddenError } = require('../../common/error');
+const {
+  ENEDIS_WORKER_KEY,
+  BULLMQ_PUBLISH_JOB_OPTIONS,
+  ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+  ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
+} = require('../../enedis/enedis.constants');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
@@ -12,38 +16,41 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
     process.env;
 
-  const enedisApiLimiter = new Bottleneck({
-    // Enedis API is limited at 5 req/sec so we take
-    // a little margin and take 5 reqs per 5 * 210 = 1050 ms
-    maxConcurrent: 5,
-    minTime: 210,
+  const queue = new Queue(ENEDIS_WORKER_KEY, {
+    connection: {
+      host: process.env.REDIS_HOST,
+      port: process.env.REDIS_PORT,
+      password: process.env.REDIS_PASSWORD,
+    },
   });
 
   async function getRedirectUri() {
-    const url = `https://${ENEDIS_BACKEND_URL}/dataconnect/v1/oauth2/authorize`;
+    const url = `https://${ENEDIS_BACKEND_URL}/oauth2/v3/authorize`;
     const params = new URLSearchParams({
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
       state: `${uuid.v4()}7`, // add a 7 for the sandbox
-      duration: 'P3Y',
+      redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
     });
     return `${url}?${params.toString()}`;
   }
 
-  async function saveEnedisAccessTokenAndRefreshToken(instanceId, deviceId, data) {
-    await redisClient.set(
-      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`,
-      data.access_token,
-      'EX',
-      data.expires_in - 60, // We remove 1 minute to be safe
+  async function saveUsagePointIfNotExist(accountId, usagePointId) {
+    await db.t_enedis_usage_point.insert(
+      {
+        account_id: accountId,
+        usage_point_id: usagePointId,
+      },
+      {
+        onConflict: {
+          target: ['usage_point_id'],
+          action: 'ignore',
+        },
+      },
     );
-
-    await db.t_device.update(deviceId, {
-      provider_refresh_token: data.refresh_token,
-    });
   }
 
-  async function handleAcceptGrantMessage(authorizationCode, user) {
+  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
     logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
     const params = new URLSearchParams();
     params.append('grant_type', 'authorization_code');
@@ -55,7 +62,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       method: 'POST',
       headers: { 'content-type': 'application/x-www-form-urlencoded' },
       data: params,
-      url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
+      url: `https://${ENEDIS_BACKEND_URL}/oauth2/v3/token`,
     };
     const { data } = await axios(options);
     // Delete all devices that could exist prior to this operation
@@ -73,7 +80,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     );
     // Clear Redis
     const getInstanceIdByUserId = `
-      SELECT t_instance.id
+      SELECT t_instance.id, t_instance.account_id
       FROM t_user
       INNER JOIN t_account ON t_account.id = t_user.account_id
       INNER JOIN t_instance ON t_instance.account_id = t_account.id
@@ -83,9 +90,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
+
     if (instances.length > 0) {
-      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].id}`);
+      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].account_id}`);
     }
+
     // Create a new device to store the refresh token
     const newDevice = {
       id: uuid.v4(),
@@ -95,106 +104,94 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       provider_refresh_token: data.refresh_token,
     };
     await db.t_device.insert(newDevice);
+
+    // Save usage points ids
+    await Promise.each(usagePointsIds, async (usagePointId) => {
+      await saveUsagePointIfNotExist(instances[0].account_id, usagePointId);
+    });
+
     return {
-      usage_points_id: data.usage_points_id.split(','),
+      usage_points_id: usagePointsIds,
     };
   }
 
-  async function getAccessToken(instanceId) {
-    const accessTokenInRedis = await redisClient.get(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instanceId}`);
-    if (accessTokenInRedis) {
-      return accessTokenInRedis;
-    }
-    const getDevicesWithEnedisActivated = `
-       SELECT DISTINCT t_user.id, t_user.account_id, 
-        t_device.id as device_id, t_device.provider_refresh_token
-        FROM t_user
-        INNER JOIN t_device ON t_user.id = t_device.user_id
-        INNER JOIN t_instance ON t_user.account_id = t_instance.account_id
+  async function getDailyConsumption(instanceId, usagePointId, take, after) {
+    const getDailyConsumptions = `
+        SELECT t_enedis_daily_consumption.value, 
+        t_enedis_daily_consumption.created_at::text
+        FROM t_enedis_daily_consumption
+        INNER JOIN t_enedis_usage_point ON t_enedis_daily_consumption.usage_point_id = t_enedis_usage_point.usage_point_id
+        INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
         WHERE t_instance.id = $1
-        AND t_device.revoked = false
-        AND t_device.is_deleted = false
-        AND t_device.client_id = $2;
+        AND t_enedis_daily_consumption.usage_point_id = $3
+        AND t_enedis_daily_consumption.created_at > $5
+        ORDER BY created_at ASC
+        LIMIT $4;
     `;
-    const devices = await db.query(getDevicesWithEnedisActivated, [instanceId, ENEDIS_GRANT_CLIENT_ID]);
-    if (devices.length === 0) {
-      logger.warn(`Forbidden: Enedis Oauth process was not done`);
-      throw new ForbiddenError();
-    }
-    const device = devices[0];
-    const params = new URLSearchParams();
-    params.append('grant_type', 'refresh_token');
-    params.append('refresh_token', device.provider_refresh_token);
-    params.append('client_id', ENEDIS_GRANT_CLIENT_ID);
-    params.append('client_secret', ENEDIS_GRANT_CLIENT_SECRET);
-    params.append('redirect_uri', ENEDIS_GLADYS_PLUS_REDIRECT_URI);
-    const options = {
-      method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
-      data: params,
-      url: `https://${ENEDIS_BACKEND_URL}/v1/oauth2/token`,
-    };
-    try {
-      const { data } = await axios(options);
-      // save new refresh token
-      await saveEnedisAccessTokenAndRefreshToken(instanceId, device.id, data);
-      return data.access_token;
-    } catch (e) {
-      // if status is 400, token is invalid, revoke token
-      if (get(e, 'response.status') === 400) {
-        logger.warn(e);
-        await db.t_device.update(device.id, {
-          revoked: true,
-        });
-      }
+    const dailyConsumptions = await db.query(getDailyConsumptions, [
+      instanceId,
+      ENEDIS_GRANT_CLIENT_ID,
+      usagePointId,
+      take,
+      after,
+    ]);
 
-      throw e;
-    }
+    return dailyConsumptions;
   }
 
-  async function makeRequest(url, query, accessToken) {
-    const options = {
-      method: 'GET',
-      params: query,
-      headers: {
-        authorization: `Bearer ${accessToken}`,
-      },
-      url: `https://${ENEDIS_BACKEND_URL}${url}`,
-    };
-    const { data } = await axios(options);
-    return data;
+  async function getConsumptionLoadCurve(instanceId, usagePointId, take, after) {
+    const getConsumptionLoadCurveSql = `
+        SELECT t_enedis_consumption_load_curve.value, t_enedis_consumption_load_curve.created_at
+        FROM t_enedis_consumption_load_curve
+        INNER JOIN t_enedis_usage_point ON t_enedis_consumption_load_curve.usage_point_id = t_enedis_usage_point.usage_point_id
+        INNER JOIN t_instance ON t_enedis_usage_point.account_id = t_instance.account_id
+        WHERE t_instance.id = $1
+        AND t_enedis_consumption_load_curve.usage_point_id = $3
+        AND t_enedis_consumption_load_curve.created_at > $5
+        LIMIT $4;
+    `;
+    const dailyConsumptions = await db.query(getConsumptionLoadCurveSql, [
+      instanceId,
+      ENEDIS_GRANT_CLIENT_ID,
+      usagePointId,
+      take,
+      after,
+    ]);
+
+    return dailyConsumptions;
   }
 
-  const makeRequestWithQueue = enedisApiLimiter.wrap(makeRequest);
+  async function getEnedisSync(userId, take = 10) {
+    const getEnedisSyncSql = `
+        SELECT es.*
+        FROM t_user u
+        INNER JOIN t_account a ON a.id = u.account_id
+        INNER JOIN t_enedis_usage_point eup ON eup.account_id = a.id
+        INNER JOIN t_enedis_sync es ON es.usage_point_id = eup.usage_point_id
+        WHERE u.id = $1
+        ORDER BY es.created_at DESC
+        LIMIT $2
+    `;
+    const enedisSync = await db.query(getEnedisSyncSql, [userId, take]);
 
-  const makeRequestWithQueueAndRetry = (url, query, accessToken) => {
-    // we retry failed (5xx)requests with an exponential backoff
-    const options = {
-      retries: 3,
-      factor: 2,
-      minTimeout: 200,
-    };
-    return retry(async (bail) => {
-      try {
-        const res = await makeRequestWithQueue(url, query, accessToken);
-        return res;
-      } catch (e) {
-        logger.warn(e);
-        // we only retry 5xx error
-        if (get(e, 'response.status') < 500) {
-          bail(e);
-          return null;
-        }
-        throw e;
-      }
-    }, options);
-  };
+    return enedisSync;
+  }
+
+  async function refreshAlldata(userId) {
+    await queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId }, BULLMQ_PUBLISH_JOB_OPTIONS);
+  }
+
+  async function dailyRefreshForAllUsers() {
+    await queue.add(ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY, {}, BULLMQ_PUBLISH_JOB_OPTIONS);
+  }
 
   return {
-    makeRequest,
-    makeRequestWithQueueAndRetry,
-    getAccessToken,
     handleAcceptGrantMessage,
     getRedirectUri,
+    getDailyConsumption,
+    getConsumptionLoadCurve,
+    refreshAlldata,
+    dailyRefreshForAllUsers,
+    getEnedisSync,
   };
 };

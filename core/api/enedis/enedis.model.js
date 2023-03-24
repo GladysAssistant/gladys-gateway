@@ -13,8 +13,13 @@ const {
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
 module.exports = function EnedisModel(logger, db, redisClient) {
-  const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
-    process.env;
+  const {
+    ENEDIS_GRANT_CLIENT_ID,
+    ENEDIS_GRANT_CLIENT_SECRET,
+    ENEDIS_AUTHORIZE_URL,
+    ENEDIS_BACKEND_URL,
+    ENEDIS_GLADYS_PLUS_REDIRECT_URI,
+  } = process.env;
 
   const queue = new Queue(ENEDIS_WORKER_KEY, {
     connection: {
@@ -25,14 +30,14 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   });
 
   async function getRedirectUri() {
-    const url = `https://${ENEDIS_BACKEND_URL}/oauth2/v3/authorize`;
     const params = new URLSearchParams({
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
+      duration: 'P2Y',
       state: `${uuid.v4()}7`, // add a 7 for the sandbox
       redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
     });
-    return `${url}?${params.toString()}`;
+    return `${ENEDIS_AUTHORIZE_URL}?${params.toString()}`;
   }
 
   async function saveUsagePointIfNotExist(accountId, usagePointId) {

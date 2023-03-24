@@ -35,7 +35,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       response_type: 'code',
       duration: 'P2Y',
       state: `${uuid.v4()}7`, // add a 7 for the sandbox
-      redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
+      //  Remove redirect_uri for Enedis PROD. Keeping the comment in case it's needed for test env
+      //  redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
     });
     return `${ENEDIS_AUTHORIZE_URL}?${params.toString()}`;
   }

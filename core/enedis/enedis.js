@@ -213,13 +213,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     try {
       response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
     } catch (e) {
-      // if the response is 404 not found
-      // It just mean the user has no data at this period so it's fine
-      if (get(e, 'response.status') === 404) {
-        return null;
-      }
       logger.error(e);
-      // Else, it's a problem, we exit to be replayed
       throw e;
     }
     const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');

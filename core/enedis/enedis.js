@@ -203,6 +203,30 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
     return response;
   }
+  async function getContract(accountId, usagePointId) {
+    logger.info(`Enedis - get contract for usagePoint = ${usagePointId}`);
+    const accessToken = await getAccessToken(accountId);
+    const data = {
+      usage_point_id: usagePointId,
+    };
+    let response;
+    try {
+      response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
+    } catch (e) {
+      // if the response is 404 not found
+      // It just mean the user has no data at this period so it's fine
+      if (get(e, 'response.status') === 404) {
+        return null;
+      }
+      logger.error(e);
+      // Else, it's a problem, we exit to be replayed
+      throw e;
+    }
+    const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');
+    return {
+      lastActivationDate,
+    };
+  }
   async function getUsagePoints(accountId) {
     const getUsagePointsSql = `
       SELECT t_enedis_usage_point.usage_point_id
@@ -233,7 +257,17 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     logger.info(`Enedis: Found ${usagePointIds.length} usage points for user ${job.userId}`);
     // Foreach usage points, we generate one job per request to make
     await Promise.each(usagePointIds, async (usagePointId) => {
-      const oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
+      const contract = await getContract(account.id, usagePointId);
+      let oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
+
+      // We cannot get data before lastActivationDate
+      if (contract && contract.lastActivationDate) {
+        const justTheDate = contract.lastActivationDate.substr(0, 10);
+        const lastActivationDate = dayjs(justTheDate);
+        if (oldestDate.isBefore(lastActivationDate)) {
+          oldestDate = lastActivationDate;
+        }
+      }
 
       let currendEndDate = dayjs();
       const syncTasksArray = [];
@@ -322,6 +356,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     getAccessToken,
     getDataDailyConsumption,
     getConsumptionLoadCurve,
+    getContract,
     enedisSyncData,
     refreshAllData,
     dailyRefreshOfAllUsers,

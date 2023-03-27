@@ -5,6 +5,35 @@ const configTest = require('../../tasks/config');
 const { mockAccessTokenRefresh } = require('./utils.test');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
+const contractQueryParams = {
+  usage_point_id: '16401220101758',
+};
+
+const contractData = {
+  customer: {
+    customer_id: '1358019319',
+    usage_points: [
+      {
+        usage_point: {
+          usage_point_id: '16401220101758',
+          usage_point_status: 'com',
+          meter_type: 'AMM',
+        },
+        contracts: {
+          segment: 'C5',
+          subscribed_power: '9 kVA',
+          last_activation_date: '2013-08-14+01:00',
+          distribution_tariff: 'BTINFCUST',
+          offpeak_hours: 'HC (23h00-7h30)',
+          contract_type: 'CRAE',
+          contract_status: 'SERVC',
+          last_distribution_tariff_change_date: '2017-05-25+01:00',
+        },
+      },
+    ],
+  },
+};
+
 describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
   this.timeout(5000);
   let enedisModel;
@@ -34,6 +63,10 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
         usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(contractQueryParams)
+      .reply(200, contractData);
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
@@ -70,6 +103,10 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
         usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(contractQueryParams)
+      .reply(200, contractData);
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({

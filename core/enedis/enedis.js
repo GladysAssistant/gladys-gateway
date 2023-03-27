@@ -75,7 +75,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     params.append('redirect_uri', ENEDIS_GLADYS_PLUS_REDIRECT_URI);
     const options = {
       method: 'POST',
-      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      headers: { 'content-type': 'application/x-www-form-urlencoded', accept: 'application/json' },
       data: params,
       url: `https://${ENEDIS_BACKEND_URL}/oauth2/v3/token`,
     };

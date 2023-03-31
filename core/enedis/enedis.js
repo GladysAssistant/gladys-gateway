@@ -303,10 +303,10 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         AND t_device.client_id = $1;
     `;
     const usersToRefresh = await db.query(getAllUsersWithEnedisSql, [ENEDIS_GRANT_CLIENT_ID]);
-    const twoDaysAgo = dayjs().subtract(2, 'day');
+    const oneWeekAgo = dayjs().subtract(6, 'day');
     logger.info(`Enedis: Daily refresh of all users. Refreshing ${usersToRefresh.length} users`);
     await Promise.each(usersToRefresh, async (userToRefresh) => {
-      await refreshAllData({ userId: userToRefresh.id, start: twoDaysAgo });
+      await refreshAllData({ userId: userToRefresh.id, start: oneWeekAgo });
     });
   }
   async function enedisSyncData(job) {

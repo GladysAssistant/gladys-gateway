@@ -3,7 +3,7 @@ const { RateLimiterRedis } = require('rate-limiter-flexible');
 const { ForbiddenError, TooManyRequestsError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
 
-const MAX_REQUESTS = 100;
+const MAX_REQUESTS = parseInt(process.env.OPEN_AI_MAX_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
 
 module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
   const limiter = new RateLimiterRedis({

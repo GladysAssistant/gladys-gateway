@@ -120,7 +120,9 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     // we generate a random code
     const code = (await randomBytes(64)).toString('hex');
     // we save the code in Redis
-    await redisClient.set(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, 'EX', GOOGLE_CODE_EXPIRY_IN_SECONDS);
+    await redisClient.set(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, {
+      EX: GOOGLE_CODE_EXPIRY_IN_SECONDS,
+    });
     return code;
   }
 

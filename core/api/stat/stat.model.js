@@ -21,7 +21,9 @@ module.exports = function StatModel(logger, db, redisClient) {
     `;
 
     const stats = await db.query(request);
-    await redisClient.set(NUMBER_OF_GLADYS_4_INSTANCES_STATS_KEY, JSON.stringify(stats), 'EX', STATS_EXPIRY_IN_SECONDS);
+    await redisClient.set(NUMBER_OF_GLADYS_4_INSTANCES_STATS_KEY, JSON.stringify(stats), {
+      EX: STATS_EXPIRY_IN_SECONDS,
+    });
     return stats;
   }
 
@@ -44,7 +46,9 @@ module.exports = function StatModel(logger, db, redisClient) {
 
     const stats = await db.query(request);
     const nbUsers = stats[0].nb_gladys_plus_users;
-    await redisClient.set(NUMBER_OF_GLADYS_4_PLUS_USERS, nbUsers, 'EX', STATS_EXPIRY_IN_SECONDS);
+    await redisClient.set(NUMBER_OF_GLADYS_4_PLUS_USERS, nbUsers, {
+      EX: STATS_EXPIRY_IN_SECONDS,
+    });
     return parseInt(nbUsers, 10);
   }
 

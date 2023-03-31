@@ -8,7 +8,7 @@ const srpServer = require('secure-remote-password/server');
 const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
 const schema = require('../../common/schema');
 
-const redisLoginSessionExpiryInSecond = 60;
+const REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS = 120;
 const resetPasswordTokenExpiryInMilliSeconds = 2 * 60 * 60 * 1000;
 
 module.exports = function UserModel(logger, db, redisClient, jwtService, mailService) {
@@ -225,12 +225,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       clientEphemeralPublic: data.client_ephemeral_public,
     };
 
-    await redisClient.set(
-      `login_session:${loginSessionKey}`,
-      JSON.stringify(loginSessionState),
-      'EX',
-      redisLoginSessionExpiryInSecond,
-    );
+    await redisClient.set(`login_session:${loginSessionKey}`, JSON.stringify(loginSessionState), {
+      EX: REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS,
+    });
 
     return {
       server_ephemeral_public: serverEphemeral.public,

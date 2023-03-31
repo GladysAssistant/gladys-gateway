@@ -103,7 +103,9 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     // we generate a random code
     const code = (await randomBytes(64)).toString('hex');
     // we save the code in Redis
-    await redisClient.set(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, 'EX', ALEXA_CODE_EXPIRY_IN_SECONDS);
+    await redisClient.set(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`, userId, {
+      EX: ALEXA_CODE_EXPIRY_IN_SECONDS,
+    });
     return code;
   }
 
@@ -120,12 +122,9 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     `;
 
   async function saveAlexaAccessTokenAndRefreshToken(deviceId, data) {
-    await redisClient.set(
-      `${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`,
-      data.access_token,
-      'EX',
-      data.expires_in - 60, // We remove 1 minute to be safe
-    );
+    await redisClient.set(`${ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${deviceId}`, data.access_token, {
+      EX: data.expires_in - 60, // We remove 1 minute to be safe
+    });
 
     await db.t_device.update(deviceId, {
       provider_refresh_token: data.refresh_token,

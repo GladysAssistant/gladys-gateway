@@ -36,12 +36,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   // queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId: 'd35d2615-5a56-4aae-95a9-1b29a3b827ce' });
 
   async function saveEnedisAccessTokenAndRefreshToken(accountId, deviceId, data) {
-    await redisClient.set(
-      `${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`,
-      data.access_token,
-      'EX',
-      data.expires_in - 60, // We remove 1 minute to be safe
-    );
+    await redisClient.set(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`, data.access_token, {
+      EX: data.expires_in - 60, // We remove 1 minute to be safe
+    });
 
     await db.t_device.update(deviceId, {
       provider_refresh_token: data.refresh_token,

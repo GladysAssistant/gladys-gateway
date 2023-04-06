@@ -1,10 +1,13 @@
 const axios = require('axios');
+const AxiosLogger = require('axios-logger');
 const get = require('get-value');
 const Promise = require('bluebird');
 const dayjs = require('dayjs');
 const { Queue } = require('bullmq');
 const utc = require('dayjs/plugin/utc');
 const timezone = require('dayjs/plugin/timezone');
+
+const axiosInstance = axios.create();
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -33,7 +36,24 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     },
   });
 
-  // queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId: 'd35d2615-5a56-4aae-95a9-1b29a3b827ce' });
+  const responseLogger = (response) =>
+    AxiosLogger.responseLogger(response, {
+      data: false,
+      logger: logger.info.bind(this),
+    });
+
+  const requestLogger = (request) =>
+    AxiosLogger.requestLogger(request, {
+      logger: logger.info.bind(this),
+    });
+
+  const errorLogger = (error) =>
+    AxiosLogger.errorLogger(error, {
+      logger: logger.warn.bind(this),
+    });
+
+  axiosInstance.interceptors.request.use(requestLogger, errorLogger);
+  axiosInstance.interceptors.response.use(responseLogger, errorLogger);
 
   async function saveEnedisAccessTokenAndRefreshToken(accountId, deviceId, data) {
     await redisClient.set(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`, data.access_token, {
@@ -77,15 +97,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       url: `https://${ENEDIS_BACKEND_URL}/oauth2/v3/token`,
     };
     try {
-      const { data } = await axios(options);
+      const { data } = await axiosInstance(options);
       // save new refresh token
       await saveEnedisAccessTokenAndRefreshToken(accountId, device.id, data);
       return data.access_token;
     } catch (e) {
-      logger.error(e);
       // if status is 400, token is invalid, revoke token
       if (get(e, 'response.status') === 400) {
-        logger.warn(e);
         await db.t_device.update(device.device_id, {
           revoked: true,
         });
@@ -105,7 +123,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       },
       url: `https://${ENEDIS_BACKEND_URL}${url}`,
     };
-    const { data } = await axios(options);
+    const { data } = await axiosInstance(options);
     return data;
   }
   async function increaseSyncJobDone(syncId) {
@@ -132,6 +150,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
       if (get(e, 'response.status') === 404) {
+        // If result is 404, job is done
+        await increaseSyncJobDone(syncId);
         return null;
       }
       logger.error(e);
@@ -173,6 +193,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
       if (get(e, 'response.status') === 404) {
+        // If result is 404, job is done
+        await increaseSyncJobDone(syncId);
         return null;
       }
       // Else, it's a problem, we exit to be replayed

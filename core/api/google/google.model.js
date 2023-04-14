@@ -162,11 +162,11 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
           requestBody,
         });
       } catch (e) {
-        logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}`);
-        // We only log error only if status is not 404
-        if (get(e, 'response.status') !== 404) {
-          logger.error(e);
-          logger.error(payloadCleaned);
+        const status = get(e, 'response.status');
+        logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}, status = ${status}`);
+        if (status !== 404) {
+          logger.info(get(e, 'response.data'));
+          logger.info(payloadCleaned);
         }
       }
     }

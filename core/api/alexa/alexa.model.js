@@ -2,9 +2,10 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
-const axios = require('axios');
 const get = require('get-value');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
+
+const axios = require('../../service/axios');
 const { ForbiddenError } = require('../../common/error');
 
 const ALEXA_OAUTH_CODE_REDIS_PREFIX = `ALEXA_OAUTH_CODE`;
@@ -211,11 +212,6 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
           // report state
         } catch (e) {
           logger.error(`ALEXA_REPORT_STATE_ERROR, user_id = ${users[0].id}`);
-          // We only log error only if status is not 404
-          if (get(e, 'response.status') !== 404) {
-            logger.error(payload);
-            logger.error(e);
-          }
         }
       });
     }

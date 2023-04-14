@@ -12,9 +12,12 @@ const {
 
 module.exports = function getErrorMiddleware(logger) {
   return function ErrorMiddleware(error, req, res, next) {
-    logger.error('ERROR_MIDDLEWARE');
-    logger.error(error);
-    logger.error({ path: req.route && req.route.path, user: req.user && req.user.id });
+    // Don't log 401 errors
+    if (!(error instanceof UnauthorizedError)) {
+      logger.error('ERROR_MIDDLEWARE');
+      logger.error(error);
+      logger.error({ path: req.route && req.route.path, user: req.user && req.user.id });
+    }
 
     if (
       error instanceof ValidationError ||

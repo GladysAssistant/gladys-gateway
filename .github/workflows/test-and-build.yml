@@ -24,6 +24,7 @@ env:
   JWT_REFRESH_TOKEN_SECRET: TESTESTESTESTSTiqgbxZ5107HBHpR70OeVn9Lg3tG5HBDvUwrV2Rqur7LsxDZLDsmELtRuDvfMxGL7
   STORAGE_ENDPOINT: s3.eu-central-1.amazonaws.com
   STORAGE_BUCKET: gladys-gateway-test
+  CAMERA_STORAGE_BUCKET: gladys-gateway-test
   GOOGLE_HOME_OAUTH_CLIENT_ID: google-home
   GOOGLE_HOME_OAUTH_CLIENT_SECRET: google-home-secret
   ALEXA_OAUTH_CLIENT_ID: alexa

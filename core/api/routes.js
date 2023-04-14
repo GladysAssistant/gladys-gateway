@@ -33,6 +33,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // parse application/json
   app.use(bodyParser.json());
 
+  // parse file
+  app.use(bodyParser.raw({ type: 'application/octet-stream', limit: '10mb' }));
+
   // CORS
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
@@ -446,6 +449,18 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // Backup purge admin API
   app.post('/admin/api/backups/purge', middlewares.adminApiAuth, controllers.backupController.purgeBackups);
+
+  // Camera
+  app.post(
+    '/cameras/:session_id/:filename',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    controllers.cameraController.writeCameraFile,
+  );
+  app.get(
+    '/cameras/:session_id/:filename',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    controllers.cameraController.getCameraFile,
+  );
 
   // socket
   io.on('connection', controllers.socketController.connection);

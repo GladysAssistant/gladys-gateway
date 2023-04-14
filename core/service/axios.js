@@ -11,12 +11,13 @@ const logger = tracer.colorConsole({
 const responseLogger = (response) =>
   AxiosLogger.responseLogger(response, {
     data: false,
-    logger: logger.info.bind(this),
+    logger: logger.debug.bind(this),
   });
 
 const requestLogger = (request) =>
   AxiosLogger.requestLogger(request, {
-    logger: logger.info.bind(this),
+    data: false,
+    logger: logger.debug.bind(this),
   });
 
 const errorLogger = (error) =>

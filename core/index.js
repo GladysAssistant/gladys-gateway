@@ -51,6 +51,7 @@ const GoogleController = require('./api/google/google.controller');
 const AlexaController = require('./api/alexa/alexa.controller');
 const EnedisController = require('./api/enedis/enedis.controller');
 const EcowattController = require('./api/ecowatt/ecowatt.controller');
+const CameraController = require('./api/camera/camera.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -209,6 +210,7 @@ module.exports = async (port) => {
     ),
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
+    cameraController: CameraController(logger, models.userModel, models.instanceModel),
   };
 
   const middlewares = {

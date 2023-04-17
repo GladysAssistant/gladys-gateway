@@ -6,12 +6,48 @@ const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 
 describe('cameraController', () => {
-  it('should upload camera file', async function Test() {
+  it('should upload camera index file', async function Test() {
     this.timeout(10000);
     const filePath = path.join(__dirname, 'file_to_upload.txt');
     const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    expect(response.body).to.deep.equal({ success: true });
+  });
+  it('should upload camera chunk file', async function Test() {
+    this.timeout(10000);
+    const filePath = path.join(__dirname, 'file_to_upload.txt');
+    const file = await fs.readFile(filePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index0.ts')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    expect(response.body).to.deep.equal({ success: true });
+  });
+  it('should upload camera chunk file', async function Test() {
+    this.timeout(10000);
+    const filePath = path.join(__dirname, 'file_to_upload.txt');
+    const file = await fs.readFile(filePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index1.ts')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    expect(response.body).to.deep.equal({ success: true });
+  });
+  it('should upload camera chunk file', async function Test() {
+    this.timeout(10000);
+    const filePath = path.join(__dirname, 'file_to_upload.txt');
+    const file = await fs.readFile(filePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index120.ts')
       .set('Accept', 'application/json')
       .set('Content-Type', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenInstance)
@@ -29,7 +65,7 @@ describe('cameraController', () => {
   it('should return 404 not found', async function Test() {
     this.timeout(10000);
     const response = await request(TEST_BACKEND_APP)
-      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index120.ts')
+      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index1209900.ts')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect(404);
     expect(response.body).to.deep.equal({

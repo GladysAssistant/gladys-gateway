@@ -1,0 +1,12 @@
+{
+  "Rules": [
+    {
+      "ID": "Prune old files",
+      "Status": "Enabled",
+      "Prefix": "",
+      "Expiration": {
+        "Days": 1
+      }
+    }
+  ]
+}

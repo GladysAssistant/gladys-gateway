@@ -54,6 +54,24 @@ describe('cameraController', () => {
       .send(file);
     expect(response.body).to.deep.equal({ success: true });
   });
+  it('should upload camera chunk file and then clean folder', async function Test() {
+    this.timeout(10000);
+    const filePath = path.join(__dirname, 'file_to_upload.txt');
+    const file = await fs.readFile(filePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-6c390d98-60be-4312-8c7c-db7daf402c07/index1.ts')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    expect(response.body).to.deep.equal({ success: true });
+    const responseClean = await request(TEST_BACKEND_APP)
+      .delete('/cameras/camera-6c390d98-60be-4312-8c7c-db7daf402c07')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance);
+    expect(responseClean.body).to.deep.equal({ success: true });
+  });
   it('should get camera file', async function Test() {
     this.timeout(10000);
     const response = await request(TEST_BACKEND_APP)

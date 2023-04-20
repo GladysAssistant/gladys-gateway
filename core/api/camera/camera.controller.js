@@ -90,8 +90,52 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
     }
   }
 
+  async function emptyS3Directory(bucket, dir) {
+    logger.info(`Camera: Emptying folder ${bucket} / ${dir}`);
+    const listParams = {
+      Bucket: bucket,
+      Prefix: dir,
+    };
+
+    const listedObjects = await s3.listObjectsV2(listParams).promise();
+    logger.info(`Camera: Found ${listedObjects.Contents.length} files to delete`);
+
+    if (listedObjects.Contents.length === 0) {
+      return;
+    }
+
+    const deleteParams = {
+      Bucket: bucket,
+      Delete: { Objects: [] },
+    };
+
+    listedObjects.Contents.forEach(({ Key }) => {
+      deleteParams.Delete.Objects.push({ Key });
+    });
+
+    await s3.deleteObjects(deleteParams).promise();
+
+    if (listedObjects.IsTruncated) {
+      logger.info(`Camera: Still some file to clean in ${bucket} / ${dir}. Re-cleaning.`);
+      await emptyS3Directory(bucket, dir);
+    }
+  }
+
+  /**
+   * @api {delete} /cameras/:session_id Delete camera session
+   * @apiName delete
+   * @apiGroup Camera
+   */
+  async function cleanCameraLive(req, res) {
+    validateSessionId(req.params.session_id);
+    const folder = `${req.instance.id}/${req.params.session_id}`;
+    await emptyS3Directory(process.env.CAMERA_STORAGE_BUCKET, folder);
+    res.json({ success: true });
+  }
+
   return {
     writeCameraFile: asyncMiddleware(writeCameraFile),
     getCameraFile: asyncMiddleware(getCameraFile),
+    cleanCameraLive: asyncMiddleware(cleanCameraLive),
   };
 };

@@ -461,6 +461,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     controllers.cameraController.getCameraFile,
   );
+  app.delete(
+    '/cameras/:session_id',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    controllers.cameraController.cleanCameraLive,
+  );
 
   // socket
   io.on('connection', controllers.socketController.connection);

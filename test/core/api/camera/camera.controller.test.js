@@ -71,6 +71,14 @@ describe('cameraController', () => {
       .set('Content-Type', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenInstance);
     expect(responseClean.body).to.deep.equal({ success: true });
+    // try to clean a second time to check that cleaning an empty folder
+    // is not an issue
+    const responseClean2 = await request(TEST_BACKEND_APP)
+      .delete('/cameras/camera-6c390d98-60be-4312-8c7c-db7daf402c07')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance);
+    expect(responseClean2.body).to.deep.equal({ success: true });
   });
   it('should get camera file', async function Test() {
     this.timeout(10000);

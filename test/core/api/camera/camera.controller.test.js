@@ -88,6 +88,14 @@ describe('cameraController', () => {
       .set('Authorization', configTest.jwtAccessTokenDashboard);
     expect(response.body.toString()).to.equal('test');
   });
+  it('should get camera fake key file', async function Test() {
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8.key')
+      .set('Accept', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenDashboard);
+    expect(response.body.toString()).to.equal('not-a-key');
+  });
   it('should return 404 not found', async function Test() {
     this.timeout(10000);
     const response = await request(TEST_BACKEND_APP)

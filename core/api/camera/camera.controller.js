@@ -67,6 +67,13 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
   async function getCameraFile(req, res, next) {
     validateSessionId(req.params.session_id);
     validateFilename(req.params.filename);
+    // Special case for key file, as we don't get them on the Gateway side
+    // We override it
+    if (req.params.filename === 'index.m3u8.key') {
+      res.setHeader('content-type', 'application/octet-stream');
+      res.send('not-a-key');
+      return;
+    }
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
     const key = `${primaryInstance.id}/${req.params.session_id}/${req.params.filename}`;

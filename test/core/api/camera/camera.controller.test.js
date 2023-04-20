@@ -86,6 +86,18 @@ describe('cameraController', () => {
       error_message: 'Invalid session id',
     });
   });
+  it('should return 400, wrong session id', async function Test() {
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .get('/cameras/camera-....11ff9014-6fa5-473c-8f38-0d798ba977bf/0f7fcced-6c7c-4cf9-b6a0-18ad50f6033a')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(400);
+    expect(response.body).to.deep.equal({
+      status: 400,
+      error_code: 'BAD_REQUEST',
+      error_message: 'Invalid session id',
+    });
+  });
   it('should return 400, wrong filename', async function Test() {
     this.timeout(10000);
     const response = await request(TEST_BACKEND_APP)

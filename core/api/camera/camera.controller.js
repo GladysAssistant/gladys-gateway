@@ -16,10 +16,11 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
     endpoint: spacesEndpoint,
   });
 
+  const SESSION_ID_REGEX = /^camera-[a-zA-Z0-9-_]+$/;
+
   // Session_id usually looks like "camera-7835d25d-b8ce-4824-a235-23637f778f83-39-50-13"
   const validateSessionId = (sessionId) => {
-    const correctStart = sessionId.startsWith('camera-');
-    if (!correctStart) {
+    if (!SESSION_ID_REGEX.test(sessionId)) {
       throw new BadRequestError('Invalid session id');
     }
   };

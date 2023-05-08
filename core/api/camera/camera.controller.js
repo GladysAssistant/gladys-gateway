@@ -1,19 +1,27 @@
 const aws = require('aws-sdk');
 const axios = require('axios');
+const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware');
-const { NotFoundError, BadRequestError } = require('../../common/error');
+const { NotFoundError, BadRequestError, TooManyRequestsError } = require('../../common/error');
 
 aws.config.update({
   signatureVersion: 'v4',
   signatureCache: false,
 });
 
-module.exports = function CameraController(logger, userModel, instanceModel) {
+module.exports = function CameraController(logger, userModel, instanceModel, redisClient) {
   const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
 
   const s3 = new aws.S3({
     endpoint: spacesEndpoint,
+  });
+
+  const trafficLimiter = new RateLimiterRedis({
+    storeClient: redisClient,
+    keyPrefix: 'rate_limit:camera_data_traffic',
+    points: 50 * 1024 * 1024, // Max bytes per month of camera traffic allowed
+    duration: 30 * 24 * 60 * 60, // 30 days
   });
 
   const SESSION_ID_REGEX = /^camera-[a-zA-Z0-9-_]+$/;
@@ -46,6 +54,14 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
   async function writeCameraFile(req, res, next) {
     validateSessionId(req.params.session_id);
     validateFilename(req.params.filename);
+    const fileSize = Buffer.byteLength(req.body);
+
+    try {
+      await trafficLimiter.consume(req.instance.id, fileSize);
+    } catch (e) {
+      throw new TooManyRequestsError('Too much camera traffic used this month');
+    }
+
     const key = `${req.instance.id}/${req.params.session_id}/${req.params.filename}`;
     await s3
       .putObject({
@@ -77,6 +93,13 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
     const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
     const key = `${primaryInstance.id}/${req.params.session_id}/${req.params.filename}`;
+
+    const limiterResult = await trafficLimiter.get(primaryInstance.id);
+    if (limiterResult && limiterResult.remainingPoints <= 0) {
+      logger.warn(`Camera: Client ${primaryInstance.id} has used too much camera traffic.`);
+      throw new TooManyRequestsError('Too much camera traffic used this month');
+    }
+
     const signedUrl = await s3.getSignedUrlPromise('getObject', {
       Bucket: process.env.CAMERA_STORAGE_BUCKET,
       Key: key,
@@ -90,6 +113,11 @@ module.exports = function CameraController(logger, userModel, instanceModel) {
       });
       res.setHeader('content-type', headers['content-type']);
       res.setHeader('content-length', headers['content-length']);
+      try {
+        await trafficLimiter.consume(primaryInstance.id, headers['content-length']);
+      } catch (e) {
+        logger.warn(`Camera: Client ${primaryInstance.id} has used too much camera traffic. Next query will fail.`);
+      }
       data.pipe(res);
     } catch (e) {
       logger.error(e);

@@ -1,15 +1,28 @@
 const request = require('supertest');
 const { promises: fs } = require('fs');
 const path = require('path');
+const redis = require('redis');
 const { expect } = require('chai');
 
 const configTest = require('../../../tasks/config');
 
+const redisClient = redis.createClient({
+  socket: {
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+  },
+  password: process.env.REDIS_PASSWORD,
+});
+
 describe('cameraController', () => {
+  const filePath = path.join(__dirname, 'file_to_upload.txt');
+  let file;
+  before(async () => {
+    await redisClient.connect();
+    file = await fs.readFile(filePath);
+  });
   it('should upload camera index file', async function Test() {
     this.timeout(10000);
-    const filePath = path.join(__dirname, 'file_to_upload.txt');
-    const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
       .set('Accept', 'application/json')
@@ -18,10 +31,24 @@ describe('cameraController', () => {
       .send(file);
     expect(response.body).to.deep.equal({ success: true });
   });
+  it('should return 429 too much camera traffic', async function Test() {
+    this.timeout(10000);
+    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file)
+      .expect(429);
+    expect(response.body).to.deep.equal({
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too much camera traffic used this month',
+      status: 429,
+    });
+  });
   it('should upload camera chunk file', async function Test() {
     this.timeout(10000);
-    const filePath = path.join(__dirname, 'file_to_upload.txt');
-    const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index0.ts')
       .set('Accept', 'application/json')
@@ -32,8 +59,6 @@ describe('cameraController', () => {
   });
   it('should upload camera chunk file', async function Test() {
     this.timeout(10000);
-    const filePath = path.join(__dirname, 'file_to_upload.txt');
-    const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index1.ts')
       .set('Accept', 'application/json')
@@ -44,8 +69,6 @@ describe('cameraController', () => {
   });
   it('should upload camera chunk file', async function Test() {
     this.timeout(10000);
-    const filePath = path.join(__dirname, 'file_to_upload.txt');
-    const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index120.ts')
       .set('Accept', 'application/json')
@@ -56,8 +79,6 @@ describe('cameraController', () => {
   });
   it('should upload camera chunk file and then clean folder', async function Test() {
     this.timeout(10000);
-    const filePath = path.join(__dirname, 'file_to_upload.txt');
-    const file = await fs.readFile(filePath);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-6c390d98-60be-4312-8c7c-db7daf402c07/index1.ts')
       .set('Accept', 'application/json')
@@ -87,6 +108,52 @@ describe('cameraController', () => {
       .set('Accept', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenDashboard);
     expect(response.body.toString()).to.equal('test');
+  });
+  it('should return 429 too many camera traffic', async function Test() {
+    this.timeout(10000);
+    await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024);
+    const response = await request(TEST_BACKEND_APP)
+      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(429);
+    expect(response.body).to.deep.equal({
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too much camera traffic used this month',
+      status: 429,
+    });
+  });
+  it('should allow request even if consumed points is more than allowed', async function Test() {
+    this.timeout(10000);
+    await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file);
+    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024 - 1);
+    const response = await request(TEST_BACKEND_APP)
+      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body.toString()).to.equal('test');
+    const nextQueryResponse = await request(TEST_BACKEND_APP)
+      .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(429);
+    expect(nextQueryResponse.body).to.deep.equal({
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too much camera traffic used this month',
+      status: 429,
+    });
   });
   it('should get camera fake key file', async function Test() {
     this.timeout(10000);

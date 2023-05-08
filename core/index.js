@@ -210,7 +210,7 @@ module.exports = async (port) => {
     ),
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
-    cameraController: CameraController(logger, models.userModel, models.instanceModel),
+    cameraController: CameraController(logger, models.userModel, models.instanceModel, legacyRedisClient),
   };
 
   const middlewares = {

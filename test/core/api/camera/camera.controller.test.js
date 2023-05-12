@@ -33,7 +33,10 @@ describe('cameraController', () => {
   });
   it('should return 429 too much camera traffic', async function Test() {
     this.timeout(10000);
-    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024);
+    await redisClient.set(
+      'rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      50 * 1024 * 1024 * 1024,
+    );
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
       .set('Accept', 'application/json')
@@ -117,7 +120,10 @@ describe('cameraController', () => {
       .set('Content-Type', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send(file);
-    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024);
+    await redisClient.set(
+      'rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      50 * 1024 * 1024 * 1024,
+    );
     const response = await request(TEST_BACKEND_APP)
       .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
       .set('Accept', 'application/octet-stream')
@@ -137,7 +143,10 @@ describe('cameraController', () => {
       .set('Content-Type', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send(file);
-    await redisClient.set('rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf', 50 * 1024 * 1024 - 1);
+    await redisClient.set(
+      'rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      50 * 1024 * 1024 * 1024 - 1,
+    );
     const response = await request(TEST_BACKEND_APP)
       .get('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
       .set('Accept', 'application/octet-stream')

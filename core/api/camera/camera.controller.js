@@ -20,7 +20,7 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
   const trafficLimiter = new RateLimiterRedis({
     storeClient: redisClient,
     keyPrefix: 'rate_limit:camera_data_traffic',
-    points: 50 * 1024 * 1024, // Max bytes per month of camera traffic allowed
+    points: 50 * 1024 * 1024 * 1024, // Max bytes per month of camera traffic allowed
     duration: 30 * 24 * 60 * 60, // 30 days
   });
 

@@ -31,6 +31,18 @@ describe('cameraController', () => {
       .send(file);
     expect(response.body).to.deep.equal({ success: true });
   });
+  it('should upload large file', async function Test() {
+    this.timeout(10000);
+    const largeFilePath = path.join(__dirname, 'temp_10_mb');
+    const largeFile = await fs.readFile(largeFilePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index19.ts')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(largeFile);
+    expect(response.body).to.deep.equal({ success: true });
+  });
   it('should return 429 too much camera traffic', async function Test() {
     this.timeout(10000);
     await redisClient.set(

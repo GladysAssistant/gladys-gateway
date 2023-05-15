@@ -11,7 +11,9 @@ const { ForbiddenError } = require('../../common/error');
 const ALEXA_OAUTH_CODE_REDIS_PREFIX = `ALEXA_OAUTH_CODE`;
 const ALEXA_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 
-const ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'alexa-grant-access-token:';
+const ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'alexa-grant-access-token';
+
+const ALEXA_USERS_REDIS_PREFIX = 'alexa-users';
 
 const JWT_AUDIENCE = 'alexa-oauth';
 const SCOPE = ['alexa'];
@@ -196,8 +198,21 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     }
   }
 
-  async function reportState(instanceId, payload) {
+  async function getUsersWithAlexaActivated(instanceId) {
+    const usersFromCache = await redisClient.get(`${ALEXA_USERS_REDIS_PREFIX}:${instanceId}`);
+    if (usersFromCache) {
+      logger.debug(`getUsersWithAlexaActivated: Returning Alexa users from Redis cache (instance = ${instanceId})`);
+      return JSON.parse(usersFromCache);
+    }
     const users = await db.query(getUsersWithAlexaActivatedQuery, [instanceId, ALEXA_OAUTH_CLIENT_ID]);
+    await redisClient.set(`${ALEXA_USERS_REDIS_PREFIX}:${instanceId}`, JSON.stringify(users), {
+      EX: 1 * 60, // 1 minute
+    });
+    return users;
+  }
+
+  async function reportState(instanceId, payload) {
+    const users = await getUsersWithAlexaActivated(instanceId);
     if (users.length > 0) {
       await Promise.each(users, async (user) => {
         try {

@@ -266,7 +266,7 @@ describe('POST /alexa/report_state', () => {
       .expect('Content-Type', /json/)
       .expect(200);
   });
-  it('should report a new state', async () => {
+  it('should report a new state, with users from DB then cache', async () => {
     nock('https://api.amazon.com:443', { encodedQueryParams: true })
       .post('/auth/o2/token', (body) => {
         const grandTypeValid = body.grand_type === 'refresh_token';
@@ -294,6 +294,21 @@ describe('POST /alexa/report_state', () => {
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
+    nock('https://api.eu.amazonalexa.com:443', { encodedQueryParams: true })
+      .post('/v3/events', (body) => body.test_data === true)
+      .reply(200, {
+        status: 200,
+      });
+    const response2 = await request(TEST_BACKEND_APP)
+      .post('/alexa/report_state')
+      .send({
+        test_data: true,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response2.body).to.deep.equal({ status: 200 });
   });
   it('should report a new state and get a 404', async () => {
     nock('https://api.amazon.com:443', { encodedQueryParams: true })

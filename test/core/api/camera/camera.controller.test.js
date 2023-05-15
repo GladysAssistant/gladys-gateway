@@ -31,12 +31,50 @@ describe('cameraController', () => {
       .send(file);
     expect(response.body).to.deep.equal({ success: true });
   });
+  it('should upload large file', async function Test() {
+    this.timeout(10000);
+    const largeFilePath = path.join(__dirname, 'temp_10_mb');
+    const largeFile = await fs.readFile(largeFilePath);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index19.ts')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(largeFile);
+    expect(response.body).to.deep.equal({ success: true });
+  });
   it('should return 429 too much camera traffic', async function Test() {
     this.timeout(10000);
     await redisClient.set(
       'rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
       50 * 1024 * 1024 * 1024,
     );
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file)
+      .expect(429);
+    expect(response.body).to.deep.equal({
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too much camera traffic used this month',
+      status: 429,
+    });
+  });
+  it('should not return 429 at first call, but will return 429 on second call', async function Test() {
+    this.timeout(10000);
+    await redisClient.set(
+      'rate_limit:camera_data_traffic:0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      50 * 1024 * 1024 * 1024 - 1,
+    );
+    await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(file)
+      .expect(200);
     const response = await request(TEST_BACKEND_APP)
       .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/index.m3u8')
       .set('Accept', 'application/json')

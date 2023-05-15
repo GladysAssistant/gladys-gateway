@@ -33,9 +33,6 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // parse application/json
   app.use(bodyParser.json());
 
-  // parse file
-  app.use(bodyParser.raw({ type: 'application/octet-stream', limit: '10mb' }));
-
   // CORS
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');

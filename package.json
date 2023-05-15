@@ -57,6 +57,9 @@
     "supertest": "^3.3.0"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.332.0",
+    "@aws-sdk/lib-storage": "^3.332.0",
+    "@aws-sdk/s3-request-presigner": "^3.332.0",
     "@googleapis/homegraph": "^4.0.0",
     "@sentry/node": "^5.22.3",
     "@socket.io/redis-adapter": "^7.2.0",

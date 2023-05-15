@@ -1,20 +1,22 @@
-const aws = require('aws-sdk');
+const { S3, ListObjectsCommand, GetObjectCommand, DeleteObjectsCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { PassThrough } = require('stream');
 const axios = require('axios');
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware');
 const { NotFoundError, BadRequestError, TooManyRequestsError } = require('../../common/error');
 
-aws.config.update({
-  signatureVersion: 'v4',
-  signatureCache: false,
-});
-
 module.exports = function CameraController(logger, userModel, instanceModel, redisClient) {
-  const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
-
-  const s3 = new aws.S3({
-    endpoint: spacesEndpoint,
+  const s3Client = new S3({
+    forcePathStyle: false, // Configures to use subdomain/virtual calling format.
+    endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
   });
 
   const trafficLimiter = new RateLimiterRedis({
@@ -54,25 +56,45 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
   async function writeCameraFile(req, res, next) {
     validateSessionId(req.params.session_id);
     validateFilename(req.params.filename);
-    const fileSize = Buffer.byteLength(req.body);
 
-    try {
-      await trafficLimiter.consume(req.instance.id, fileSize);
-    } catch (e) {
+    const limiterResult = await trafficLimiter.get(req.instance.id);
+    if (limiterResult && limiterResult.remainingPoints <= 0) {
+      logger.warn(`Camera: Client ${req.instance.id} has used too much camera traffic.`);
       throw new TooManyRequestsError('Too much camera traffic used this month');
     }
 
+    const passThrough = new PassThrough();
+
     const key = `${req.instance.id}/${req.params.session_id}/${req.params.filename}`;
-    await s3
-      .putObject({
-        Bucket: process.env.CAMERA_STORAGE_BUCKET,
-        Key: key,
-        Body: req.body,
-      })
-      .promise();
-    res.json({
-      success: true,
+
+    const params = {
+      Bucket: process.env.CAMERA_STORAGE_BUCKET,
+      Key: key,
+      Body: passThrough,
+      ContentType: 'application/octet-stream',
+    };
+
+    const upload = new Upload({
+      client: s3Client,
+      params,
     });
+
+    let streamLength = 0;
+    passThrough.on('data', (chunk) => {
+      streamLength += chunk.length;
+    });
+
+    req.pipe(passThrough);
+
+    await upload.done();
+
+    try {
+      await trafficLimiter.consume(req.instance.id, streamLength);
+    } catch (e) {
+      logger.warn(`Too many requests used this month, will fail at next call`);
+    }
+
+    res.json({ success: true });
   }
 
   /**
@@ -100,11 +122,15 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
       throw new TooManyRequestsError('Too much camera traffic used this month');
     }
 
-    const signedUrl = await s3.getSignedUrlPromise('getObject', {
+    const bucketParams = {
       Bucket: process.env.CAMERA_STORAGE_BUCKET,
       Key: key,
-      Expires: 6 * 60 * 60, // URL is valid 6 hours
+    };
+
+    const signedUrl = await getSignedUrl(s3Client, new GetObjectCommand(bucketParams), {
+      expiresIn: 6 * 60 * 60, // URL is valid 6 hours
     });
+
     try {
       const { data, headers } = await axios({
         url: signedUrl,
@@ -132,12 +158,13 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
       Prefix: dir,
     };
 
-    const listedObjects = await s3.listObjectsV2(listParams).promise();
-    logger.info(`Camera: Found ${listedObjects.Contents.length} files to delete`);
+    const listedObjects = await s3Client.send(new ListObjectsCommand(listParams));
 
-    if (listedObjects.Contents.length === 0) {
+    if (!listedObjects.Contents || listedObjects.Contents.length === 0) {
       return;
     }
+
+    logger.info(`Camera: Found ${listedObjects.Contents.length} files to delete`);
 
     const deleteParams = {
       Bucket: bucket,
@@ -148,7 +175,7 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
       deleteParams.Delete.Objects.push({ Key });
     });
 
-    await s3.deleteObjects(deleteParams).promise();
+    await s3Client.send(new DeleteObjectsCommand(deleteParams));
 
     if (listedObjects.IsTruncated) {
       logger.info(`Camera: Still some file to clean in ${bucket} / ${dir}. Re-cleaning.`);

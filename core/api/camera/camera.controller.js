@@ -112,13 +112,12 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
       res.send('not-a-key');
       return;
     }
-    const user = await userModel.getMySelf({ id: req.user.id });
-    const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
-    const key = `${primaryInstance.id}/${req.params.session_id}/${req.params.filename}`;
+    const primaryInstanceId = await instanceModel.getPrimaryInstanceIdByUserId(req.user.id);
+    const key = `${primaryInstanceId}/${req.params.session_id}/${req.params.filename}`;
 
-    const limiterResult = await trafficLimiter.get(primaryInstance.id);
+    const limiterResult = await trafficLimiter.get(primaryInstanceId);
     if (limiterResult && limiterResult.remainingPoints <= 0) {
-      logger.warn(`Camera: Client ${primaryInstance.id} has used too much camera traffic.`);
+      logger.warn(`Camera: Client ${primaryInstanceId} has used too much camera traffic.`);
       throw new TooManyRequestsError('Too much camera traffic used this month');
     }
 
@@ -140,9 +139,9 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
       res.setHeader('content-type', headers['content-type']);
       res.setHeader('content-length', headers['content-length']);
       try {
-        await trafficLimiter.consume(primaryInstance.id, headers['content-length']);
+        await trafficLimiter.consume(primaryInstanceId, headers['content-length']);
       } catch (e) {
-        logger.warn(`Camera: Client ${primaryInstance.id} has used too much camera traffic. Next query will fail.`);
+        logger.warn(`Camera: Client ${primaryInstanceId} has used too much camera traffic. Next query will fail.`);
       }
       data.pipe(res);
     } catch (e) {

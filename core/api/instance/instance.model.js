@@ -1,7 +1,10 @@
 const Joi = require('joi');
 const uuid = require('uuid');
 const crypto = require('crypto');
+const Promise = require('bluebird');
 const { ValidationError, ForbiddenError, NotFoundError } = require('../../common/error');
+
+const PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX = 'primary_instance_per_user';
 
 module.exports = function InstanceModel(logger, db, redisClient, jwtService, fingerprint) {
   const instanceSchema = Joi.object().keys({
@@ -164,8 +167,42 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     return instance;
   }
 
+  async function getPrimaryInstanceIdByUserId(userId) {
+    // Get from Redis is cache is available
+    const primaryInstanceId = await redisClient.get(`${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${userId}`);
+
+    if (primaryInstanceId) {
+      logger.debug(`User ${userId} has primary instance ${primaryInstanceId} (from cache)`);
+      return primaryInstanceId;
+    }
+
+    const primaryInstances = await db.query(
+      `
+      SELECT t_instance.id
+      FROM t_user
+      JOIN t_instance ON t_instance.account_id = t_user.account_id
+      WHERE t_user.id = $1
+      AND t_instance.primary_instance = true
+      AND t_instance.is_deleted = false;
+    `,
+      [userId],
+    );
+
+    if (primaryInstances.length === 0) {
+      throw new NotFoundError('Instance not found');
+    }
+
+    const instanceId = primaryInstances[0].id;
+
+    await redisClient.set(`${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${userId}`, instanceId, {
+      EX: 5 * 60, // 5 minutes
+    });
+
+    return instanceId;
+  }
+
   async function setInstanceAsPrimaryInstance(accountId, instanceId) {
-    return db.withTransaction(async (tx) => {
+    await db.withTransaction(async (tx) => {
       // set all other instances in account as secondary instance
       await tx.t_instance.update(
         {
@@ -185,6 +222,13 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
         },
       );
     });
+
+    // clean user -> primary instance cache
+    const usersInInstance = await getUsers({ id: instanceId });
+    await Promise.map(usersInInstance, async (user) => {
+      logger.debug(`Cleaning primary instance cache, user = ${user.id}`);
+      await redisClient.del(`${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${user.id}`);
+    });
   }
 
   return {
@@ -194,6 +238,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     getAccessToken,
     getUsers,
     getPrimaryInstanceByAccount,
+    getPrimaryInstanceIdByUserId,
     setInstanceAsPrimaryInstance,
   };
 };

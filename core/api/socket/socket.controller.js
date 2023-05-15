@@ -87,6 +87,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
           // socket disconnected
         });
       } catch (e) {
+        logger.debug(e);
         fn({ authenticated: false });
 
         // disconnect socket

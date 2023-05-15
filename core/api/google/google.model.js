@@ -8,6 +8,7 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
 
 const GOOGLE_OAUTH_CODE_REDIS_PREFIX = `GOOGLE_OAUTH_CODE`;
+const GOOGLE_USERS_REDIS_PREFIX = 'google-users';
 const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
@@ -148,8 +149,21 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     }
   }
 
-  async function reportState(instanceId, payload) {
+  async function getGoogleUsers(instanceId) {
+    const usersFromCache = await redisClient.get(`${GOOGLE_USERS_REDIS_PREFIX}:${instanceId}`);
+    if (usersFromCache) {
+      logger.debug(`getGoogleUsers: Returning Google users from Redis cache (instance = ${instanceId})`);
+      return JSON.parse(usersFromCache);
+    }
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
+    await redisClient.set(`${GOOGLE_USERS_REDIS_PREFIX}:${instanceId}`, JSON.stringify(users), {
+      EX: 1 * 60, // 1 minute
+    });
+    return users;
+  }
+
+  async function reportState(instanceId, payload) {
+    const users = await getGoogleUsers(instanceId);
     if (users.length > 0) {
       const payloadCleaned = cleanNullProperties(payload);
       const requestBody = {

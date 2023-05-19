@@ -150,6 +150,25 @@ describe('cameraController', () => {
       .set('Authorization', configTest.jwtAccessTokenDashboard);
     expect(response.body.toString()).to.equal('test');
   });
+  it('should start streaming & get camera file with access key', async function Test() {
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/streaming/start')
+      .set('Accept', 'application/octet-stream')
+      .set('Authorization', configTest.jwtAccessTokenDashboard);
+    expect(response.body).to.have.property('stream_access_key');
+    const responseFile = await request(TEST_BACKEND_APP)
+      .get(`/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/${response.body.stream_access_key}/index.m3u8`)
+      .set('Accept', 'application/octet-stream');
+    expect(responseFile.body.toString()).to.equal('test');
+  });
+  it('should return 403', async function Test() {
+    this.timeout(10000);
+    await request(TEST_BACKEND_APP)
+      .get(`/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/UNKNOWN/index.m3u8`)
+      .set('Accept', 'application/octet-stream')
+      .expect(403);
+  });
   it('should return 429 too many camera traffic', async function Test() {
     this.timeout(10000);
     await request(TEST_BACKEND_APP)

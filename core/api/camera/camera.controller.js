@@ -3,12 +3,23 @@ const { Upload } = require('@aws-sdk/lib-storage');
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { PassThrough } = require('stream');
 const axios = require('axios');
+const Promise = require('bluebird');
+const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware');
 const { NotFoundError, BadRequestError, TooManyRequestsError } = require('../../common/error');
 
-module.exports = function CameraController(logger, userModel, instanceModel, redisClient) {
+const STREAMING_ACCESS_KEY_PREFIX = 'streaming-access-key';
+
+module.exports = function CameraController(
+  logger,
+  userModel,
+  instanceModel,
+  legacyRedisClient,
+  redisClient,
+  telegramService,
+) {
   const s3Client = new S3({
     forcePathStyle: false, // Configures to use subdomain/virtual calling format.
     endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
@@ -20,7 +31,7 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
   });
 
   const trafficLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
+    storeClient: legacyRedisClient,
     keyPrefix: 'rate_limit:camera_data_traffic',
     points: 50 * 1024 * 1024 * 1024, // Max bytes per month of camera traffic allowed
     duration: 30 * 24 * 60 * 60, // 30 days
@@ -95,6 +106,23 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
     }
 
     res.json({ success: true });
+  }
+
+  /**
+   * @api {post} /cameras/:session_id/streaming/start Start streaming
+   * @apiName startStreaming
+   * @apiGroup Camera
+   */
+  async function startStreaming(req, res, next) {
+    const user = await userModel.getMySelf(req.user);
+    telegramService.sendAlert(`User ${user.email} starting stream!`);
+    const streamAccessKey = (await randomBytes(36)).toString('hex');
+    await redisClient.set(`${STREAMING_ACCESS_KEY_PREFIX}:${streamAccessKey}`, req.user.id, {
+      EX: 60 * 60, // 1 hour in second
+    });
+    res.json({
+      stream_access_key: streamAccessKey,
+    });
   }
 
   /**
@@ -195,6 +223,7 @@ module.exports = function CameraController(logger, userModel, instanceModel, red
   }
 
   return {
+    startStreaming: asyncMiddleware(startStreaming),
     writeCameraFile: asyncMiddleware(writeCameraFile),
     getCameraFile: asyncMiddleware(getCameraFile),
     cleanCameraLive: asyncMiddleware(cleanCameraLive),

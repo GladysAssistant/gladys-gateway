@@ -449,6 +449,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // Camera
   app.post(
+    '/cameras/:session_id/streaming/start',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    controllers.cameraController.startStreaming,
+  );
+  app.post(
     '/cameras/:session_id/:filename',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     controllers.cameraController.writeCameraFile,
@@ -456,6 +461,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.get(
     '/cameras/:session_id/:filename',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    controllers.cameraController.getCameraFile,
+  );
+  // Camera live streaming with access key in URL
+  app.get(
+    '/cameras/:session_id/:stream_access_key/:filename',
+    asyncMiddleware(middlewares.cameraStreamAccessKeyAuth),
     controllers.cameraController.getCameraFile,
   );
   app.delete(

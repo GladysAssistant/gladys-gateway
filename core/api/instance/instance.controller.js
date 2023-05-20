@@ -79,7 +79,7 @@ module.exports = function InstanceController(instanceModel, socketModel) {
    * }
    */
   async function getAccessToken(req, res, next) {
-    const token = await instanceModel.getAccessToken(req.instance, req.headers.authorization);
+    const token = await instanceModel.getAccessToken(req.instance, req.header('Authorization'));
     res.json(token);
   }
 

@@ -270,7 +270,7 @@ module.exports = function UserController(userModel, mailService, socketModel) {
    * }
    */
   async function getAccessToken(req, res, next) {
-    const token = await userModel.getAccessToken(req.user, req.headers.authorization);
+    const token = await userModel.getAccessToken(req.user, req.header('Authorization'));
     res.json(token);
   }
 

@@ -29,7 +29,7 @@ module.exports = function AdminApiAuth(logger, redisClient) {
     }
 
     // if authorization header is good, we go to the next middleware
-    const { authorization } = req.headers;
+    const { authorization } = req.header('Authorization');
     if (authorization === process.env.ADMIN_API_AUTHORIZATION_TOKEN) {
       logger.info(`Admin API request`);
       return next();

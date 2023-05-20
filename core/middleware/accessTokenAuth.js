@@ -5,7 +5,7 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
   return function AccessTokenAuthMiddlewareGenerator({ scope, audience = 'user' }) {
     return async function AccessTokenAuth(req, res, next) {
       try {
-        let jwtToken = req.headers.authorization;
+        let jwtToken = req.header('Authorization');
         if (jwtToken.startsWith('Bearer ')) {
           jwtToken = jwtToken.substr(7);
         }
@@ -30,7 +30,7 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
 
         next();
       } catch (e) {
-        logger.debug(req.headers.authorization);
+        logger.debug(req.header('Authorization'));
         logger.debug(e);
         throw new UnauthorizedError();
       }

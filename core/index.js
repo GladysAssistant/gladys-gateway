@@ -67,6 +67,7 @@ const gladysUsageMiddleware = require('./middleware/gladysUsage');
 const requestExecutionTime = require('./middleware/requestExecutionTime');
 const AdminApiAuth = require('./middleware/adminApiAuth');
 const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
+const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAuth');
 
 // Routes
 const routes = require('./api/routes');
@@ -210,7 +211,14 @@ module.exports = async (port) => {
     ),
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
-    cameraController: CameraController(logger, models.userModel, models.instanceModel, legacyRedisClient),
+    cameraController: CameraController(
+      logger,
+      models.userModel,
+      models.instanceModel,
+      legacyRedisClient,
+      redisClient,
+      services.telegramService,
+    ),
   };
 
   const middlewares = {
@@ -227,6 +235,7 @@ module.exports = async (port) => {
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, legacyRedisClient),
     openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
+    cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
   };
 
   routes.load(app, io, controllers, middlewares);

@@ -449,7 +449,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // Camera
   app.post(
-    '/cameras/:session_id/streaming/start',
+    '/cameras/streaming/start',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     controllers.cameraController.startStreaming,
   );

@@ -153,7 +153,7 @@ describe('cameraController', () => {
   it('should start streaming & get camera file with access key', async function Test() {
     this.timeout(10000);
     const response = await request(TEST_BACKEND_APP)
-      .post('/cameras/camera-11ff9014-6fa5-473c-8f38-0d798ba977bf/streaming/start')
+      .post('/cameras/streaming/start')
       .set('Accept', 'application/octet-stream')
       .set('Authorization', configTest.jwtAccessTokenDashboard);
     expect(response.body).to.have.property('stream_access_key');

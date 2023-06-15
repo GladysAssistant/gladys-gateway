@@ -93,7 +93,7 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       Bucket: process.env.STORAGE_BUCKET,
       Key: multipartUpload.Key,
       UploadId: multipartUpload.UploadId,
-      Expires: 10 * 60 * 60, // URL is valid for 10 hours
+      Expires: 15 * 60 * 60, // URL is valid for 15 hours
     };
 
     const tasks = new Array(numberOfParts);

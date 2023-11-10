@@ -68,6 +68,7 @@ const requestExecutionTime = require('./middleware/requestExecutionTime');
 const AdminApiAuth = require('./middleware/adminApiAuth');
 const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
 const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAuth');
+const CheckUserPlan = require('./middleware/checkUserPlan');
 
 // Routes
 const routes = require('./api/routes');
@@ -236,6 +237,7 @@ module.exports = async (port) => {
     adminApiAuth: AdminApiAuth(logger, legacyRedisClient),
     openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
     cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
+    checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, logger),
   };
 
   routes.load(app, io, controllers, middlewares);

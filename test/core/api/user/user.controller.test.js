@@ -364,6 +364,8 @@ describe('GET /users/me', () => {
           role: 'admin',
           superAdmin: false,
           language: 'en',
+          plan: 'plus',
+          status: 'active',
           profile_url: null,
           gladys_user_id: null,
           gladys_4_user_id: null,

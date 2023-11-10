@@ -57,6 +57,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post(
     '/openai/ask',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     middlewares.openAIAuthAndRateLimit,
     asyncMiddleware(controllers.openAIController.ask),
   );
@@ -425,12 +426,18 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
 
   // Backup
-  app.get('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.get);
+  app.get(
+    '/backups',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
+    controllers.backupController.get,
+  );
 
   // Backup multi-part upload
   app.post(
     '/backups/multi_parts/initialize',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     controllers.backupController.initializeMultipartUpload,
   );
   app.post(
@@ -451,6 +458,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post(
     '/cameras/streaming/start',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    middlewares.checkUserPlan('plus'),
     controllers.cameraController.startStreaming,
   );
   app.post(

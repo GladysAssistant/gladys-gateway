@@ -1,4 +1,4 @@
-const { ForbiddenError } = require('../common/error');
+const { PaymentRequiredError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
 
 const ALLOWED_ACCOUNT_STATUS = ['active', 'trialing'];
@@ -21,11 +21,11 @@ module.exports = function checkUserPlan(userModel, instanceModel, logger) {
       }
 
       if (account.plan !== plan) {
-        throw new ForbiddenError(`Account is in plan ${account.plan} and should be in plan ${plan}`);
+        throw new PaymentRequiredError(`Account is in plan ${account.plan} and should be in plan ${plan}`);
       }
 
       if (ALLOWED_ACCOUNT_STATUS.indexOf(account.status) === -1) {
-        throw new ForbiddenError(`Account is not active`);
+        throw new PaymentRequiredError(`Account is not active`);
       }
 
       next();

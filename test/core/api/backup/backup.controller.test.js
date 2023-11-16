@@ -163,6 +163,52 @@ describe('Upload backup', () => {
       error_message: 'File is too large. Maximum file size is 10240 MB.',
     });
   });
+  it('should not upload backup, wrong plan', async function Test() {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { plan: 'lite' },
+    );
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: 12 * 1024 * 1024 * 1024,
+      })
+      .expect('Content-Type', /json/)
+      .expect(402);
+    expect(response.body).to.deep.equal({
+      status: 402,
+      error_code: 'PAYMENT_REQUIRED',
+      error_message: 'Account is in plan lite and should be in plan plus',
+    });
+  });
+  it('should not upload backup, inactive account', async function Test() {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { status: 'past_due' },
+    );
+    this.timeout(10000);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: 12 * 1024 * 1024 * 1024,
+      })
+      .expect('Content-Type', /json/)
+      .expect(402);
+    expect(response.body).to.deep.equal({
+      status: 402,
+      error_code: 'PAYMENT_REQUIRED',
+      error_message: 'Account is not active',
+    });
+  });
   it('should return 404 backup not found', async function Test() {
     this.timeout(10000);
     const filePath = path.join(__dirname, 'file_to_upload.enc');

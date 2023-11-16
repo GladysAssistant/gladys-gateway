@@ -26,7 +26,8 @@ module.exports = function getErrorMiddleware(logger) {
       error instanceof ForbiddenError ||
       error instanceof UnauthorizedError ||
       error instanceof BadRequestError ||
-      error instanceof TooManyRequestsError
+      error instanceof TooManyRequestsError ||
+      error instanceof PaymentRequiredError
     ) {
       return res.status(error.getStatus()).json(error.jsonError());
     }

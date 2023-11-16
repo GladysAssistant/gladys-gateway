@@ -376,31 +376,37 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.get(
     '/enedis/initialize',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.initialize),
   );
   app.post(
     '/enedis/finalize',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.finalize),
   );
   app.get(
     '/enedis/metering_data/consumption_load_curve',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.meteringDataConsumptionLoadCurve),
   );
   app.get(
     '/enedis/metering_data/daily_consumption',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.meteringDataDailyConsumption),
   );
   app.post(
     '/enedis/refresh_all',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.refreshAllData),
   );
   app.get(
     '/enedis/sync',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.getEnedisSync),
   );
 

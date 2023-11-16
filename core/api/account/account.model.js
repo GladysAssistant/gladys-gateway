@@ -80,9 +80,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
     // it means an account already exist with this email
     if (account !== null) {
-      telegramService.sendAlert(
-        `Customer email = ${email}, language = ${language} already have an account and paid on the website`,
-      );
+      telegramService.sendAlert(`Customer already have an account! Email = ${email}, language = ${language}.`);
       throw new AlreadyExistError(`User ${email} already have an account!`);
     }
 

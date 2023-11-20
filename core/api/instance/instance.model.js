@@ -201,6 +201,22 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     return instanceId;
   }
 
+  async function getAccountByInstanceId(instanceId) {
+    const accounts = await db.query(
+      `
+      SELECT t_account.id, t_account.plan, t_account.status
+      FROM t_account
+      JOIN t_instance ON t_instance.account_id = t_account.id
+      WHERE t_instance.id = $1;
+    `,
+      [instanceId],
+    );
+    if (accounts.length === 0) {
+      throw new NotFoundError('Instance not found');
+    }
+    return accounts[0];
+  }
+
   async function setInstanceAsPrimaryInstance(accountId, instanceId) {
     await db.withTransaction(async (tx) => {
       // set all other instances in account as secondary instance
@@ -240,5 +256,6 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     getPrimaryInstanceByAccount,
     getPrimaryInstanceIdByUserId,
     setInstanceAsPrimaryInstance,
+    getAccountByInstanceId,
   };
 };

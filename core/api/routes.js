@@ -57,6 +57,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post(
     '/openai/ask',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     middlewares.openAIAuthAndRateLimit,
     asyncMiddleware(controllers.openAIController.ask),
   );
@@ -375,31 +376,37 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.get(
     '/enedis/initialize',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.initialize),
   );
   app.post(
     '/enedis/finalize',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.finalize),
   );
   app.get(
     '/enedis/metering_data/consumption_load_curve',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.meteringDataConsumptionLoadCurve),
   );
   app.get(
     '/enedis/metering_data/daily_consumption',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.meteringDataDailyConsumption),
   );
   app.post(
     '/enedis/refresh_all',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.refreshAllData),
   );
   app.get(
     '/enedis/sync',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    middlewares.checkUserPlan('plus'),
     asyncMiddleware(controllers.enedisController.getEnedisSync),
   );
 
@@ -425,12 +432,18 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
 
   // Backup
-  app.get('/backups', asyncMiddleware(middlewares.accessTokenInstanceAuth), controllers.backupController.get);
+  app.get(
+    '/backups',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
+    controllers.backupController.get,
+  );
 
   // Backup multi-part upload
   app.post(
     '/backups/multi_parts/initialize',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
     controllers.backupController.initializeMultipartUpload,
   );
   app.post(
@@ -451,6 +464,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.post(
     '/cameras/streaming/start',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    middlewares.checkUserPlan('plus'),
     controllers.cameraController.startStreaming,
   );
   app.post(

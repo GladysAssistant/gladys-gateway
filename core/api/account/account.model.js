@@ -73,13 +73,15 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     // await stripeService.addTaxRate(subscription.id);
 
     const { email } = customer;
+    const stripeProductId = subscription?.items?.data[0]?.price?.product;
 
     // we first test if an account already exist with this email
     const account = await db.t_account.findOne({ name: email });
 
     // it means an account already exist with this email
     if (account !== null) {
-      throw new AlreadyExistError();
+      telegramService.sendAlert(`Customer already have an account! Email = ${email}, language = ${language}.`);
+      throw new AlreadyExistError(`User ${email} already have an account!`);
     }
 
     const newAccount = {
@@ -88,6 +90,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
       status: 'active',
+      plan: stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus',
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
@@ -467,12 +470,18 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
         break;
 
       case 'customer.subscription.updated':
-        // update status
+        // eslint-disable-next-line no-case-declarations
+        const stripeProductId = event.data.object.items?.data[0]?.price?.product;
+        // Update status
         await db.t_account.update(
           account.id,
           {
             status: event.data.object.status,
-            current_period_end: new Date(event.data.object.current_period_end * 1000),
+            current_period_end:
+              event.data.object.status === 'active' || event.data.object.status === 'trialing'
+                ? new Date(event.data.object.current_period_end * 1000)
+                : new Date(),
+            plan: stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus',
           },
           {
             fields: ['id'],
@@ -523,6 +532,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
       case 'customer.subscription.deleted':
         // subscription is canceled, remove the client
+        telegramService.sendAlert(`Subscription canceled! Customer email = ${email}, language = ${language}`);
         break;
 
       default:

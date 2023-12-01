@@ -13,6 +13,7 @@ describe('TTS API', () => {
   before(() => {
     process.env.TEXT_TO_SPEECH_URL = 'https://test-tts.com';
     process.env.TEXT_TO_SPEECH_API_KEY = 'my-token';
+    process.env.GLADYS_PLUS_BACKEND_URL = 'http://test-api.com';
   });
   it('should get token + get mp3', async () => {
     nock(process.env.TEXT_TO_SPEECH_URL, { encodedQueryParams: true })
@@ -33,10 +34,14 @@ describe('TTS API', () => {
       .post('/tts/token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
-      .send()
+      .send({ text: 'Bonjour, je suis Gladys' })
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.have.property('token');
+    expect(response.body).to.have.property(
+      'url',
+      `http://test-api.com/tts/generate?token=${response.body.token}&text=Bonjour%2C%20je%20suis%20Gladys`,
+    );
     const responseMp3File = await request(TEST_BACKEND_APP)
       .get(`/tts/generate?token=${response.body.token}&text=bonjour`)
       .set('Accept', 'application/json')

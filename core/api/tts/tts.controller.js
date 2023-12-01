@@ -43,11 +43,14 @@ module.exports = function TTSController(redisClient) {
    * @apiName getToken
    * @apiGroup TTS
    *
+   * @apiBody {String} text The text to generate
+   *
    * @apiSuccessExample {binary} Success-Response:
    * HTTP/1.1 200 OK
    *
    * {
-   *   "token": "ac365e90-78f1-482a-8afa-af326d5647a4"
+   *   "token": "ac365e90-78f1-482a-8afa-af326d5647a4",
+   *   "url": "https://url_of_the_file"
    * }
    */
   async function getTemporaryToken(req, res, next) {
@@ -55,7 +58,10 @@ module.exports = function TTSController(redisClient) {
     await redisClient.set(`${TTS_TOKEN_PREFIX}:${token}`, req.instance.id, {
       EX: 5 * 60, // 5 minutes in seconds
     });
-    res.json({ token });
+    const url = `${process.env.GLADYS_PLUS_BACKEND_URL}/tts/generate?token=${token}&text=${encodeURIComponent(
+      req.body.text,
+    )}`;
+    res.json({ token, url });
   }
 
   return {

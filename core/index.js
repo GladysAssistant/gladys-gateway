@@ -52,6 +52,7 @@ const AlexaController = require('./api/alexa/alexa.controller');
 const EnedisController = require('./api/enedis/enedis.controller');
 const EcowattController = require('./api/ecowatt/ecowatt.controller');
 const CameraController = require('./api/camera/camera.controller');
+const TTSController = require('./api/tts/tts.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -69,6 +70,7 @@ const AdminApiAuth = require('./middleware/adminApiAuth');
 const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
 const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAuth');
 const CheckUserPlan = require('./middleware/checkUserPlan');
+const TTSRateLimit = require('./middleware/ttsRateLimit');
 
 // Routes
 const routes = require('./api/routes');
@@ -220,6 +222,7 @@ module.exports = async (port) => {
       redisClient,
       services.telegramService,
     ),
+    ttsController: TTSController(redisClient),
   };
 
   const middlewares = {
@@ -238,6 +241,7 @@ module.exports = async (port) => {
     openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
     cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
     checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, logger),
+    ttsRateLimit: TTSRateLimit(logger, legacyRedisClient, db),
   };
 
   routes.load(app, io, controllers, middlewares);

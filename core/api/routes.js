@@ -70,7 +70,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     middlewares.ttsRateLimit,
     asyncMiddleware(controllers.ttsController.getTemporaryToken),
   );
-  app.get('/tts/generate', asyncMiddleware(controllers.ttsController.generate));
+  app.get('/tts/:tts_token/generate.mp3', asyncMiddleware(controllers.ttsController.generate));
 
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));

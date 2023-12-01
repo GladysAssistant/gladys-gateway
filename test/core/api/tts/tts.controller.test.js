@@ -39,16 +39,13 @@ describe('TTS API', () => {
       .post('/tts/token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
-      .send({ text: 'Bonjour, je suis Gladys' })
+      .send({ text: 'bonjour' })
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.have.property('token');
-    expect(response.body).to.have.property(
-      'url',
-      `http://test-api.com/tts/generate?token=${response.body.token}&text=Bonjour%2C%20je%20suis%20Gladys`,
-    );
+    expect(response.body).to.have.property('url', `http://test-api.com/tts/${response.body.token}/generate.mp3`);
     const responseMp3File = await request(TEST_BACKEND_APP)
-      .get(`/tts/generate?token=${response.body.token}&text=bonjour`)
+      .get(`/tts/${response.body.token}/generate.mp3`)
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send()
@@ -58,7 +55,7 @@ describe('TTS API', () => {
   });
   it('should return 401', async () => {
     const response = await request(TEST_BACKEND_APP)
-      .get(`/tts/generate?token=toto&text=bonjour`)
+      .get(`/tts/toto/generate.mp3`)
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send()

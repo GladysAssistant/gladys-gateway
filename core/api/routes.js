@@ -62,6 +62,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.openAIController.ask),
   );
 
+  // TTS API
+  app.post(
+    '/tts/token',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
+    middlewares.ttsRateLimit,
+    asyncMiddleware(controllers.ttsController.getTemporaryToken),
+  );
+  app.get('/tts/generate', asyncMiddleware(controllers.ttsController.generate));
+
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));
   app.post('/users/verify', middlewares.rateLimiter, asyncMiddleware(controllers.userController.confirmEmail));

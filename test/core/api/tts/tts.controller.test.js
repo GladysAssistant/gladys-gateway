@@ -16,8 +16,13 @@ describe('TTS API', () => {
     process.env.GLADYS_PLUS_BACKEND_URL = 'http://test-api.com';
   });
   it('should get token + get mp3', async () => {
-    nock(process.env.TEXT_TO_SPEECH_URL, { encodedQueryParams: true })
-      .post('/', (body) => true)
+    nock(process.env.TEXT_TO_SPEECH_URL, {
+      encodedQueryParams: true,
+      reqheaders: {
+        authorization: 'Bearer my-token',
+      },
+    })
+      .post('/', { text: 'bonjour' })
       .reply(200, voiceFile, {
         'content-type': 'audio/mpeg',
         'content-length': 36362,

@@ -27,7 +27,9 @@ module.exports = function TTSController(redisClient) {
     const { data, headers } = await axios({
       url: process.env.TEXT_TO_SPEECH_URL,
       method: 'POST',
-      body: req.body,
+      data: {
+        text: req.query.text,
+      },
       headers: {
         authorization: `Bearer ${process.env.TEXT_TO_SPEECH_API_KEY}`,
       },

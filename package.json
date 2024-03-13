@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "description": "An End-to-End Encrypted Gateway to access Gladys from the internet",
   "main": "index.js",
+  "engines": {
+    "node": "20.x",
+    "npm": "10.x"
+  },
   "scripts": {
     "test": "mocha ./test/bootstrap.test.js ./test/**/*.test.js --exit",
     "coverage": "nyc --reporter=lcov npm test",

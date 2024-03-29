@@ -24,6 +24,17 @@ const {
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
+const getDevicesWithEnedisActivated = `
+        SELECT DISTINCT t_user.id, t_user.account_id, 
+        t_device.id as device_id, t_device.provider_refresh_token
+        FROM t_user
+        INNER JOIN t_device ON t_user.id = t_device.user_id
+        WHERE t_user.account_id = $1
+        AND t_device.revoked = false
+        AND t_device.is_deleted = false
+        AND t_device.client_id = $2;
+    `;
+
 module.exports = function EnedisModel(logger, db, redisClient) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_GRANT_CLIENT_SECRET, ENEDIS_BACKEND_URL, ENEDIS_GLADYS_PLUS_REDIRECT_URI } =
     process.env;
@@ -69,16 +80,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     if (accessTokenInRedis) {
       return accessTokenInRedis;
     }
-    const getDevicesWithEnedisActivated = `
-        SELECT DISTINCT t_user.id, t_user.account_id, 
-        t_device.id as device_id, t_device.provider_refresh_token
-        FROM t_user
-        INNER JOIN t_device ON t_user.id = t_device.user_id
-        WHERE t_user.account_id = $1
-        AND t_device.revoked = false
-        AND t_device.is_deleted = false
-        AND t_device.client_id = $2;
-    `;
+
     const devices = await db.query(getDevicesWithEnedisActivated, [accountId, ENEDIS_GRANT_CLIENT_ID]);
     if (devices.length === 0) {
       logger.warn(`Forbidden: Enedis Oauth process was not done`);
@@ -226,6 +228,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   async function getContract(accountId, usagePointId) {
     logger.info(`Enedis - get contract for usagePoint = ${usagePointId}`);
     const accessToken = await getAccessToken(accountId);
+    const devices = await db.query(getDevicesWithEnedisActivated, [accountId, ENEDIS_GRANT_CLIENT_ID]);
+    if (devices.length === 0) {
+      logger.warn(`Forbidden: Enedis Oauth process was not done`);
+      throw new ForbiddenError();
+    }
     const data = {
       usage_point_id: usagePointId,
     };
@@ -233,7 +240,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     try {
       response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
     } catch (e) {
-      logger.error(e);
+      // if status is 403, error is "No consent can be found for this customer and this usage point"
+      // Revoke device to avoid re-hitting this error
+      if (get(e, 'response.status') === 403) {
+        await db.t_device.update(devices[0].device_id, {
+          revoked: true,
+        });
+      }
       throw e;
     }
     const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');
@@ -328,7 +341,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const oneWeekAgo = dayjs().subtract(6, 'day');
     logger.info(`Enedis: Daily refresh of all users. Refreshing ${usersToRefresh.length} users`);
     await Promise.each(usersToRefresh, async (userToRefresh) => {
-      await refreshAllData({ userId: userToRefresh.id, start: oneWeekAgo });
+      try {
+        await refreshAllData({ userId: userToRefresh.id, start: oneWeekAgo });
+      } catch (e) {
+        logger.error(`Failed to refresh user = ${userToRefresh.id}`);
+      }
     });
   }
   async function enedisSyncData(job) {

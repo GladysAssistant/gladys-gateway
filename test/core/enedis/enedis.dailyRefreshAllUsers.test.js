@@ -42,7 +42,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     ({ enedisModel, shutdown } = await initEnedisListener());
     await shutdown();
   });
-  it('should publish 2 jobs', async () => {
+  it('should publish 4 jobs', async () => {
     // Insert broken enedis user data
     await TEST_DATABASE_INSTANCE.t_account.insert({
       id: 'ab9c205a-d090-4c97-84b5-d2a9eb932201',
@@ -122,7 +122,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     mockAccessTokenRefresh();
     await enedisModel.dailyRefreshOfAllUsers();
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 4, completed: 0, failed: 0 });
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process

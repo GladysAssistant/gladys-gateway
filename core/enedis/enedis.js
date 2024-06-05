@@ -284,7 +284,15 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     logger.info(`Enedis: Found ${usagePointIds.length} usage points for user ${job.userId}`);
     // Foreach usage points, we generate one job per request to make
     await Promise.each(usagePointIds, async (usagePointId) => {
-      const contract = await getContract(account.id, usagePointId);
+      let contract;
+      try {
+        contract = await getContract(account.id, usagePointId);
+      } catch (e) {
+        logger.warn(
+          `Failed to get contract for usage_point ${usagePointId}. Will continue with a default value for last activation date.`,
+        );
+      }
+
       let oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
 
       // We cannot get data before lastActivationDate

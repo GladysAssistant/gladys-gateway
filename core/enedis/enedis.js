@@ -236,19 +236,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const data = {
       usage_point_id: usagePointId,
     };
-    let response;
-    try {
-      response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
-    } catch (e) {
-      // if status is 403, error is "No consent can be found for this customer and this usage point"
-      // Revoke device to avoid re-hitting this error
-      if (get(e, 'response.status') === 403) {
-        await db.t_device.update(devices[0].device_id, {
-          revoked: true,
-        });
-      }
-      throw e;
-    }
+    const response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
     const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');
     return {
       lastActivationDate,

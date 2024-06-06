@@ -30,7 +30,7 @@ module.exports = function EcowattModel(logger, redisClient) {
       },
     });
 
-    const { data } = await axios.get('https://digital.iservices.rte-france.com/open_api/ecowatt/v5/signals', {
+    const { data } = await axios.get('https://digital.iservices.rte-france.com/open_api/ecowatt/v4/signals', {
       headers: {
         authorization: `Bearer ${dataToken.access_token}`,
       },

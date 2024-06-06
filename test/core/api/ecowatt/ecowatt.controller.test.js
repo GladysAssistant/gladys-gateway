@@ -10,7 +10,7 @@ describe('GET /ecowatt/v4/signals', () => {
         access_token: 'access_token',
         expires_in: 100,
       });
-    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v5/signals').reply(200, {
+    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v4/signals').reply(200, {
       data: true,
     });
     const response = await request(TEST_BACKEND_APP)
@@ -52,13 +52,13 @@ describe('GET /ecowatt/v4/signals', () => {
         access_token: 'access_token',
         expires_in: 100,
       });
-    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v5/signals').reply(429, {
+    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v4/signals').reply(429, {
       error: 'too many requests',
     });
-    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v5/signals').reply(429, {
+    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v4/signals').reply(429, {
       error: 'too many requests',
     });
-    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v5/signals').reply(200, {
+    nock('https://digital.iservices.rte-france.com').get('/open_api/ecowatt/v4/signals').reply(200, {
       data: true,
     });
     const response = await request(TEST_BACKEND_APP)

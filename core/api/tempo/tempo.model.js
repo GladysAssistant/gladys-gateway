@@ -23,10 +23,8 @@ module.exports = function TempoModel(logger, redisClient) {
 
   async function getDataLiveOrFromCache() {
     const todayStartDate = dayjs().tz('Europe/Paris').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
-    const todayEndDate = dayjs().tz('Europe/Paris').endOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
-
     const tomorrowStartDate = dayjs().tz('Europe/Paris').add(1, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
-    const tomorrowEndDate = dayjs().tz('Europe/Paris').add(1, 'day').endOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
+    const tomorrowEndDate = dayjs().tz('Europe/Paris').add(2, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
 
     // Get today data from cache
     let todayData = await getDataFromCache(todayStartDate);
@@ -51,7 +49,7 @@ module.exports = function TempoModel(logger, redisClient) {
           {
             params: {
               start_date: todayStartDate,
-              end_date: todayEndDate,
+              end_date: tomorrowStartDate,
             },
             headers: {
               authorization: `Bearer ${accessToken}`,

@@ -32,6 +32,7 @@ const GoogleModel = require('./api/google/google.model');
 const AlexaModel = require('./api/alexa/alexa.model');
 const EnedisModel = require('./api/enedis/enedis.model');
 const EcowattModel = require('./api/ecowatt/ecowatt.model');
+const TempoModel = require('./api/tempo/tempo.model');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -51,6 +52,7 @@ const GoogleController = require('./api/google/google.controller');
 const AlexaController = require('./api/alexa/alexa.controller');
 const EnedisController = require('./api/enedis/enedis.controller');
 const EcowattController = require('./api/ecowatt/ecowatt.controller');
+const TempoController = require('./api/tempo/tempo.controller');
 const CameraController = require('./api/camera/camera.controller');
 const TTSController = require('./api/tts/tts.controller');
 
@@ -74,6 +76,7 @@ const TTSRateLimit = require('./middleware/ttsRateLimit');
 
 // Routes
 const routes = require('./api/routes');
+const tempoModel = require('./api/tempo/tempo.model');
 
 module.exports = async (port) => {
   const logger = tracer.colorConsole({
@@ -178,6 +181,7 @@ module.exports = async (port) => {
     alexaModel: AlexaModel(logger, db, redisClient, services.jwtService),
     enedisModel: EnedisModel(logger, db, redisClient),
     ecowattModel: EcowattModel(logger, redisClient),
+    tempoModel: TempoModel(logger, redisClient),
   };
 
   const controllers = {
@@ -214,6 +218,7 @@ module.exports = async (port) => {
     ),
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
+    tempoController: TempoController(logger, models.tempoModel),
     cameraController: CameraController(
       logger,
       models.userModel,

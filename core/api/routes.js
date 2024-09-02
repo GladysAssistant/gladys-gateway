@@ -53,6 +53,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // ecowatt api
   app.get('/ecowatt/v4/signals', asyncMiddleware(controllers.ecowattController.getEcowattSignals));
 
+  // EDF tempo api
+  app.get('/edf/tempo/today', asyncMiddleware(controllers.tempoController.getTempoToday));
+
   // OpenAI ask
   app.post(
     '/openai/ask',

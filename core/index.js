@@ -76,7 +76,6 @@ const TTSRateLimit = require('./middleware/ttsRateLimit');
 
 // Routes
 const routes = require('./api/routes');
-const tempoModel = require('./api/tempo/tempo.model');
 
 module.exports = async (port) => {
   const logger = tracer.colorConsole({

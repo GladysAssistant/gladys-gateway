@@ -1,6 +1,8 @@
 module.exports = function SocketController(logger, socketModel, io, instanceModel) {
   async function connection(socket) {
-    logger.info(`New socket joined, socket_id = ${socket.id}, version = ${socket.conn.protocol}`);
+    logger.info(
+      `New socket joined, socket_id = ${socket.id}, version = ${socket.conn.protocol}, recovered = ${socket.recovered}`,
+    );
 
     let isClientAuthenticated = false;
 
@@ -34,7 +36,9 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
 
         isClientAuthenticated = true;
 
-        logger.info(`User ${user.id} connected in websockets, socket version = ${socket.conn.protocol}`);
+        logger.info(
+          `User ${user.id} connected in websockets, socket_id = ${socket.id},  socket version = ${socket.conn.protocol}`,
+        );
 
         // we answer the client that he is authenticated
         fn({ authenticated: true });

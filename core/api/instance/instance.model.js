@@ -124,7 +124,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
 
     // the instance doesn't exist or has been deleted
     if (instanceInDb === null) {
-      throw new ForbiddenError();
+      throw new ForbiddenError(`Instance ${instance.id} doesn't exist or has been deleted.`);
     }
 
     const accessToken = jwtService.generateAccessTokenInstance(instanceInDb);

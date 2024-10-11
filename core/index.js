@@ -93,10 +93,6 @@ module.exports = async (port) => {
       origin: '*',
       methods: ['GET', 'HEAD', 'PUT', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
     },
-    connectionStateRecovery: {
-      maxDisconnectionDuration: 60 * 1000,
-      skipMiddlewares: true,
-    },
   });
 
   const redisClient = redis.createClient({

@@ -177,7 +177,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
         });
       } catch (e) {
         const status = get(e, 'response.status');
-        logger.error(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}, status = ${status}`);
+        logger.debug(`GOOGLE_HOME_REPORT_STATE_ERROR, user = ${users[0].id}, status = ${status}`);
         if (status !== 404) {
           logger.info(get(e, 'response.data'));
           logger.info(payloadCleaned);

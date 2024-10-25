@@ -31,7 +31,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.use('/stripe/webhook', bodyParser.raw({ type: '*/*' }));
 
   // parse application/json
-  app.use(bodyParser.json());
+  app.use(bodyParser.json({ limit: '5mb' }));
 
   // CORS
   app.use((req, res, next) => {

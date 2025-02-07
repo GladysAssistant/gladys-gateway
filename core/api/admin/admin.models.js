@@ -73,8 +73,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     await Promise.map(
       backups,
       async (backup) => {
-        const key = path.basename(backup.path);
         try {
+          const key = path.basename(backup.path);
           await s3.deleteObject({ Bucket: process.env.STORAGE_BUCKET, Key: key }).promise();
         } catch (e) {
           logger.warn(`Fail to delete ${backup.path}`);
@@ -92,6 +92,15 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       await db.t_reset_password.destroy({ user_id: user.id });
       await db.t_user.destroy({ id: user.id });
     });
+    // Getting enedis data
+    const usagePoints = await db.t_enedis_usage_point.find({ account_id: accountId });
+    await Promise.mapSeries(usagePoints, async (usagePoint) => {
+      await db.t_enedis_daily_consumption.destroy({ usage_point_id: usagePoint.usage_point_id });
+      await db.t_enedis_consumption_load_curve.destroy({ usage_point_id: usagePoint.usage_point_id });
+      await db.t_enedis_sync.destroy({ usage_point_id: usagePoint.usage_point_id });
+      await db.t_enedis_usage_point.destroy({ usage_point_id: usagePoint.usage_point_id });
+    });
+    // Delete rest
     await db.t_backup.destroy({ account_id: accountId });
     await db.t_account_payment_activity.destroy({ account_id: accountId });
     await db.t_instance.destroy({ account_id: accountId });

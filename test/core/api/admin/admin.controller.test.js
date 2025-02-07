@@ -1,3 +1,4 @@
+const { expect } = require('chai');
 const request = require('supertest');
 const configTest = require('../../../tasks/config');
 
@@ -43,15 +44,40 @@ describe('DELETE /admin/accounts/:id', () => {
       value: 1,
       created_at: '2022-11-28 18:00:00+00',
     });
-    return request(TEST_BACKEND_APP)
+    // This should not be purged
+    await TEST_DATABASE_INSTANCE.t_enedis_usage_point.insert({
+      usage_point_id: '222222222222',
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      created_at: '2023-12-29 05:29:50.908699+00',
+    });
+    await TEST_DATABASE_INSTANCE.t_enedis_daily_consumption.insert({
+      usage_point_id: '222222222222',
+      value: 1,
+      created_at: '2025-02-06',
+    });
+    await TEST_DATABASE_INSTANCE.t_enedis_consumption_load_curve.insert({
+      usage_point_id: '222222222222',
+      value: 1,
+      created_at: '2022-11-28 18:00:00+00',
+    });
+    await request(TEST_BACKEND_APP)
       .delete('/admin/accounts/be2b9666-5c72-451e-98f4-efca76ffef54')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
-      .expect(200)
-      .then((response) => {
-        response.body.should.have.property('status', 200);
-      });
+      .expect(200);
+    const usagePoints = await TEST_DATABASE_INSTANCE.t_enedis_usage_point.find({
+      usage_point_id: '222222222222',
+    });
+    expect(usagePoints).to.have.lengthOf(1);
+    const consumptions = await TEST_DATABASE_INSTANCE.t_enedis_daily_consumption.find({
+      usage_point_id: '222222222222',
+    });
+    expect(consumptions).to.have.lengthOf(1);
+    const consumptionLoadCurves = await TEST_DATABASE_INSTANCE.t_enedis_consumption_load_curve.find({
+      usage_point_id: '222222222222',
+    });
+    expect(consumptionLoadCurves).to.have.lengthOf(1);
   });
 });
 

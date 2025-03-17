@@ -1,4 +1,4 @@
-module.exports = function UserController(userModel, mailService, socketModel) {
+module.exports = function UserController(userModel, mailService, socketModel, instanceModel) {
   /**
    * @api {post} /users/signup Create a new user
    * @apiName Create user
@@ -271,7 +271,8 @@ module.exports = function UserController(userModel, mailService, socketModel) {
    */
   async function getAccessToken(req, res, next) {
     const token = await userModel.getAccessToken(req.user, req.headers.authorization);
-    res.json(token);
+    const instances = await instanceModel.getInstances(req.user);
+    res.json({ ...token, instances });
   }
 
   /**

@@ -86,6 +86,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       { fields: ['id', 'account_id', 'gladys_4_user_id'] },
     );
 
+    if (!user) {
+      throw new NotFoundError('USER_NOT_FOUND');
+    }
+
     return user;
   }
 
@@ -103,6 +107,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       },
       { fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key'] },
     );
+
+    if (!instance) {
+      throw new NotFoundError('INSTANCE_NOT_FOUND');
+    }
 
     return instance;
   }

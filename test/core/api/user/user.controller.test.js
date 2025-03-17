@@ -5,8 +5,8 @@ const configTest = require('../../../tasks/config');
 const srpFixture = require('../../../tasks/srp-fixture.json');
 
 describe('POST /users/signup', () => {
-  it('should signup one user', () =>
-    request(TEST_BACKEND_APP)
+  it('should signup one user', async () => {
+    const response = await request(TEST_BACKEND_APP)
       .post('/users/signup')
       .send({
         name: 'Tony',
@@ -21,16 +21,16 @@ describe('POST /users/signup', () => {
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(201)
-      .then((response) => {
-        should.deepEqual(response.body, {
-          status: 201,
-          message: 'User created with success. You need now to confirm your email.',
-        });
-      }));
+      .expect(201);
 
-  it('should not signup user, missing attributes', () =>
-    request(TEST_BACKEND_APP)
+    expect(response.body).to.deep.equal({
+      status: 201,
+      message: 'User created with success. You need now to confirm your email.',
+    });
+  });
+
+  it('should not signup user, missing attributes', async () => {
+    await request(TEST_BACKEND_APP)
       .post('/users/signup')
       .send({
         email: 'tony.stark@gladysassistant.com',
@@ -44,13 +44,13 @@ describe('POST /users/signup', () => {
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(422)
-      .then((response) => {}));
+      .expect(422);
+  });
 });
 
 describe('POST /users/verify', () => {
-  it('should verify one user email', () =>
-    request(TEST_BACKEND_APP)
+  it('should verify one user email', async () => {
+    const response = await request(TEST_BACKEND_APP)
       .post('/users/verify')
       .send({
         email_confirmation_token:
@@ -58,14 +58,14 @@ describe('POST /users/verify', () => {
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
-      .expect(200)
-      .then((response) => {
-        should.deepEqual(response.body, {
-          id: '29770e0d-26a9-444e-91a1-f175c99a5218',
-          email: 'tony.stark@gladysassistant.com',
-          email_confirmed: true,
-        });
-      }));
+      .expect(200);
+
+    expect(response.body).to.deep.equal({
+      id: '29770e0d-26a9-444e-91a1-f175c99a5218',
+      email: 'tony.stark@gladysassistant.com',
+      email_confirmed: true,
+    });
+  });
 });
 
 describe('POST /users/login-salt', () => {
@@ -216,74 +216,51 @@ describe('POST /users/two-factor-enable', () => {
 });
 
 describe('POST /users/login-two-factor', () => {
-  it('should return access_token and refresh_token', () => {
+  it('should return access_token and refresh_token', async () => {
     const twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
-
-    const token = speakeasy.totp({
-      secret: twoFactorSecret,
-    });
-
+    const token = speakeasy.totp({ secret: twoFactorSecret });
     const userAgent = 'my-browser-is-awesome';
 
-    return request(TEST_BACKEND_APP)
+    const response = await request(TEST_BACKEND_APP)
       .post('/users/login-two-factor')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtTwoFactorToken)
       .set('user-agent', userAgent)
-      .send({
-        two_factor_code: token,
-      })
+      .send({ two_factor_code: token })
       .expect('Content-Type', /json/)
-      .expect(200)
-      .then((response) => {
-        response.body.should.have.property('access_token');
-        response.body.should.have.property('refresh_token');
-        response.body.should.have.property('device_id');
-        response.body.should.have.property('rsa_encrypted_private_key');
-        response.body.should.have.property('ecdsa_encrypted_private_key');
-        response.body.should.have.property('encrypted_backup_key');
-        response.body.should.have.property('gladys_4_user_id');
-      });
+      .expect(200);
+
+    expect(response.body).to.have.property('access_token');
+    expect(response.body).to.have.property('refresh_token');
+    expect(response.body).to.have.property('device_id');
+    expect(response.body).to.have.property('rsa_encrypted_private_key');
+    expect(response.body).to.have.property('ecdsa_encrypted_private_key');
+    expect(response.body).to.have.property('encrypted_backup_key');
+    expect(response.body).to.have.property('gladys_4_user_id');
   });
 
-  it('should return 403 error, invalid token', () => {
-    const twoFactorSecret = 'wrong-secret';
-
-    const token = speakeasy.totp({
-      secret: twoFactorSecret,
-      encoding: 'base32',
-    });
-
-    return request(TEST_BACKEND_APP)
+  it('should return 403 error, invalid token', () =>
+    request(TEST_BACKEND_APP)
       .post('/users/login-two-factor')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtTwoFactorToken)
       .send({
-        two_factor_code: token,
+        two_factor_code: 'wrong-token',
       })
       .expect('Content-Type', /json/)
       .expect(403)
-      .then((response) => {});
-  });
+      .then((response) => {}));
 
-  it('should return 401 error, unauthorized (no jwt)', () => {
-    const twoFactorSecret = 'wrong-secret';
-
-    const token = speakeasy.totp({
-      secret: twoFactorSecret,
-      encoding: 'base32',
-    });
-
-    return request(TEST_BACKEND_APP)
+  it('should return 401 error, unauthorized (no jwt)', () =>
+    request(TEST_BACKEND_APP)
       .post('/users/login-two-factor')
       .set('Accept', 'application/json')
       .send({
-        two_factor_code: token,
+        two_factor_code: 'wrong-token',
       })
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {});
-  });
+      .then((response) => {}));
 });
 
 describe('GET /users/access-token', () => {
@@ -301,18 +278,15 @@ describe('GET /users/access-token', () => {
     expect(response.body).to.have.property('instances');
   });
 
-  it('should return 401, wrong jwt', () => {
-    const userAgent = 'my-user-agent-is-wrong';
-
-    return request(TEST_BACKEND_APP)
+  it('should return 401, wrong jwt', () =>
+    request(TEST_BACKEND_APP)
       .get('/users/access-token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenTwoFactorEnable)
-      .set('user-agent', userAgent)
+      .set('user-agent', 'my-user-agent-is-wrong')
       .expect('Content-Type', /json/)
       .expect(401)
-      .then((response) => {});
-  });
+      .then((response) => {}));
 });
 
 describe('PATCH /users/me', () => {

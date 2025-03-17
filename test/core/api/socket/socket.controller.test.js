@@ -1,5 +1,6 @@
 const { io } = require('socket.io-client');
 const { expect } = require('chai');
+const jsonwebtoken = require('jsonwebtoken');
 const Jwt = require('../../../../core/service/jwt');
 
 describe('socket', function Describe() {
@@ -16,7 +17,112 @@ describe('socket', function Describe() {
 
     socket.on('connect', () => {
       socket.emit('user-authentication', { access_token: jwtAccessToken }, (data) => {
-        data.should.have.property('authenticated', true);
+        expect(data).to.have.property('authenticated', true);
+        done();
+      });
+    });
+  });
+
+  it('should connect to socket.io server as user, directly with auth passed', (done) => {
+    const jwt = Jwt();
+
+    const jwtAccessToken = jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, [
+      'dashboard:read',
+      'dashboard:write',
+    ]);
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: jwtAccessToken,
+      },
+    });
+
+    socket.on('user-authenticated', () => {
+      socket.emit('latency', Date.now(), (data) => {
+        expect(data).to.be.greaterThan(0);
+        done();
+      });
+    });
+  });
+
+  it('should fail to connect as user, user does not exist', (done) => {
+    const jwt = Jwt();
+
+    const jwtAccessTokenForUnknownUser = jwt.generateAccessToken({ id: '1dd07393-f052-4395-bbd7-dc932e2a2f4b' }, [
+      'dashboard:read',
+      'dashboard:write',
+    ]);
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: jwtAccessTokenForUnknownUser,
+      },
+    });
+
+    socket.on('user-authentication-failed', (data) => {
+      expect(data).to.have.property('reason', 'USER_NOT_FOUND');
+      done();
+    });
+  });
+
+  it('should fail to connect as user, bad jwt', (done) => {
+    const badJwt = jsonwebtoken.sign({ user_id: 'test', scope: ['dashboard:read', 'dashboard:write'] }, 'bad-secret', {
+      algorithm: 'HS256',
+      audience: 'user',
+      issuer: 'gladys-gateway',
+      expiresIn: 1 * 60 * 60, // access token is valid 1 hour
+    });
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: badJwt,
+      },
+    });
+
+    socket.on('user-authentication-failed', (data) => {
+      expect(data).to.have.property('reason', 'invalid signature');
+      done();
+    });
+  });
+
+  it('should fail to connect as instance, instance does not exist', (done) => {
+    const jwt = Jwt();
+
+    const jwtAccessTokenForUnknownInstance = jwt.generateAccessTokenInstance({
+      id: 'd28a4e3e-ac60-44f7-bdfe-8c9deafa51d3',
+    });
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'instance',
+        access_token: jwtAccessTokenForUnknownInstance,
+      },
+    });
+
+    socket.on('instance-authentication-failed', (data) => {
+      expect(data).to.have.property('reason', 'INSTANCE_NOT_FOUND');
+      done();
+    });
+  });
+
+  it('should connect to socket.io server as instance, directly with auth passed', (done) => {
+    const jwt = Jwt();
+
+    const jwtAccessToken = jwt.generateAccessTokenInstance({ id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' });
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'instance',
+        access_token: jwtAccessToken,
+      },
+    });
+
+    socket.on('instance-authenticated', () => {
+      socket.emit('latency', Date.now(), (data) => {
+        expect(data).to.be.greaterThan(0);
         done();
       });
     });
@@ -31,7 +137,7 @@ describe('socket', function Describe() {
 
     socket.on('connect', () => {
       socket.emit('instance-authentication', { access_token: jwtAccessToken }, (data) => {
-        data.should.have.property('authenticated', true);
+        expect(data).to.have.property('authenticated', true);
         done();
       });
     });
@@ -267,7 +373,7 @@ describe('socket', function Describe() {
 
     socket.on('connect', () => {
       socket.emit('user-authentication', { access_token: jwtAccessToken }, (data) => {
-        data.should.have.property('authenticated', false);
+        expect(data).to.have.property('authenticated', false);
         done();
       });
     });
@@ -278,7 +384,7 @@ describe('socket', function Describe() {
 
     socket.on('connect', () => {
       socket.emit('user-authentication', { access_token: 'wrong-jwt' }, (data) => {
-        data.should.have.property('authenticated', false);
+        expect(data).to.have.property('authenticated', false);
         done();
       });
     });

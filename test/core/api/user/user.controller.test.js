@@ -1,5 +1,6 @@
 const request = require('supertest');
 const speakeasy = require('speakeasy');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 const srpFixture = require('../../../tasks/srp-fixture.json');
 
@@ -286,19 +287,18 @@ describe('POST /users/login-two-factor', () => {
 });
 
 describe('GET /users/access-token', () => {
-  it('should return a new access token', () => {
+  it('should return a new access token', async () => {
     const userAgent = 'my-browser-is-awesome';
 
-    return request(TEST_BACKEND_APP)
+    const response = await request(TEST_BACKEND_APP)
       .get('/users/access-token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtRefreshToken)
       .set('user-agent', userAgent)
       .expect('Content-Type', /json/)
-      .expect(200)
-      .then((response) => {
-        response.body.should.have.property('access_token');
-      });
+      .expect(200);
+    expect(response.body).to.have.property('access_token');
+    expect(response.body).to.have.property('instances');
   });
 
   it('should return 401, wrong jwt', () => {

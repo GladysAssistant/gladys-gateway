@@ -86,6 +86,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
         socket.emit('user-authenticated');
       } else {
         socket.emit('user-authentication-failed', { reason });
+        logger.warn(`User ${socket.id} authentication failed, reason = ${reason}`);
         socket.disconnect();
       }
     }
@@ -100,6 +101,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
         socket.emit('instance-authenticated');
       } else {
         socket.emit('instance-authentication-failed', { reason });
+        logger.warn(`Instance ${socket.id} authentication failed, reason = ${reason}`);
         socket.disconnect();
       }
     }

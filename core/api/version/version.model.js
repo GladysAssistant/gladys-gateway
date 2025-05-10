@@ -14,7 +14,7 @@ module.exports = function VersionModel(logger, db) {
             direction: 'desc',
           },
         ],
-        fields: ['name', 'created_at'],
+        fields: ['name', 'created_at', 'default_release_note_link', 'fr_release_note_link'],
       },
     );
     if (versions.length === 0) {

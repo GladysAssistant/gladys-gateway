@@ -180,7 +180,7 @@ module.exports = async (port) => {
     alexaModel: AlexaModel(logger, db, redisClient, services.jwtService),
     enedisModel: EnedisModel(logger, db, redisClient),
     ecowattModel: EcowattModel(logger, redisClient),
-    tempoModel: TempoModel(logger, redisClient),
+    tempoModel: TempoModel(logger, db, redisClient),
   };
 
   const controllers = {

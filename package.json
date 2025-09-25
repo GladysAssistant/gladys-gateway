@@ -15,6 +15,7 @@
     "apidoc": "apidoc -i core/ -o apidoc/",
     "setup-db-dev": "db-migrate up -e dev",
     "setup-db-test": "db-migrate up -e test",
+    "create-migration": "db-migrate create $npm_config_name --sql-file",
     "start-email-preview": "node ./core/common/dev-email-server.js"
   },
   "repository": {
@@ -84,7 +85,7 @@
     "joi": "^13.6.0",
     "jsonwebtoken": "^8.3.0",
     "massive": "^6.9.0",
-    "node-telegram-bot-api": "^0.53.0",
+    "node-telegram-bot-api": "^0.66.0",
     "nodemailer": "^6.7.5",
     "object-sizeof": "^1.4.0",
     "omit-deep": "^0.3.0",

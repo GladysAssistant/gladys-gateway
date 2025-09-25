@@ -13,7 +13,7 @@ dayjs.extend(customParseFormat);
 const TEMPO_CACHE_KEY = 'tempo';
 const TEMPO_REDIS_EXPIRY_IN_SECONDS = 5 * 24 * 60 * 60; // 5 days
 
-module.exports = function TempoModel(logger, redisClient) {
+module.exports = function TempoModel(logger, db, redisClient) {
   // the key is the same as ecowatt
   const { ECOWATT_BASIC_HTTP } = process.env;
 
@@ -21,13 +21,27 @@ module.exports = function TempoModel(logger, redisClient) {
     return redisClient.get(`${TEMPO_CACHE_KEY}:${date}`);
   }
 
+  async function getDataFromDb(date) {
+    const request = `
+      SELECT day_type 
+      FROM t_tempo_historical_data
+      WHERE created_at = $1;
+    `;
+    const tempoData = await db.query(request, [date]);
+    if (tempoData.length === 0) {
+      return null;
+    }
+    return tempoData[0].day_type;
+  }
+
   async function getDataLiveOrFromCache() {
     const todayStartDate = dayjs().tz('Europe/Paris').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
     const tomorrowStartDate = dayjs().tz('Europe/Paris').add(1, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
     const tomorrowEndDate = dayjs().tz('Europe/Paris').add(2, 'day').startOf('day').format('YYYY-MM-DDTHH:mm:ssZ');
 
-    // Get today data from cache
-    let todayData = await getDataFromCache(todayStartDate);
+    // Get today data from DB
+    let todayData = await getDataFromDb(todayStartDate.split('T')[0]);
+    // Get tomorrow data from cache in Redis (because we are never sure)
     let tomorrowData = await getDataFromCache(tomorrowStartDate);
 
     let accessToken;
@@ -57,9 +71,10 @@ module.exports = function TempoModel(logger, redisClient) {
           },
         );
         todayData = todayLiveData.tempo_like_calendars.values[0].value.toLowerCase();
-        // Set cache
-        await redisClient.set(`${TEMPO_CACHE_KEY}:${todayStartDate}`, todayData, {
-          EX: TEMPO_REDIS_EXPIRY_IN_SECONDS,
+        // Save data in DB
+        await db.t_tempo_historical_data.insert({
+          created_at: todayStartDate.split('T')[0],
+          day_type: todayData,
         });
       } catch (e) {
         logger.debug(e);
@@ -111,8 +126,22 @@ module.exports = function TempoModel(logger, redisClient) {
     return retry(async () => getDataLiveOrFromCache(), options);
   }
 
+  async function getHistoricalData(params) {
+    const { start_date: startDate, take } = params;
+    const request = `
+      SELECT TO_CHAR(created_at AT TIME ZONE 'Europe/Paris', 'YYYY-MM-DD') as created_at, day_type 
+      FROM t_tempo_historical_data
+      WHERE created_at >= $1
+      ORDER BY created_at ASC
+      LIMIT $2;
+    `;
+    const tempoData = await db.query(request, [startDate, take]);
+    return tempoData;
+  }
+
   return {
     getDataLiveOrFromCache,
     getDataWithRetry,
+    getHistoricalData,
   };
 };

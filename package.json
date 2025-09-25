@@ -15,6 +15,7 @@
     "apidoc": "apidoc -i core/ -o apidoc/",
     "setup-db-dev": "db-migrate up -e dev",
     "setup-db-test": "db-migrate up -e test",
+    "create-migration": "db-migrate create $npm_config_name --sql-file",
     "start-email-preview": "node ./core/common/dev-email-server.js"
   },
   "repository": {

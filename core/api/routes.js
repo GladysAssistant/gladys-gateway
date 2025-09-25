@@ -55,6 +55,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // EDF tempo api
   app.get('/edf/tempo/today', asyncMiddleware(controllers.tempoController.getTempoToday));
+  app.get('/edf/tempo/historical', asyncMiddleware(controllers.tempoController.getTempoHistoricalData));
 
   // OpenAI ask
   app.post(

@@ -72,10 +72,18 @@ module.exports = function TempoModel(logger, db, redisClient) {
         );
         todayData = todayLiveData.tempo_like_calendars.values[0].value.toLowerCase();
         // Save data in DB
-        await db.t_tempo_historical_data.insert({
-          created_at: todayStartDate.split('T')[0],
-          day_type: todayData,
-        });
+        await db.t_tempo_historical_data.insert(
+          {
+            created_at: todayStartDate.split('T')[0],
+            day_type: todayData,
+          },
+          {
+            onConflict: {
+              target: ['created_at'],
+              action: 'update',
+            },
+          },
+        );
       } catch (e) {
         logger.debug(e);
         todayData = 'unknown';

@@ -143,6 +143,24 @@ module.exports = function OpenApiModel(logger, db) {
     return message;
   }
 
+  async function createMcpWebhookMessage(user, primaryInstance, method, body) {
+    const data = {
+      user_id: user.gladys_4_user_id,
+      mcp_method: method,
+      mcp_data: body,
+    };
+
+    const message = {
+      version: '1.0',
+      type: 'gladys-open-api',
+      action: 'mcp-webhook',
+      instance_id: primaryInstance.id,
+      data,
+    };
+
+    return message;
+  }
+
   async function createMessage(user, primaryInstance, text) {
     const message = {
       version: '1.0',
@@ -180,6 +198,7 @@ module.exports = function OpenApiModel(logger, db) {
     createEvent,
     createOwntrackLocation,
     createNetatmoWebhookMessage,
+    createMcpWebhookMessage,
     createMessage,
     createDeviceState,
   };

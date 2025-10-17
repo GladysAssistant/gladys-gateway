@@ -131,6 +131,48 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
   }
 
   /**
+   * @api {post} /v1/api/mcp/:open-api-key Send mcp webhook
+   * @apiName sendMcpWebhook
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  /**
+   * @api {get} /v1/api/mcp/:open-api-key Get mcp webhook
+   * @apiName getMcpWebhook
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  /**
+   * @api {delete} /v1/api/mcp/:open-api-key Delete mcp webhook
+   * @apiName deleteMcpWebhook
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "status": 200
+   * }
+   */
+  async function handleMcpWebhook(req, res, next) {
+    const message = await openApiModel.createMcpWebhookMessage(req.user, req.primaryInstance, req.method, req.body);
+    const response = await socketModel.sendMessageOpenApi(req.user, message);
+    return res.json(response);
+  }
+
+  /**
    * @api {post} /v1/api/message/:open-api-key Create message Open API
    * @apiName createMessage
    * @apiGroup OpenAPI
@@ -182,5 +224,6 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
     createMessage,
     createDeviceState,
     handleNetatmoWebhook,
+    handleMcpWebhook,
   };
 };

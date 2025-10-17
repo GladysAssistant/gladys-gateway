@@ -331,6 +331,21 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.openApiController.handleNetatmoWebhook),
   );
   app.post(
+    '/v1/api/mcp/:open_api_key',
+    asyncMiddleware(middlewares.openApiKeyAuth),
+    asyncMiddleware(controllers.openApiController.handleMcpWebhook),
+  );
+  app.get(
+    '/v1/api/mcp/:open_api_key',
+    asyncMiddleware(middlewares.openApiKeyAuth),
+    asyncMiddleware(controllers.openApiController.handleMcpWebhook),
+  );
+  app.delete(
+    '/v1/api/mcp/:open_api_key',
+    asyncMiddleware(middlewares.openApiKeyAuth),
+    asyncMiddleware(controllers.openApiController.handleMcpWebhook),
+  );
+  app.post(
     '/v1/api/message/:open_api_key',
     asyncMiddleware(middlewares.openApiKeyAuth),
     asyncMiddleware(controllers.openApiController.createMessage),

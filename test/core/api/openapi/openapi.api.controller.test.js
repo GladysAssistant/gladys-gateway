@@ -55,6 +55,60 @@ describe('POST /v1/api/netatmo/:open-api-key', () => {
       .expect(404));
 });
 
+describe('POST /v1/api/mcp/:open-api-key', () => {
+  it('should refuse access, invalid API key', () =>
+    request(TEST_BACKEND_APP)
+      .post('/v1/api/mcp/wrong-api-key')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should return 404 instance not found', () =>
+    request(TEST_BACKEND_APP)
+      .post('/v1/api/mcp/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(404));
+});
+
+describe('GET /v1/api/mcp/:open-api-key', () => {
+  it('should refuse access, invalid API key', () =>
+    request(TEST_BACKEND_APP)
+      .get('/v1/api/mcp/wrong-api-key')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should return 404 instance not found', () =>
+    request(TEST_BACKEND_APP)
+      .get('/v1/api/mcp/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(404));
+});
+
+describe('DELETE /v1/api/mcp/:open-api-key', () => {
+  it('should refuse access, invalid API key', () =>
+    request(TEST_BACKEND_APP)
+      .delete('/v1/api/mcp/wrong-api-key')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should return 404 instance not found', () =>
+    request(TEST_BACKEND_APP)
+      .delete('/v1/api/mcp/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(404));
+});
+
 describe('POST /v1/api/device/state/:open-api-key', () => {
   it('should refuse access, invalid API key', () =>
     request(TEST_BACKEND_APP)

@@ -167,9 +167,17 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
    * }
    */
   async function handleMcpWebhook(req, res, next) {
-    const message = await openApiModel.createMcpWebhookMessage(req.user, req.primaryInstance, req.method, req.body);
+    const message = await openApiModel.createMcpWebhookMessage(
+      req.user,
+      req.primaryInstance,
+      req.method,
+      req.body,
+      req.headers,
+    );
     const response = await socketModel.sendMessageOpenApi(req.user, message);
-    return res.json(response);
+    res.set(response.headers);
+    res.status(response.status);
+    return res.json(response.body);
   }
 
   /**

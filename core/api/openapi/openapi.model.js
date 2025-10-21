@@ -143,11 +143,12 @@ module.exports = function OpenApiModel(logger, db) {
     return message;
   }
 
-  async function createMcpWebhookMessage(user, primaryInstance, method, body) {
+  async function createMcpWebhookMessage(user, primaryInstance, method, body, headers) {
     const data = {
       user_id: user.gladys_4_user_id,
       mcp_method: method,
       mcp_data: body,
+      mcp_headers: headers,
     };
 
     const message = {

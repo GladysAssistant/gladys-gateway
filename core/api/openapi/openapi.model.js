@@ -144,11 +144,20 @@ module.exports = function OpenApiModel(logger, db) {
   }
 
   async function createMcpWebhookMessage(user, primaryInstance, method, body, headers) {
+    const headersToPass = {
+      ...headers,
+    };
+
+    delete headersToPass['x-forwarded-for'];
+    delete headersToPass['x-forwarded-proto'];
+    delete headersToPass['x-forwarded-host'];
+    delete headersToPass.host;
+
     const data = {
       user_id: user.gladys_4_user_id,
       mcp_method: method,
       mcp_data: body,
-      mcp_headers: headers,
+      mcp_headers: headersToPass,
     };
 
     const message = {

@@ -44,7 +44,9 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
     // we check if the current account is rate limited
     const limiterResult = await limiter.get(uniqueIdentifier);
     if (limiterResult && limiterResult.consumedPoints > maxRequests) {
-      logger.warn(`OpenAI Rate limit: Account ${uniqueIdentifier} has been querying too much this route (${requestType})`);
+      logger.warn(
+        `OpenAI Rate limit: Account ${uniqueIdentifier} has been querying too much this route (${requestType})`,
+      );
       throw new TooManyRequestsError(`Too many ${requestType} requests this month.`);
     }
 
@@ -52,7 +54,9 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
     try {
       await limiter.consume(uniqueIdentifier);
     } catch (e) {
-      logger.warn(`OpenAI Rate limit: Account ${uniqueIdentifier} has been querying too much this route (${requestType})`);
+      logger.warn(
+        `OpenAI Rate limit: Account ${uniqueIdentifier} has been querying too much this route (${requestType})`,
+      );
       logger.warn(e);
       throw new TooManyRequestsError(`Too many ${requestType} requests this month.`);
     }

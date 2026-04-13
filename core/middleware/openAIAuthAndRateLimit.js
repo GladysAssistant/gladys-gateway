@@ -1,6 +1,6 @@
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
-const { ForbiddenError, TooManyRequestsError } = require('../common/error');
+const { TooManyRequestsError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
 
 const MAX_TEXT_REQUESTS = parseInt(process.env.OPEN_AI_MAX_TEXT_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
@@ -32,9 +32,6 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
       .findOne({
         't_instance.id': req.instance.id,
       });
-    if (instanceWithAccount.status !== 'active') {
-      throw new ForbiddenError('Account license should be active');
-    }
     const uniqueIdentifier = instanceWithAccount.id;
     const hasImage = req.body && req.body.image;
     const limiter = hasImage ? imageLimiter : textLimiter;

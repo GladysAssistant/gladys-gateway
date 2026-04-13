@@ -1,7 +1,10 @@
 const request = require('supertest');
 const fs = require('fs');
 const path = require('path');
-const aws = require('aws-sdk');
+const { S3Client, HeadObjectCommand } = require('@aws-sdk/client-s3');
+const { Upload } = require('@aws-sdk/lib-storage');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { GetObjectCommand } = require('@aws-sdk/client-s3');
 const { expect, assert } = require('chai');
 
 describe('POST /admin/api/backups/purge', () => {
@@ -39,9 +42,14 @@ describe('POST /admin/api/backups/purge', () => {
   });
   it('should execute the purge backup command', async function Test() {
     this.timeout(20000);
-    const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
-    const s3 = new aws.S3({
-      endpoint: spacesEndpoint,
+    const s3Client = new S3Client({
+      forcePathStyle: false,
+      endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
+      region: process.env.AWS_REGION,
+      credentials: {
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+      },
     });
     async function uploadFile() {
       const filePath = path.join(__dirname, 'file_to_upload.enc');
@@ -55,12 +63,19 @@ describe('POST /admin/api/backups/purge', () => {
         Body: fileStream,
       };
 
-      await s3.upload(uploadParams).promise();
-      const signedUrl = await s3.getSignedUrlPromise('getObject', {
-        Bucket: process.env.STORAGE_BUCKET,
-        Key: key,
-        Expires: 6 * 60 * 60, // URL is valid 6 hours
+      const upload = new Upload({
+        client: s3Client,
+        params: uploadParams,
       });
+      await upload.done();
+      const signedUrl = await getSignedUrl(
+        s3Client,
+        new GetObjectCommand({
+          Bucket: process.env.STORAGE_BUCKET,
+          Key: key,
+        }),
+        { expiresIn: 6 * 60 * 60 },
+      ); // URL is valid 6 hours
       return {
         key,
         signedUrl,
@@ -104,10 +119,10 @@ describe('POST /admin/api/backups/purge', () => {
       (nb) => nb >= expectedLength - 3 && nb <= expectedLength + 3,
     );
     try {
-      await s3.headObject(params).promise();
+      await s3Client.send(new HeadObjectCommand(params));
       assert.fail();
     } catch (e) {
-      expect(e).to.have.property('statusCode', 404);
+      expect(e.name).to.equal('NotFound');
     }
     const backupsRemainingCount = await TEST_DATABASE_INSTANCE.t_backup.find({
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',

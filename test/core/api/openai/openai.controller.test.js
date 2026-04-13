@@ -10,7 +10,7 @@ describe('POST /openai/ask', () => {
     process.env.OPEN_AI_ASK_API_URL = 'https://test-open-ai.com';
     process.env.OPEN_AI_ASK_API_KEY = 'my-token';
   });
-  it('should send question to GPT-3', async () => {
+  it('should send question to AI', async () => {
     nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
       .post('/', (body) => true)
       .reply(200, {
@@ -41,7 +41,14 @@ describe('POST /openai/ask', () => {
       room: 'cuisine',
     });
   });
-  it('should return 403, forbidden, client is not paying', async () => {
+  it('should send question to AI when trialing', async () => {
+    nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+      .post('/', (body) => true)
+      .reply(200, {
+        type: 'TURN_ON',
+        answer: "J'allume la lumière de la cuisine.",
+        room: 'cuisine',
+      });
     await TEST_DATABASE_INSTANCE.t_account.update(
       {
         id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
@@ -50,7 +57,7 @@ describe('POST /openai/ask', () => {
         status: 'trialing',
       },
     );
-    await request(TEST_BACKEND_APP)
+    const response = await request(TEST_BACKEND_APP)
       .post('/openai/ask')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
@@ -58,7 +65,12 @@ describe('POST /openai/ask', () => {
         question: 'Allume la lumière de la cuisine',
       })
       .expect('Content-Type', /json/)
-      .expect(403);
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'TURN_ON',
+      answer: "J'allume la lumière de la cuisine.",
+      room: 'cuisine',
+    });
   });
   it('should return 429, too many text requests', async () => {
     await TEST_DATABASE_INSTANCE.t_account.update(

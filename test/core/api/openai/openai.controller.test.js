@@ -72,25 +72,6 @@ describe('POST /openai/ask', () => {
       room: 'cuisine',
     });
   });
-  it('should return 403, forbidden, client is not paying', async () => {
-    await TEST_DATABASE_INSTANCE.t_account.update(
-      {
-        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-      },
-      {
-        status: 'past_due',
-      },
-    );
-    await request(TEST_BACKEND_APP)
-      .post('/openai/ask')
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenInstance)
-      .send({
-        question: 'Allume la lumière de la cuisine',
-      })
-      .expect('Content-Type', /json/)
-      .expect(403);
-  });
   it('should return 429, too many text requests', async () => {
     await TEST_DATABASE_INSTANCE.t_account.update(
       {

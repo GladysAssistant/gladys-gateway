@@ -34,9 +34,6 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
       .findOne({
         't_instance.id': req.instance.id,
       });
-    if (ALLOWED_ACCOUNT_STATUS.indexOf(instanceWithAccount.status) === -1) {
-      throw new ForbiddenError('Account is not active');
-    }
     const uniqueIdentifier = instanceWithAccount.id;
     const hasImage = req.body && req.body.image;
     const limiter = hasImage ? imageLimiter : textLimiter;

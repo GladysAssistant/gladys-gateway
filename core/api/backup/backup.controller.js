@@ -1,15 +1,17 @@
 const path = require('path');
-const aws = require('aws-sdk');
+const {
+  S3Client,
+  CreateMultipartUploadCommand,
+  CompleteMultipartUploadCommand,
+  AbortMultipartUploadCommand,
+} = require('@aws-sdk/client-s3');
+const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
+const { GetObjectCommand, UploadPartCommand } = require('@aws-sdk/client-s3');
 const Promise = require('bluebird');
 const uuid = require('uuid');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware');
 const { BadRequestError } = require('../../common/error');
-
-aws.config.update({
-  signatureVersion: 'v4',
-  signatureCache: false,
-});
 
 const ENABLE_SIGNED_URL_BACKUPS = process.env.ENABLE_SIGNED_URL_BACKUPS === 'true';
 
@@ -18,10 +20,14 @@ const MAX_FILE_SIZE_IN_BYTES = parseInt(process.env.BACKUP_MAX_FILE_SIZE_IN_BYTE
 const CHUNK_SIZE_IN_BYTES = parseInt(process.env.BACKUP_CHUNK_SIZE_IN_BYTES, 10);
 
 module.exports = function BackupController(backupModel, accountModel, logger) {
-  const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
-
-  const s3 = new aws.S3({
-    endpoint: spacesEndpoint,
+  const s3Client = new S3Client({
+    forcePathStyle: false,
+    endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
   });
 
   /**
@@ -41,11 +47,14 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
     const backups = await backupModel.get(req.instance.id, req.query);
     const backupsWithSignedUrls = await Promise.map(backups, async (backup) => {
       const key = path.basename(backup.path);
-      const signedUrl = await s3.getSignedUrlPromise('getObject', {
-        Bucket: process.env.STORAGE_BUCKET,
-        Key: key,
-        Expires: 6 * 60 * 60, // URL is valid 6 hours
-      });
+      const signedUrl = await getSignedUrl(
+        s3Client,
+        new GetObjectCommand({
+          Bucket: process.env.STORAGE_BUCKET,
+          Key: key,
+        }),
+        { expiresIn: 6 * 60 * 60 },
+      ); // URL is valid 6 hours
       // MAX_SAFE_INTEGER is the equivalent of 9000 GB
       // So we are safe to convert here to JS integer
       const newSize = parseInt(backup.size, 10);
@@ -86,24 +95,23 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       ACL: ENABLE_SIGNED_URL_BACKUPS ? 'private' : 'public-read',
     };
 
-    const multipartUpload = await s3.createMultipartUpload(multipartParams).promise();
+    const multipartUpload = await s3Client.send(new CreateMultipartUploadCommand(multipartParams));
 
     // Generate all signed urls for the upload
-    const multipartParamsSignedUrl = {
-      Bucket: process.env.STORAGE_BUCKET,
-      Key: multipartUpload.Key,
-      UploadId: multipartUpload.UploadId,
-      Expires: 15 * 60 * 60, // URL is valid for 15 hours
-    };
-
     const tasks = new Array(numberOfParts);
     const parts = await Promise.map(
       tasks,
       async (task, index) => {
-        const signedUrl = await s3.getSignedUrlPromise('uploadPart', {
-          ...multipartParamsSignedUrl,
-          PartNumber: index + 1,
-        });
+        const signedUrl = await getSignedUrl(
+          s3Client,
+          new UploadPartCommand({
+            Bucket: process.env.STORAGE_BUCKET,
+            Key: multipartUpload.Key,
+            UploadId: multipartUpload.UploadId,
+            PartNumber: index + 1,
+          }),
+          { expiresIn: 15 * 60 * 60 },
+        ); // URL is valid for 15 hours
         return {
           signed_url: signedUrl,
           part_number: index + 1,
@@ -149,11 +157,14 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       },
     };
 
-    await s3.completeMultipartUpload(multipartParams).promise();
-    const signedUrl = await s3.getSignedUrlPromise('getObject', {
-      Bucket: process.env.STORAGE_BUCKET,
-      Key: req.body.file_key,
-    });
+    await s3Client.send(new CompleteMultipartUploadCommand(multipartParams));
+    const signedUrl = await getSignedUrl(
+      s3Client,
+      new GetObjectCommand({
+        Bucket: process.env.STORAGE_BUCKET,
+        Key: req.body.file_key,
+      }),
+    );
     const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
       status: 'successed',
       path: signedUrl.split('?')[0],
@@ -183,7 +194,7 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       UploadId: req.body.file_id,
     };
 
-    await s3.abortMultipartUpload(multipartParams).promise();
+    await s3Client.send(new AbortMultipartUploadCommand(multipartParams));
 
     const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
       status: 'failed',

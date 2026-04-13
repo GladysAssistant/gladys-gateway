@@ -1,14 +1,19 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
-const aws = require('aws-sdk');
+const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { NotFoundError, ForbiddenError } = require('../../common/error');
 
 module.exports = function AdminModel(logger, db, redisClient, mailService, slackService, stripeService) {
-  const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
-  const s3 = new aws.S3({
-    endpoint: spacesEndpoint,
+  const s3Client = new S3Client({
+    forcePathStyle: false,
+    endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
   });
   async function getAllAccounts() {
     const request = `
@@ -75,7 +80,7 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       async (backup) => {
         try {
           const key = path.basename(backup.path);
-          await s3.deleteObject({ Bucket: process.env.STORAGE_BUCKET, Key: key }).promise();
+          await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.STORAGE_BUCKET, Key: key }));
         } catch (e) {
           logger.warn(`Fail to delete ${backup.path}`);
           logger.warn(e);

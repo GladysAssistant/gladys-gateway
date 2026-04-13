@@ -1,13 +1,18 @@
 const path = require('path');
-const aws = require('aws-sdk');
+const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const retry = require('async-retry');
 
 const { NotFoundError } = require('../../common/error');
 
 module.exports = function BackupModel(logger, db) {
-  const spacesEndpoint = new aws.Endpoint(process.env.STORAGE_ENDPOINT);
-  const s3 = new aws.S3({
-    endpoint: spacesEndpoint,
+  const s3Client = new S3Client({
+    forcePathStyle: false,
+    endpoint: `https://${process.env.STORAGE_ENDPOINT}`,
+    region: process.env.AWS_REGION,
+    credentials: {
+      accessKeyId: process.env.AWS_ACCESS_KEY_ID,
+      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY,
+    },
   });
   async function createBackup(instanceId, url, size, status) {
     const instance = await db.t_instance.findOne({
@@ -113,7 +118,7 @@ module.exports = function BackupModel(logger, db) {
       };
       // we want to retry with expontential backoff, in case the delete fails
       await retry(async () => {
-        await s3.deleteObject({ Bucket: process.env.STORAGE_BUCKET, Key: key }).promise();
+        await s3Client.send(new DeleteObjectCommand({ Bucket: process.env.STORAGE_BUCKET, Key: key }));
       }, RETRY_CONFIG);
     } catch (e) {
       logger.warn(`Fail to delete backup in S3 storage: ${backupId} ${backupUrl}`);

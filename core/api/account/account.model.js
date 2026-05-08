@@ -93,14 +93,53 @@ module.exports = function AccountModel(
 
     const { email } = customer;
     const stripeProductId = subscription?.items?.data[0]?.price?.product;
+    const plan = stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
 
     // we first test if an account already exist with this email
-    const account = await db.t_account.findOne({ name: email });
+    const existingAccount = await db.t_account.findOne({ name: email });
 
-    // it means an account already exist with this email
-    if (account !== null) {
-      telegramService.sendAlert(`Customer already have an account! Email = ${email}, language = ${language}.`);
-      throw new AlreadyExistError(`User ${email} already have an account!`);
+    // An account already exists with this email: this is a re-subscription, not a new sign-up.
+    if (existingAccount !== null) {
+      // If the existing account already has an active/trialing subscription, the customer would
+      // be charged twice. Cancel the duplicate subscription on Stripe and alert.
+      if (existingAccount.status === 'active' || existingAccount.status === 'trialing') {
+        telegramService.sendAlert(
+          `⚠️ Customer ${email} re-subscribed while already having an active subscription. ` +
+            `Cancelling the duplicate Stripe subscription ${subscription.id}.`,
+        );
+        try {
+          await stripeService.cancelMonthlySubscription(subscription.id);
+        } catch (e) {
+          logger.warn(`Failed to cancel duplicate Stripe subscription ${subscription.id}: ${e.message}`);
+        }
+        return existingAccount;
+      }
+
+      // Otherwise (canceled / past_due / unpaid / incomplete / etc.), link the new Stripe
+      // subscription to the existing account so the user keeps their old Gladys Plus user,
+      // their backups, their instance, etc.
+      const updatedAccount = await db.t_account.update(
+        existingAccount.id,
+        {
+          stripe_customer_id: customer.id,
+          stripe_subscription_id: subscription.id,
+          current_period_end: new Date(subscription.current_period_end * 1000),
+          status: 'active',
+          plan,
+        },
+        {
+          fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
+        },
+      );
+
+      await mailService.send({ email, language }, 'welcome_back', {
+        loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+      });
+
+      telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
+
+      // Re-subscribers already received the trial email chain in the past, do NOT add them again.
+      return updatedAccount;
     }
 
     const newAccount = {
@@ -109,7 +148,7 @@ module.exports = function AccountModel(
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
       status: 'active',
-      plan: stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus',
+      plan,
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);

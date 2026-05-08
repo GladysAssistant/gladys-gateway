@@ -58,6 +58,94 @@ describe('stripeWebhook', () => {
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
   });
+  it('should return 422 when checkout.session.completed has no customer or subscription', async () => {
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          // no customer, no subscription
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(422);
+  });
+
+  it('should still return 200 when the duplicate Stripe subscription cancel call fails', async () => {
+    // First create the active account with email = toto@test.fr.
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cusnew',
+          subscription: 'subnew',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subnew')
+      .reply(200, {
+        id: 'subnew',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusnew')
+      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    // Second call: same active account, but Stripe DELETE returns 500 — cancel call must not
+    // crash the webhook.
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subnew')
+      .reply(200, {
+        id: 'subnew',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusnew')
+      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
+    const failingCancelScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .delete('/v1/subscriptions/subnew')
+      .reply(500, { error: { message: 'Stripe is down' } });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    expect(failingCancelScope.isDone()).to.equal(true);
+  });
+
   it('should cancel the duplicate Stripe subscription when an active account already exists for that email', async () => {
     const event = {
       id: 'evt_test_webhook',

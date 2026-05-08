@@ -78,6 +78,11 @@ module.exports = function AccountModel(
   // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
   async function maybeSubscribeToTrialEmailList({ subscription, email, customer, language }) {
     if (!emailListService || !subscription.trial_start || !subscription.trial_end) {
+      logger.warn(
+        `maybeSubscribeToTrialEmailList: skipping (emailListService=${!!emailListService}, trial_start=${
+          subscription.trial_start
+        }, trial_end=${subscription.trial_end}, status=${subscription.status})`,
+      );
       return;
     }
     const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;

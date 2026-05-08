@@ -58,7 +58,95 @@ describe('stripeWebhook', () => {
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
   });
-  it('should try to create account 2 times', async () => {
+  it('should return 422 when checkout.session.completed has no customer or subscription', async () => {
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          // no customer, no subscription
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(422);
+  });
+
+  it('should still return 200 when the duplicate Stripe subscription cancel call fails', async () => {
+    // First create the active account with email = toto@test.fr.
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cusnew',
+          subscription: 'subnew',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subnew')
+      .reply(200, {
+        id: 'subnew',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusnew')
+      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    // Second call: same active account, but Stripe DELETE returns 500 — cancel call must not
+    // crash the webhook.
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subnew')
+      .reply(200, {
+        id: 'subnew',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusnew')
+      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
+    const failingCancelScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .delete('/v1/subscriptions/subnew')
+      .reply(500, { error: { message: 'Stripe is down' } });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    expect(failingCancelScope.isDone()).to.equal(true);
+  });
+
+  it('should cancel the duplicate Stripe subscription when an active account already exists for that email', async () => {
     const event = {
       id: 'evt_test_webhook',
       object: 'event',
@@ -108,6 +196,9 @@ describe('stripeWebhook', () => {
     });
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
+
+    // Second call: the email already has an active account => the duplicate Stripe
+    // subscription must be cancelled and the webhook must return 200 (no DB change).
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
       .get('/v1/subscriptions/subnew')
       .reply(200, {
@@ -127,13 +218,104 @@ describe('stripeWebhook', () => {
       id: 'cusnew',
       email: 'toto@test.fr',
     });
+    const cancelScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .delete('/v1/subscriptions/subnew')
+      .reply(200, { id: 'subnew', status: 'canceled' });
+
     await request(TEST_BACKEND_APP)
       .post('/stripe/webhook')
       .set('Accept', 'application/json')
       .set('stripe-signature', signatureHeader)
       .set('Content-type', 'application/json')
       .send(stringEvent)
-      .expect(409);
+      .expect(200);
+
+    expect(cancelScope.isDone()).to.equal(true);
+  });
+
+  it('should re-link a new Stripe subscription to an existing canceled account and send welcome_back', async () => {
+    // First, create an account.
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cusnew',
+          subscription: 'subnew',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subnew')
+      .reply(200, {
+        id: 'subnew',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusnew')
+      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    // Manually mark the existing account as canceled (simulating a lapsed customer).
+    const firstAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+    await TEST_DATABASE_INSTANCE.t_account.update(firstAccount.id, { status: 'canceled' });
+
+    // Same email re-subscribes via Stripe Checkout, with brand new customer/subscription IDs.
+    const event2 = {
+      id: 'evt_test_webhook_2',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cus_resub',
+          subscription: 'sub_resub',
+        },
+      },
+    };
+    const stringEvent2 = JSON.stringify(event2);
+    const signatureHeader2 = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent2,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub_resub')
+      .reply(200, {
+        id: 'sub_resub',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cus_resub')
+      .reply(200, { id: 'cus_resub', email: 'toto@test.fr' });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader2)
+      .set('Content-type', 'application/json')
+      .send(stringEvent2)
+      .expect(200);
+
+    // The existing account row has been re-linked, no new row was created.
+    const allAccounts = await TEST_DATABASE_INSTANCE.t_account.find({ name: 'toto@test.fr' });
+    expect(allAccounts).to.have.lengthOf(1);
+    expect(allAccounts[0]).to.have.property('id', firstAccount.id);
+    expect(allAccounts[0]).to.have.property('stripe_customer_id', 'cus_resub');
+    expect(allAccounts[0]).to.have.property('stripe_subscription_id', 'sub_resub');
+    expect(allAccounts[0]).to.have.property('status', 'active');
   });
   it('should create new account with lite plan', async () => {
     const event = {
@@ -491,6 +673,89 @@ describe('stripeWebhook', () => {
         .expect(200);
 
       expect(emailListScope.isDone()).to.equal(false);
+    });
+
+    it('should subscribe a re-subscribing customer (existing canceled account) to the trial email list', async () => {
+      // Seed: create the account first via a normal checkout, then mark it canceled.
+      const trialStart = Math.floor(Date.now() / 1000);
+      const trialEnd = trialStart + 30 * 24 * 60 * 60;
+      const seed = buildCheckoutSessionEvent({
+        trialStart,
+        trialEnd,
+        customerName: 'Jane Doe',
+        locale: 'fr-FR',
+      });
+
+      // First call: ignore the email-list call (consume it with a mock).
+      nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', seed.signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(seed.stringEvent)
+        .expect(200);
+
+      const seededAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ name: 'newtrial@test.fr' });
+      await TEST_DATABASE_INSTANCE.t_account.update(seededAccount.id, { status: 'canceled' });
+
+      // Re-subscribe: same email, brand new Stripe customer/subscription with a fresh 30-day trial.
+      const trialStart2 = Math.floor(Date.now() / 1000);
+      const trialEnd2 = trialStart2 + 30 * 24 * 60 * 60;
+      const event = {
+        id: 'evt_test_webhook_resub',
+        object: 'event',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            customer: 'cus_resub',
+            subscription: 'sub_resub',
+            locale: 'fr-FR',
+          },
+        },
+      };
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/sub_resub')
+        .reply(200, {
+          id: 'sub_resub',
+          current_period_end: 1289482682000,
+          trial_start: trialStart2,
+          trial_end: trialEnd2,
+          items: { data: [{ price: { product: 'plus-plan-id' } }] },
+        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/customers/cus_resub')
+        .reply(200, { id: 'cus_resub', email: 'newtrial@test.fr', name: 'Jane Doe' });
+
+      let receivedBody = null;
+      const emailListScope = nock(EMAIL_LIST_HOST)
+        .post(EMAIL_LIST_PATH, (body) => {
+          receivedBody = body;
+          return true;
+        })
+        .reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(true);
+      expect(receivedBody).to.deep.equal({
+        email: 'newtrial@test.fr',
+        firstname: 'Jane',
+        list: 'gladysPlusTrial',
+        language: 'fr',
+      });
     });
 
     it('should unsubscribe from the trial list on subscription transition trialing -> active', async () => {

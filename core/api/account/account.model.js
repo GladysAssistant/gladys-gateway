@@ -74,6 +74,27 @@ module.exports = function AccountModel(
     return allUsers;
   }
 
+  // Subscribe user to the trial email list, but only for the standard 30-day trial.
+  // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
+  async function maybeSubscribeToTrialEmailList({ subscription, email, customer, language }) {
+    if (!emailListService || !subscription.trial_start || !subscription.trial_end) {
+      return;
+    }
+    const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;
+    if (trialDurationDays > 0 && trialDurationDays <= MAX_TRIAL_DAYS_FOR_EMAIL_LIST) {
+      logger.info(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+      telegramService.sendAlert(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+      await emailListService.subscribe({
+        email,
+        firstname: extractFirstname(customer.name),
+        list: GLADYS_PLUS_TRIAL_LIST,
+        language,
+      });
+    } else {
+      logger.info(`Not subscribing user ${email} to trial email list: trial duration is ${trialDurationDays} days`);
+    }
+  }
+
   async function createAccountFromStripeSession(session) {
     if (!session.customer || !session.subscription) {
       throw new ValidationError('Customer and subscription are required');
@@ -93,14 +114,54 @@ module.exports = function AccountModel(
 
     const { email } = customer;
     const stripeProductId = subscription?.items?.data[0]?.price?.product;
+    const plan = stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
 
     // we first test if an account already exist with this email
-    const account = await db.t_account.findOne({ name: email });
+    const existingAccount = await db.t_account.findOne({ name: email });
 
-    // it means an account already exist with this email
-    if (account !== null) {
-      telegramService.sendAlert(`Customer already have an account! Email = ${email}, language = ${language}.`);
-      throw new AlreadyExistError(`User ${email} already have an account!`);
+    // An account already exists with this email: this is a re-subscription, not a new sign-up.
+    if (existingAccount !== null) {
+      // If the existing account already has an active/trialing subscription, the customer would
+      // be charged twice. Cancel the duplicate subscription on Stripe and alert.
+      if (existingAccount.status === 'active' || existingAccount.status === 'trialing') {
+        telegramService.sendAlert(
+          `⚠️ Customer ${email} re-subscribed while already having an active subscription. ` +
+            `Cancelling the duplicate Stripe subscription ${subscription.id}.`,
+        );
+        try {
+          await stripeService.cancelMonthlySubscription(subscription.id);
+        } catch (e) {
+          logger.warn(`Failed to cancel duplicate Stripe subscription ${subscription.id}: ${e.message}`);
+        }
+        return existingAccount;
+      }
+
+      // Otherwise (canceled / past_due / unpaid / incomplete / etc.), link the new Stripe
+      // subscription to the existing account so the user keeps their old Gladys Plus user,
+      // their backups, their instance, etc.
+      const updatedAccount = await db.t_account.update(
+        existingAccount.id,
+        {
+          stripe_customer_id: customer.id,
+          stripe_subscription_id: subscription.id,
+          current_period_end: new Date(subscription.current_period_end * 1000),
+          status: 'active',
+          plan,
+        },
+        {
+          fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
+        },
+      );
+
+      await mailService.send({ email, language }, 'welcome_back', {
+        loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+      });
+
+      telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
+
+      await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
+
+      return updatedAccount;
     }
 
     const newAccount = {
@@ -109,7 +170,7 @@ module.exports = function AccountModel(
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
       status: 'active',
-      plan: stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus',
+      plan,
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
@@ -135,23 +196,7 @@ module.exports = function AccountModel(
 
     telegramService.sendAlert(`New customer ! Customer email = ${email}, language = ${language}`);
 
-    // Subscribe user to the trial email list, but only for the standard 30-day trial.
-    // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
-    if (emailListService && subscription.trial_start && subscription.trial_end) {
-      const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;
-      if (trialDurationDays > 0 && trialDurationDays <= MAX_TRIAL_DAYS_FOR_EMAIL_LIST) {
-        logger.info(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
-        telegramService.sendAlert(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
-        await emailListService.subscribe({
-          email,
-          firstname: extractFirstname(customer.name),
-          list: GLADYS_PLUS_TRIAL_LIST,
-          language,
-        });
-      } else {
-        logger.info(`Not subscribing user ${email} to trial email list: trial duration is ${trialDurationDays} days`);
-      }
-    }
+    await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
 
     return insertedAccount;
   }

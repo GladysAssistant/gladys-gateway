@@ -2,6 +2,7 @@ const request = require('supertest');
 const nock = require('nock');
 const { expect } = require('chai');
 const Stripe = require('stripe');
+const { setupPersistentNocks } = require('../../../tasks/nock');
 
 describe('stripeWebhook', () => {
   const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
@@ -363,7 +364,10 @@ describe('stripeWebhook', () => {
       } else {
         process.env.EMAIL_LIST_API_URL = originalEmailListUrl;
       }
+      // cleanAll() also wipes the persistent global nocks (e.g. backup DELETE) defined in
+      // test/tasks/nock.js, so we restore them right after.
       nock.cleanAll();
+      setupPersistentNocks();
     });
 
     function buildCheckoutSessionEvent({ trialStart, trialEnd, customerName, locale }) {

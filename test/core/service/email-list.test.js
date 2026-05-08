@@ -22,7 +22,6 @@ describe('email-list service', () => {
     } else {
       process.env.EMAIL_LIST_API_URL = originalEnv;
     }
-    nock.cleanAll();
   });
 
   describe('subscribe', () => {

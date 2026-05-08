@@ -138,7 +138,8 @@ module.exports = function AccountModel(
 
       telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
 
-      // Re-subscribers already received the trial email chain in the past, do NOT add them again.
+      await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
+
       return updatedAccount;
     }
 
@@ -174,25 +175,30 @@ module.exports = function AccountModel(
 
     telegramService.sendAlert(`New customer ! Customer email = ${email}, language = ${language}`);
 
-    // Subscribe user to the trial email list, but only for the standard 30-day trial.
-    // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
-    if (emailListService && subscription.trial_start && subscription.trial_end) {
-      const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;
-      if (trialDurationDays > 0 && trialDurationDays <= MAX_TRIAL_DAYS_FOR_EMAIL_LIST) {
-        logger.info(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
-        telegramService.sendAlert(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
-        await emailListService.subscribe({
-          email,
-          firstname: extractFirstname(customer.name),
-          list: GLADYS_PLUS_TRIAL_LIST,
-          language,
-        });
-      } else {
-        logger.info(`Not subscribing user ${email} to trial email list: trial duration is ${trialDurationDays} days`);
-      }
-    }
+    await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
 
     return insertedAccount;
+  }
+
+  // Subscribe user to the trial email list, but only for the standard 30-day trial.
+  // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
+  async function maybeSubscribeToTrialEmailList({ subscription, email, customer, language }) {
+    if (!emailListService || !subscription.trial_start || !subscription.trial_end) {
+      return;
+    }
+    const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;
+    if (trialDurationDays > 0 && trialDurationDays <= MAX_TRIAL_DAYS_FOR_EMAIL_LIST) {
+      logger.info(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+      telegramService.sendAlert(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+      await emailListService.subscribe({
+        email,
+        firstname: extractFirstname(customer.name),
+        list: GLADYS_PLUS_TRIAL_LIST,
+        language,
+      });
+    } else {
+      logger.info(`Not subscribing user ${email} to trial email list: trial duration is ${trialDurationDays} days`);
+    }
   }
 
   async function subscribeMonthlyPlan(user, sourceId) {

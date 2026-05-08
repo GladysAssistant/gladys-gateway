@@ -587,6 +587,89 @@ describe('stripeWebhook', () => {
       expect(emailListScope.isDone()).to.equal(false);
     });
 
+    it('should subscribe a re-subscribing customer (existing canceled account) to the trial email list', async () => {
+      // Seed: create the account first via a normal checkout, then mark it canceled.
+      const trialStart = Math.floor(Date.now() / 1000);
+      const trialEnd = trialStart + 30 * 24 * 60 * 60;
+      const seed = buildCheckoutSessionEvent({
+        trialStart,
+        trialEnd,
+        customerName: 'Jane Doe',
+        locale: 'fr-FR',
+      });
+
+      // First call: ignore the email-list call (consume it with a mock).
+      nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', seed.signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(seed.stringEvent)
+        .expect(200);
+
+      const seededAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ name: 'newtrial@test.fr' });
+      await TEST_DATABASE_INSTANCE.t_account.update(seededAccount.id, { status: 'canceled' });
+
+      // Re-subscribe: same email, brand new Stripe customer/subscription with a fresh 30-day trial.
+      const trialStart2 = Math.floor(Date.now() / 1000);
+      const trialEnd2 = trialStart2 + 30 * 24 * 60 * 60;
+      const event = {
+        id: 'evt_test_webhook_resub',
+        object: 'event',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            customer: 'cus_resub',
+            subscription: 'sub_resub',
+            locale: 'fr-FR',
+          },
+        },
+      };
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/sub_resub')
+        .reply(200, {
+          id: 'sub_resub',
+          current_period_end: 1289482682000,
+          trial_start: trialStart2,
+          trial_end: trialEnd2,
+          items: { data: [{ price: { product: 'plus-plan-id' } }] },
+        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/customers/cus_resub')
+        .reply(200, { id: 'cus_resub', email: 'newtrial@test.fr', name: 'Jane Doe' });
+
+      let receivedBody = null;
+      const emailListScope = nock(EMAIL_LIST_HOST)
+        .post(EMAIL_LIST_PATH, (body) => {
+          receivedBody = body;
+          return true;
+        })
+        .reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(true);
+      expect(receivedBody).to.deep.equal({
+        email: 'newtrial@test.fr',
+        firstname: 'Jane',
+        list: 'gladysPlusTrial',
+        language: 'fr',
+      });
+    });
+
     it('should unsubscribe from the trial list on subscription transition trialing -> active', async () => {
       // Use the existing fixture account whose stripe_customer_id is 'cus'.
       const updateEvent = {

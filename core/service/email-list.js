@@ -3,10 +3,9 @@ const axios = require('axios');
 const LIST_GLADYS_PLUS_TRIAL = 'gladysPlusTrial';
 
 module.exports = function EmailListService(logger) {
-  const apiUrl = process.env.EMAIL_LIST_API_URL;
-
   async function subscribe({ email, firstname, list, language }) {
     try {
+      const apiUrl = process.env.EMAIL_LIST_API_URL;
       if (!apiUrl) {
         logger.info(`EmailList: EMAIL_LIST_API_URL not set, skipping subscribe for ${email}.`);
         return;
@@ -25,6 +24,7 @@ module.exports = function EmailListService(logger) {
 
   async function unsubscribe({ email, list, language }) {
     try {
+      const apiUrl = process.env.EMAIL_LIST_API_URL;
       if (!apiUrl) {
         logger.info(`EmailList: EMAIL_LIST_API_URL not set, skipping unsubscribe for ${email}.`);
         return;

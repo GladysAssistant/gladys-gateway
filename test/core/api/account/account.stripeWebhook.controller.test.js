@@ -346,4 +346,251 @@ describe('stripeWebhook', () => {
       .send(stringDeleteEvent)
       .expect(200);
   });
+
+  describe('email list trial subscription', () => {
+    const EMAIL_LIST_HOST = 'https://email-list.test.example.com';
+    const EMAIL_LIST_PATH = '/subscribers';
+    let originalEmailListUrl;
+
+    beforeEach(() => {
+      originalEmailListUrl = process.env.EMAIL_LIST_API_URL;
+      process.env.EMAIL_LIST_API_URL = `${EMAIL_LIST_HOST}${EMAIL_LIST_PATH}`;
+    });
+
+    afterEach(() => {
+      if (originalEmailListUrl === undefined) {
+        delete process.env.EMAIL_LIST_API_URL;
+      } else {
+        process.env.EMAIL_LIST_API_URL = originalEmailListUrl;
+      }
+      nock.cleanAll();
+    });
+
+    function buildCheckoutSessionEvent({ trialStart, trialEnd, customerName, locale }) {
+      const event = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            customer: 'cusnew',
+            subscription: 'subnew',
+            locale,
+          },
+        },
+      };
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/subnew')
+        .reply(200, {
+          id: 'subnew',
+          current_period_end: 1289482682000,
+          trial_start: trialStart,
+          trial_end: trialEnd,
+          items: {
+            data: [
+              {
+                price: {
+                  product: 'plus-plan-id',
+                },
+              },
+            ],
+          },
+        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cusnew').reply(200, {
+        id: 'cusnew',
+        email: 'newtrial@test.fr',
+        name: customerName,
+      });
+      return { stringEvent, signatureHeader };
+    }
+
+    it('should subscribe a new 30-day trial customer to the gladysPlusTrial email list', async () => {
+      const trialStart = Math.floor(Date.now() / 1000);
+      const trialEnd = trialStart + 30 * 24 * 60 * 60;
+      const { stringEvent, signatureHeader } = buildCheckoutSessionEvent({
+        trialStart,
+        trialEnd,
+        customerName: 'Jane Doe',
+        locale: 'fr-FR',
+      });
+
+      let receivedBody = null;
+      const emailListScope = nock(EMAIL_LIST_HOST)
+        .post(EMAIL_LIST_PATH, (body) => {
+          receivedBody = body;
+          return true;
+        })
+        .reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(true);
+      expect(receivedBody).to.deep.equal({
+        email: 'newtrial@test.fr',
+        firstname: 'Jane',
+        list: 'gladysPlusTrial',
+        language: 'fr',
+      });
+    });
+
+    it('should NOT subscribe a 6-month trial customer (starter kit) to the email list', async () => {
+      const trialStart = Math.floor(Date.now() / 1000);
+      const trialEnd = trialStart + 180 * 24 * 60 * 60;
+      const { stringEvent, signatureHeader } = buildCheckoutSessionEvent({
+        trialStart,
+        trialEnd,
+        customerName: 'Jane Doe',
+        locale: 'fr-FR',
+      });
+
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      // The interceptor should NOT have been consumed.
+      expect(emailListScope.isDone()).to.equal(false);
+    });
+
+    it('should NOT subscribe to the email list when there is no trial at all', async () => {
+      const { stringEvent, signatureHeader } = buildCheckoutSessionEvent({
+        trialStart: null,
+        trialEnd: null,
+        customerName: 'Jane Doe',
+        locale: 'fr-FR',
+      });
+
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(false);
+    });
+
+    it('should unsubscribe from the trial list on subscription transition trialing -> active', async () => {
+      // Use the existing fixture account whose stripe_customer_id is 'cus'.
+      const updateEvent = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub',
+            customer: 'cus',
+            status: 'active',
+            current_period_end: (new Date().getTime() + 10 * 60 * 1000) / 1000,
+            items: {
+              data: [
+                {
+                  price: {
+                    product: 'plus-plan-id',
+                  },
+                },
+              ],
+            },
+          },
+          previous_attributes: {
+            status: 'trialing',
+          },
+        },
+      };
+      const stringUpdateEvent = JSON.stringify(updateEvent);
+      const signatureUpdateHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringUpdateEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+
+      let receivedBody = null;
+      const emailListScope = nock(EMAIL_LIST_HOST)
+        .post(EMAIL_LIST_PATH, (body) => {
+          receivedBody = body;
+          return true;
+        })
+        .reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureUpdateHeader)
+        .set('Content-type', 'application/json')
+        .send(stringUpdateEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(true);
+      expect(receivedBody).to.deep.equal({
+        email: 'new-account-lost@gladysassistant.com',
+        list: 'gladysPlusTrial',
+        action: 'remove',
+        language: 'fr',
+      });
+    });
+
+    it('should NOT unsubscribe on subscription update that is not a trialing -> active transition', async () => {
+      const updateEvent = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'customer.subscription.updated',
+        data: {
+          object: {
+            id: 'sub',
+            customer: 'cus',
+            status: 'active',
+            current_period_end: (new Date().getTime() + 10 * 60 * 1000) / 1000,
+            items: {
+              data: [
+                {
+                  price: {
+                    product: 'plus-plan-id',
+                  },
+                },
+              ],
+            },
+          },
+          previous_attributes: {
+            // already active, just a normal renewal-type update
+            current_period_end: 12345,
+          },
+        },
+      };
+      const stringUpdateEvent = JSON.stringify(updateEvent);
+      const signatureUpdateHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringUpdateEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureUpdateHeader)
+        .set('Content-type', 'application/json')
+        .send(stringUpdateEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(false);
+    });
+  });
 });

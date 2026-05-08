@@ -14,6 +14,7 @@ const Stripe = require('./service/stripe');
 const Slack = require('./service/slack');
 const Telegram = require('./service/telegram');
 const AnalyticsService = require('./service/analytics');
+const EmailList = require('./service/email-list');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -154,6 +155,7 @@ module.exports = async (port) => {
     slackService: Slack(logger),
     telegramService: Telegram(logger),
     analyticsService: AnalyticsService(logger),
+    emailListService: EmailList(logger),
   };
 
   const models = {
@@ -169,6 +171,7 @@ module.exports = async (port) => {
       services.stripeService,
       services.mailService,
       services.telegramService,
+      services.emailListService,
     ),
     deviceModel: Device(logger, db, redisClient),
     adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService, services.stripeService),

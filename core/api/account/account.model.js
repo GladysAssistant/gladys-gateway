@@ -9,7 +9,26 @@ const {
   BadRequestError,
 } = require('../../common/error');
 
-module.exports = function AccountModel(logger, db, redisClient, stripeService, mailService, telegramService) {
+const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
+const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
+const GLADYS_PLUS_TRIAL_LIST = 'gladysPlusTrial';
+
+function extractFirstname(name) {
+  if (!name || typeof name !== 'string') {
+    return '';
+  }
+  return name.trim().split(/\s+/)[0] || '';
+}
+
+module.exports = function AccountModel(
+  logger,
+  db,
+  redisClient,
+  stripeService,
+  mailService,
+  telegramService,
+  emailListService,
+) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -115,6 +134,24 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
     });
 
     telegramService.sendAlert(`New customer ! Customer email = ${email}, language = ${language}`);
+
+    // Subscribe user to the trial email list, but only for the standard 30-day trial.
+    // Customers with longer trials (e.g. 6 months for the starter kit) must NOT be added.
+    if (emailListService && subscription.trial_start && subscription.trial_end) {
+      const trialDurationDays = (subscription.trial_end - subscription.trial_start) / ONE_DAY_IN_SECONDS;
+      if (trialDurationDays > 0 && trialDurationDays <= MAX_TRIAL_DAYS_FOR_EMAIL_LIST) {
+        logger.info(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+        telegramService.sendAlert(`Subscribing user ${email} to trial email list for ${trialDurationDays} days`);
+        await emailListService.subscribe({
+          email,
+          firstname: extractFirstname(customer.name),
+          list: GLADYS_PLUS_TRIAL_LIST,
+          language,
+        });
+      } else {
+        logger.info(`Not subscribing user ${email} to trial email list: trial duration is ${trialDurationDays} days`);
+      }
+    }
 
     return insertedAccount;
   }
@@ -469,8 +506,7 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
 
         break;
 
-      case 'customer.subscription.updated':
-        // eslint-disable-next-line no-case-declarations
+      case 'customer.subscription.updated': {
         const stripeProductId = event.data.object.items?.data[0]?.price?.product;
         // Update status
         await db.t_account.update(
@@ -487,7 +523,26 @@ module.exports = function AccountModel(logger, db, redisClient, stripeService, m
             fields: ['id'],
           },
         );
+
+        // When the subscription transitions from trialing to active (i.e. the user just paid),
+        // remove them from the trial email list. We rely on Stripe's `previous_attributes` so
+        // this only fires once on the actual transition rather than on every renewal.
+        const previousStatus = event.data.previous_attributes && event.data.previous_attributes.status;
+        if (emailListService && email && previousStatus === 'trialing' && event.data.object.status === 'active') {
+          logger.info(`Removing user ${email} from trial email list`);
+          telegramService.sendAlert(`Removing user ${email} from trial email list`);
+          await emailListService.unsubscribe({
+            email,
+            list: GLADYS_PLUS_TRIAL_LIST,
+            language,
+          });
+        } else {
+          logger.info(
+            `Not removing user ${email} from trial email list: previous status is ${previousStatus}, current status is ${event.data.object.status}`,
+          );
+        }
         break;
+      }
 
       case 'invoice.payment_succeeded': {
         const invoicePaymentSucceededActivity = {

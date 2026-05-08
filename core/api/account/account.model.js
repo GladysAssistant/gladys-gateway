@@ -96,7 +96,14 @@ module.exports = function AccountModel(
   }
 
   async function createAccountFromStripeSession(session) {
+    logger.info(
+      `createAccountFromStripeSession: received checkout.session.completed (customer=${session.customer}, subscription=${session.subscription}, locale=${session.locale})`,
+    );
+
     if (!session.customer || !session.subscription) {
+      logger.warn(
+        'createAccountFromStripeSession: missing customer or subscription on session, throwing ValidationError',
+      );
       throw new ValidationError('Customer and subscription are required');
     }
 
@@ -104,6 +111,9 @@ module.exports = function AccountModel(
     const language = session.locale ? session.locale.substr(0, 2).toLowerCase() : 'en';
 
     // we get subscription from stripe side
+    logger.info(
+      `createAccountFromStripeSession: fetching subscription ${session.subscription} and customer ${session.customer} from Stripe`,
+    );
     const [subscription, customer] = await Promise.all([
       stripeService.getSubscription(session.subscription),
       stripeService.getCustomer(session.customer),
@@ -116,29 +126,40 @@ module.exports = function AccountModel(
     const stripeProductId = subscription?.items?.data[0]?.price?.product;
     const plan = stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
 
+    logger.info(
+      `createAccountFromStripeSession: resolved email=${email}, plan=${plan}, subscription.status=${subscription.status}`,
+    );
+
     // we first test if an account already exist with this email
     const existingAccount = await db.t_account.findOne({ name: email });
 
     // An account already exists with this email: this is a re-subscription, not a new sign-up.
     if (existingAccount !== null) {
-      // If the existing account already has an active/trialing subscription, the customer would
-      // be charged twice. Cancel the duplicate subscription on Stripe and alert.
+      logger.info(
+        `createAccountFromStripeSession: existing account found for ${email} (id=${existingAccount.id}, status=${existingAccount.status}, current stripe_customer_id=${existingAccount.stripe_customer_id}, current stripe_subscription_id=${existingAccount.stripe_subscription_id})`,
+      );
+
+      // If the existing account already has an active/trialing subscription, do not touch
+      // anything: this is either a duplicate checkout by a confused legitimate user, or an
+      // attacker trying to hijack someone else's account email. Just alert via Telegram so
+      // the situation can be investigated manually.
       if (existingAccount.status === 'active' || existingAccount.status === 'trialing') {
-        telegramService.sendAlert(
-          `⚠️ Customer ${email} re-subscribed while already having an active subscription. ` +
-            `Cancelling the duplicate Stripe subscription ${subscription.id}.`,
+        logger.warn(
+          `createAccountFromStripeSession: existing account for ${email} is ${existingAccount.status}, NOT re-linking. New Stripe subscription ${subscription.id} on customer ${customer.id} is left untouched. Manual review required.`,
         );
-        try {
-          await stripeService.cancelMonthlySubscription(subscription.id);
-        } catch (e) {
-          logger.warn(`Failed to cancel duplicate Stripe subscription ${subscription.id}: ${e.message}`);
-        }
+        telegramService.sendAlert(
+          `⚠️ Customer ${email} re-subscribed (new sub ${subscription.id}) while already having ` +
+            `an ${existingAccount.status} subscription. No automatic action taken — please investigate.`,
+        );
         return existingAccount;
       }
 
-      // Otherwise (canceled / past_due / unpaid / incomplete / etc.), link the new Stripe
-      // subscription to the existing account so the user keeps their old Gladys Plus user,
-      // their backups, their instance, etc.
+      // Otherwise (canceled / past_due / unpaid / incomplete / etc.), re-link the new Stripe
+      // subscription to the existing account so the user keeps their existing Gladys Plus
+      // user, their backups, their instance, etc.
+      logger.info(
+        `createAccountFromStripeSession: re-linking account ${existingAccount.id} (was ${existingAccount.status}) to new Stripe customer ${customer.id} / subscription ${subscription.id}, plan=${plan}`,
+      );
       const updatedAccount = await db.t_account.update(
         existingAccount.id,
         {
@@ -152,7 +173,9 @@ module.exports = function AccountModel(
           fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
         },
       );
+      logger.info(`createAccountFromStripeSession: account ${existingAccount.id} successfully re-linked`);
 
+      logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
       await mailService.send({ email, language }, 'welcome_back', {
         loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
       });
@@ -164,6 +187,8 @@ module.exports = function AccountModel(
       return updatedAccount;
     }
 
+    logger.info(`createAccountFromStripeSession: no existing account for ${email}, creating a brand new account`);
+
     const newAccount = {
       name: email,
       stripe_customer_id: customer.id,
@@ -174,6 +199,7 @@ module.exports = function AccountModel(
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);
+    logger.info(`createAccountFromStripeSession: inserted new account id=${insertedAccount.id} for ${email}`);
 
     // generate email confirmation token
     const token = (await randomBytes(64)).toString('hex');
@@ -189,7 +215,11 @@ module.exports = function AccountModel(
       token_hash: tokenHash,
       account_id: insertedAccount.id,
     });
+    logger.info(
+      `createAccountFromStripeSession: invitation token created for ${email} (account ${insertedAccount.id})`,
+    );
 
+    logger.info(`createAccountFromStripeSession: sending welcome email to ${email} (lang=${language})`);
     await mailService.send({ email, language }, 'welcome', {
       confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
     });

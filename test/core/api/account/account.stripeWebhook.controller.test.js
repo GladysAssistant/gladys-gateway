@@ -83,8 +83,8 @@ describe('stripeWebhook', () => {
       .expect(422);
   });
 
-  it('should still return 200 when the duplicate Stripe subscription cancel call fails', async () => {
-    // First create the active account with email = toto@test.fr.
+  it('should NOT touch an existing active account when a duplicate checkout fires (potential abuse)', async () => {
+    // Seed: create an active account.
     const event = {
       id: 'evt_test_webhook',
       object: 'event',
@@ -119,122 +119,56 @@ describe('stripeWebhook', () => {
       .send(stringEvent)
       .expect(200);
 
-    // Second call: same active account, but Stripe DELETE returns 500 — cancel call must not
-    // crash the webhook.
-    nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/subscriptions/subnew')
-      .reply(200, {
-        id: 'subnew',
-        current_period_end: 1289482682000,
-        items: { data: [{ price: { product: 'plus-plan-id' } }] },
-      });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/customers/cusnew')
-      .reply(200, { id: 'cusnew', email: 'toto@test.fr' });
-    const failingCancelScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .delete('/v1/subscriptions/subnew')
-      .reply(500, { error: { message: 'Stripe is down' } });
+    const firstAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+    expect(firstAccount).to.have.property('status', 'active');
 
-    await request(TEST_BACKEND_APP)
-      .post('/stripe/webhook')
-      .set('Accept', 'application/json')
-      .set('stripe-signature', signatureHeader)
-      .set('Content-type', 'application/json')
-      .send(stringEvent)
-      .expect(200);
-
-    expect(failingCancelScope.isDone()).to.equal(true);
-  });
-
-  it('should cancel the duplicate Stripe subscription when an active account already exists for that email', async () => {
-    const event = {
-      id: 'evt_test_webhook',
+    // Second checkout for the same email (different Stripe customer & subscription).
+    const event2 = {
+      id: 'evt_test_webhook_2',
       object: 'event',
       type: 'checkout.session.completed',
       data: {
         object: {
-          customer: 'cusnew',
-          subscription: 'subnew',
+          customer: 'cus_resub',
+          subscription: 'sub_resub',
         },
       },
     };
-    const stringEvent = JSON.stringify(event);
-    const signatureHeader = stripe.webhooks.generateTestHeaderString({
-      payload: stringEvent,
+    const stringEvent2 = JSON.stringify(event2);
+    const signatureHeader2 = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent2,
       secret: process.env.STRIPE_ENDPOINT_SECRET,
     });
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/subscriptions/subnew')
+      .get('/v1/subscriptions/sub_resub')
       .reply(200, {
-        id: 'subnew',
-        current_period_end: 1289482682000, // in 2010
-        items: {
-          data: [
-            {
-              price: {
-                product: 'plus-plan-id',
-              },
-            },
-          ],
-        },
+        id: 'sub_resub',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
       });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cusnew').reply(200, {
-      id: 'cusnew',
-      email: 'toto@test.fr',
-    });
-    const response = await request(TEST_BACKEND_APP)
-      .post('/stripe/webhook')
-      .set('Accept', 'application/json')
-      .set('stripe-signature', signatureHeader)
-      .set('Content-type', 'application/json')
-      .send(stringEvent)
-      .expect(200);
-
-    expect(response.body).to.deep.equal({ success: true });
-    const accountUpdated = await TEST_DATABASE_INSTANCE.t_account.findOne({
-      stripe_customer_id: 'cusnew',
-    });
-    expect(accountUpdated).to.have.property('status', 'active');
-    expect(accountUpdated).to.have.property('plan', 'plus');
-
-    // Second call: the email already has an active account => the duplicate Stripe
-    // subscription must be cancelled and the webhook must return 200 (no DB change).
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/subscriptions/subnew')
-      .reply(200, {
-        id: 'subnew',
-        current_period_end: 1289482682000, // in 2010
-        items: {
-          data: [
-            {
-              price: {
-                product: 'plus-plan-id',
-              },
-            },
-          ],
-        },
-      });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cusnew').reply(200, {
-      id: 'cusnew',
-      email: 'toto@test.fr',
-    });
-    const cancelScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .delete('/v1/subscriptions/subnew')
-      .reply(200, { id: 'subnew', status: 'canceled' });
+      .get('/v1/customers/cus_resub')
+      .reply(200, { id: 'cus_resub', email: 'toto@test.fr' });
 
     await request(TEST_BACKEND_APP)
       .post('/stripe/webhook')
       .set('Accept', 'application/json')
-      .set('stripe-signature', signatureHeader)
+      .set('stripe-signature', signatureHeader2)
       .set('Content-type', 'application/json')
-      .send(stringEvent)
+      .send(stringEvent2)
       .expect(200);
 
-    expect(cancelScope.isDone()).to.equal(true);
+    // The existing account row was NOT modified.
+    const allAccounts = await TEST_DATABASE_INSTANCE.t_account.find({ name: 'toto@test.fr' });
+    expect(allAccounts).to.have.lengthOf(1);
+    expect(allAccounts[0]).to.have.property('id', firstAccount.id);
+    expect(allAccounts[0]).to.have.property('stripe_customer_id', 'cusnew');
+    expect(allAccounts[0]).to.have.property('stripe_subscription_id', 'subnew');
+    expect(allAccounts[0]).to.have.property('status', 'active');
   });
 
   it('should re-link a new Stripe subscription to an existing canceled account and send welcome_back', async () => {
-    // First, create an account.
+    // Seed: create an account, then mark it canceled.
     const event = {
       id: 'evt_test_webhook',
       object: 'event',
@@ -269,7 +203,6 @@ describe('stripeWebhook', () => {
       .send(stringEvent)
       .expect(200);
 
-    // Manually mark the existing account as canceled (simulating a lapsed customer).
     const firstAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
     await TEST_DATABASE_INSTANCE.t_account.update(firstAccount.id, { status: 'canceled' });
 

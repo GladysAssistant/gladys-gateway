@@ -17,11 +17,7 @@ function messageContainsImageContent(message) {
     if (!contentPart || typeof contentPart !== 'object') {
       return false;
     }
-    return (
-      contentPart.type === 'image_url' ||
-      contentPart.type === 'input_image' ||
-      !!contentPart.image_url
-    );
+    return contentPart.type === 'image_url' || contentPart.type === 'input_image' || !!contentPart.image_url;
   });
 }
 

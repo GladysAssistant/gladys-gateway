@@ -135,4 +135,52 @@ describe('POST /openai/ask', () => {
       error_message: 'Too many image requests this month.',
     });
   });
+
+  it('should return 429, too many image requests with OpenAI-style messages', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      {
+        status: 'active',
+      },
+    );
+    const imageLimiter = new RateLimiterRedis({
+      storeClient: TEST_LEGACY_REDIS_CLIENT,
+      keyPrefix: 'rate_limit:open_ai:image',
+      points: 100, // max request per month
+      duration: 30 * 24 * 60 * 60, // 30 days
+    });
+    await imageLimiter.consume('b2d23f66-487d-493f-8acb-9c8adb400def', 100);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/openai/ask')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Décris cette image',
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: 'https://example.com/image.jpg',
+                },
+              },
+            ],
+          },
+        ],
+      })
+      .expect('Content-Type', /json/)
+      .expect(429);
+    expect(response.body).to.deep.equal({
+      status: 429,
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too many image requests this month.',
+    });
+  });
 });

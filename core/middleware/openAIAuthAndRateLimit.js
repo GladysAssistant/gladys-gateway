@@ -6,6 +6,31 @@ const asyncMiddleware = require('./asyncMiddleware');
 const MAX_TEXT_REQUESTS = parseInt(process.env.OPEN_AI_MAX_TEXT_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
 const MAX_IMAGE_REQUESTS = parseInt(process.env.OPEN_AI_MAX_IMAGE_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
 
+function messageContainsImageContent(message) {
+  if (!message || !message.content) {
+    return false;
+  }
+  if (!Array.isArray(message.content)) {
+    return false;
+  }
+  return message.content.some((contentPart) => {
+    if (!contentPart || typeof contentPart !== 'object') {
+      return false;
+    }
+    return contentPart.type === 'image_url' || contentPart.type === 'input_image' || !!contentPart.image_url;
+  });
+}
+
+function hasImageInput(data) {
+  if (data && data.image) {
+    return true;
+  }
+  if (!data || !Array.isArray(data.messages)) {
+    return false;
+  }
+  return data.messages.some(messageContainsImageContent);
+}
+
 module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
   const textLimiter = new RateLimiterRedis({
     storeClient: redisClient,
@@ -33,7 +58,7 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
         't_instance.id': req.instance.id,
       });
     const uniqueIdentifier = instanceWithAccount.id;
-    const hasImage = req.body && req.body.image;
+    const hasImage = hasImageInput(req.body);
     const limiter = hasImage ? imageLimiter : textLimiter;
     const maxRequests = hasImage ? MAX_IMAGE_REQUESTS : MAX_TEXT_REQUESTS;
     const requestType = hasImage ? 'image' : 'text';

@@ -30,6 +30,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   // don't parse body of stripe webhook
   app.use('/stripe/webhook', bodyParser.raw({ type: '*/*' }));
 
+  // STT: raw audio body
+  app.use('/stt', bodyParser.raw({ type: '*/*', limit: '5mb' }));
+
   // parse application/json
   app.use(bodyParser.json({ limit: '5mb' }));
 
@@ -75,6 +78,14 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.ttsController.getTemporaryToken),
   );
   app.get('/tts/:tts_token/generate.mp3', asyncMiddleware(controllers.ttsController.generate));
+
+  // STT API
+  app.post(
+    '/stt',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
+    asyncMiddleware(controllers.sttController.transcribe),
+  );
 
   // user
   app.post('/users/signup', middlewares.rateLimiter, asyncMiddleware(controllers.userController.signup));

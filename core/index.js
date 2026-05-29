@@ -56,6 +56,7 @@ const EcowattController = require('./api/ecowatt/ecowatt.controller');
 const TempoController = require('./api/tempo/tempo.controller');
 const CameraController = require('./api/camera/camera.controller');
 const TTSController = require('./api/tts/tts.controller');
+const STTController = require('./api/stt/stt.controller');
 
 // Middlewares
 const TwoFactorAuthMiddleware = require('./middleware/twoFactorTokenAuth');
@@ -230,6 +231,7 @@ module.exports = async (port) => {
       services.telegramService,
     ),
     ttsController: TTSController(redisClient),
+    sttController: STTController(),
   };
 
   const middlewares = {

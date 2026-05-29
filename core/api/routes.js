@@ -84,6 +84,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/stt',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     middlewares.checkUserPlan('plus'),
+    middlewares.sttRateLimit,
     asyncMiddleware(controllers.sttController.transcribe),
   );
 

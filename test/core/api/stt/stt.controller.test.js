@@ -1,6 +1,7 @@
 const request = require('supertest');
 const nock = require('nock');
 const { expect } = require('chai');
+const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const configTest = require('../../../tasks/config');
 
@@ -41,6 +42,36 @@ describe('POST /stt', () => {
       .expect(200);
     expect(response.body).to.deep.equal({
       text: 'bonjour',
+    });
+  });
+  it('should return 429, too many requests', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      {
+        status: 'active',
+      },
+    );
+    const limiter = new RateLimiterRedis({
+      storeClient: TEST_LEGACY_REDIS_CLIENT,
+      keyPrefix: 'rate_limit:stt_api',
+      points: 100,
+      duration: 30 * 24 * 60 * 60,
+    });
+    await limiter.consume('b2d23f66-487d-493f-8acb-9c8adb400def', 100);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/stt')
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'audio/wav')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send(audioBuffer)
+      .expect('Content-Type', /json/)
+      .expect(429);
+    expect(response.body).to.deep.equal({
+      status: 429,
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too many requests this month.',
     });
   });
 });

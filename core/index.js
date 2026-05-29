@@ -75,6 +75,7 @@ const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
 const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAuth');
 const CheckUserPlan = require('./middleware/checkUserPlan');
 const TTSRateLimit = require('./middleware/ttsRateLimit');
+const STTRateLimit = require('./middleware/sttRateLimit');
 
 // Routes
 const routes = require('./api/routes');
@@ -251,6 +252,7 @@ module.exports = async (port) => {
     cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
     checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, logger),
     ttsRateLimit: TTSRateLimit(logger, legacyRedisClient, db),
+    sttRateLimit: STTRateLimit(logger, legacyRedisClient, db),
   };
 
   routes.load(app, io, controllers, middlewares);

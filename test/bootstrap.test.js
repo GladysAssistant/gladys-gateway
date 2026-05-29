@@ -31,6 +31,7 @@ before(async function Before() {
   process.env.STRIPE_ENDPOINT_SECRET = 'test';
   process.env.STRIPE_LITE_PLAN_PRODUCT_ID = 'lite-product-id';
   process.env.OPEN_AI_MAX_REQUESTS_PER_MONTH_PER_ACCOUNT = 100;
+  process.env.STT_MAX_REQUESTS_PER_MONTH_PER_ACCOUNT = 100;
 
   // starting 2 backends to try multi-server socket exchange
   const { io, app, db, redisClient, legacyRedisClient } = await server(process.env.SERVER_PORT);

@@ -740,12 +740,10 @@ describe('stripeWebhook', () => {
     it('should unsubscribe from the trial list on first paid invoice after trial end', async () => {
       const trialEnd = Math.floor(Date.now() / 1000) - 60;
 
-      nock('https://api.stripe.com:443', { encodedQueryParams: true })
-        .get('/v1/subscriptions/sub')
-        .reply(200, {
-          id: 'sub',
-          trial_end: trialEnd,
-        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/subscriptions/sub').reply(200, {
+        id: 'sub',
+        trial_end: trialEnd,
+      });
 
       const paymentEvent = {
         id: 'evt_test_webhook',

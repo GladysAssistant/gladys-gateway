@@ -691,7 +691,7 @@ describe('stripeWebhook', () => {
       });
     });
 
-    it('should unsubscribe from the trial list on subscription transition trialing -> active', async () => {
+    it('should NOT unsubscribe from the trial list on subscription transition trialing -> active alone', async () => {
       // Use the existing fixture account whose stripe_customer_id is 'cus'.
       const updateEvent = {
         id: 'evt_test_webhook',
@@ -724,6 +724,61 @@ describe('stripeWebhook', () => {
         secret: process.env.STRIPE_ENDPOINT_SECRET,
       });
 
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureUpdateHeader)
+        .set('Content-type', 'application/json')
+        .send(stringUpdateEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(false);
+    });
+
+    it('should unsubscribe from the trial list on first paid invoice after trial end', async () => {
+      const trialEnd = Math.floor(Date.now() / 1000) - 60;
+
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/sub')
+        .reply(200, {
+          id: 'sub',
+          trial_end: trialEnd,
+        });
+
+      const paymentEvent = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            customer: 'cus',
+            subscription: 'sub',
+            amount_paid: 999,
+            hosted_invoice_url: 'https://invoice.test',
+            invoice_pdf: 'https://invoice.test/pdf',
+            closed: true,
+            currency: 'eur',
+            lines: {
+              data: [
+                {
+                  period: {
+                    start: trialEnd,
+                    end: trialEnd + 30 * 24 * 60 * 60,
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+      const stringPaymentEvent = JSON.stringify(paymentEvent);
+      const signaturePaymentHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringPaymentEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+
       let receivedBody = null;
       const emailListScope = nock(EMAIL_LIST_HOST)
         .post(EMAIL_LIST_PATH, (body) => {
@@ -735,9 +790,9 @@ describe('stripeWebhook', () => {
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
         .set('Accept', 'application/json')
-        .set('stripe-signature', signatureUpdateHeader)
+        .set('stripe-signature', signaturePaymentHeader)
         .set('Content-type', 'application/json')
-        .send(stringUpdateEvent)
+        .send(stringPaymentEvent)
         .expect(200);
 
       expect(emailListScope.isDone()).to.equal(true);
@@ -747,6 +802,52 @@ describe('stripeWebhook', () => {
         action: 'remove',
         language: 'fr',
       });
+    });
+
+    it('should NOT unsubscribe from the trial list when the post-trial invoice was not paid', async () => {
+      const paymentEvent = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'invoice.payment_succeeded',
+        data: {
+          object: {
+            customer: 'cus',
+            subscription: 'sub',
+            amount_paid: 0,
+            hosted_invoice_url: 'https://invoice.test',
+            invoice_pdf: 'https://invoice.test/pdf',
+            closed: true,
+            currency: 'eur',
+            lines: {
+              data: [
+                {
+                  period: {
+                    start: Math.floor(Date.now() / 1000),
+                    end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+      const stringPaymentEvent = JSON.stringify(paymentEvent);
+      const signaturePaymentHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringPaymentEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signaturePaymentHeader)
+        .set('Content-type', 'application/json')
+        .send(stringPaymentEvent)
+        .expect(200);
+
+      expect(emailListScope.isDone()).to.equal(false);
     });
 
     it('should NOT unsubscribe on subscription update that is not a trialing -> active transition', async () => {

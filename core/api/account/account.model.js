@@ -100,6 +100,47 @@ module.exports = function AccountModel(
     }
   }
 
+  // Remove from the trial email list only after the first paid invoice at trial end.
+  // Do not rely on subscription trialing -> active: Stripe can mark the subscription active
+  // before the first post-trial charge is confirmed (or when it later fails).
+  async function maybeUnsubscribeFromTrialEmailListAfterFirstPayment({ invoice, account, email, language }) {
+    if (!emailListService || !email) {
+      return;
+    }
+    if (!invoice.amount_paid || invoice.amount_paid <= 0) {
+      return;
+    }
+    if (!invoice.subscription || invoice.subscription !== account.stripe_subscription_id) {
+      return;
+    }
+
+    const subscription = await stripeService.getSubscription(invoice.subscription);
+    if (!subscription.trial_end) {
+      return;
+    }
+
+    const periodStart = invoice.lines?.data?.[0]?.period?.start;
+    if (!periodStart) {
+      return;
+    }
+
+    const secondsAfterTrialEnd = periodStart - subscription.trial_end;
+    if (secondsAfterTrialEnd < 0 || secondsAfterTrialEnd >= ONE_DAY_IN_SECONDS) {
+      logger.info(
+        `Not removing user ${email} from trial email list: invoice period start is ${secondsAfterTrialEnd}s after trial_end`,
+      );
+      return;
+    }
+
+    logger.info(`Removing user ${email} from trial email list after first successful payment`);
+    telegramService.sendAlert(`Removing user ${email} from trial email list after first successful payment`);
+    await emailListService.unsubscribe({
+      email,
+      list: GLADYS_PLUS_TRIAL_LIST,
+      language,
+    });
+  }
+
   async function createAccountFromStripeSession(session) {
     logger.info(
       `createAccountFromStripeSession: received checkout.session.completed (customer=${session.customer}, subscription=${session.subscription}, locale=${session.locale})`,
@@ -604,23 +645,6 @@ module.exports = function AccountModel(
           },
         );
 
-        // When the subscription transitions from trialing to active (i.e. the user just paid),
-        // remove them from the trial email list. We rely on Stripe's `previous_attributes` so
-        // this only fires once on the actual transition rather than on every renewal.
-        const previousStatus = event.data.previous_attributes && event.data.previous_attributes.status;
-        if (emailListService && email && previousStatus === 'trialing' && event.data.object.status === 'active') {
-          logger.info(`Removing user ${email} from trial email list`);
-          telegramService.sendAlert(`Removing user ${email} from trial email list`);
-          await emailListService.unsubscribe({
-            email,
-            list: GLADYS_PLUS_TRIAL_LIST,
-            language,
-          });
-        } else {
-          logger.info(
-            `Not removing user ${email} from trial email list: previous status is ${previousStatus}, current status is ${event.data.object.status}`,
-          );
-        }
         break;
       }
 
@@ -637,6 +661,13 @@ module.exports = function AccountModel(
         };
 
         await db.t_account_payment_activity.insert(invoicePaymentSucceededActivity);
+
+        await maybeUnsubscribeFromTrialEmailListAfterFirstPayment({
+          invoice: event.data.object,
+          account,
+          email,
+          language,
+        });
         break;
       }
 

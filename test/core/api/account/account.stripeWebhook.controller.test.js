@@ -739,11 +739,20 @@ describe('stripeWebhook', () => {
 
     it('should unsubscribe from the trial list on first paid invoice after trial end', async () => {
       const trialEnd = Math.floor(Date.now() / 1000) - 60;
+      const subscriptionId = 'sub_trial_paid';
 
-      nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/subscriptions/sub').reply(200, {
-        id: 'sub',
-        trial_end: trialEnd,
-      });
+      // Avoid the persistent /v1/subscriptions/sub mock (no trial_end) from test/tasks/nock.js.
+      await TEST_DATABASE_INSTANCE.t_account.update(
+        { stripe_customer_id: 'cus' },
+        { stripe_subscription_id: subscriptionId },
+      );
+
+      const stripeSubscriptionScope = nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get(`/v1/subscriptions/${subscriptionId}`)
+        .reply(200, {
+          id: subscriptionId,
+          trial_end: trialEnd,
+        });
 
       const paymentEvent = {
         id: 'evt_test_webhook',
@@ -752,7 +761,7 @@ describe('stripeWebhook', () => {
         data: {
           object: {
             customer: 'cus',
-            subscription: 'sub',
+            subscription: subscriptionId,
             amount_paid: 999,
             hosted_invoice_url: 'https://invoice.test',
             invoice_pdf: 'https://invoice.test/pdf',
@@ -793,6 +802,7 @@ describe('stripeWebhook', () => {
         .send(stringPaymentEvent)
         .expect(200);
 
+      expect(stripeSubscriptionScope.isDone()).to.equal(true);
       expect(emailListScope.isDone()).to.equal(true);
       expect(receivedBody).to.deep.equal({
         email: 'new-account-lost@gladysassistant.com',

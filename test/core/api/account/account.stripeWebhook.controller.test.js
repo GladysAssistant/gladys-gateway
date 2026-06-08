@@ -904,4 +904,191 @@ describe('stripeWebhook', () => {
       expect(emailListScope.isDone()).to.equal(false);
     });
   });
+
+  describe('openpanel revenue tracking', () => {
+    const TEST_OPENPANEL_API_URL = 'https://openpanel.test.example.com';
+    let originalClientId;
+    let originalClientSecret;
+    let originalApiUrl;
+    let restoreFetch;
+
+    function installOpenPanelFetchMock(handler) {
+      const originalFetch = global.fetch;
+      global.fetch = async (url, options) => {
+        if (String(url).startsWith(`${TEST_OPENPANEL_API_URL}/track`)) {
+          return handler(url, options);
+        }
+        return originalFetch(url, options);
+      };
+
+      return () => {
+        global.fetch = originalFetch;
+      };
+    }
+
+    beforeEach(() => {
+      originalClientId = process.env.OPENPANEL_CLIENT_ID;
+      originalClientSecret = process.env.OPENPANEL_CLIENT_SECRET;
+      originalApiUrl = process.env.OPENPANEL_API_URL;
+      process.env.OPENPANEL_CLIENT_ID = 'test-client-id';
+      process.env.OPENPANEL_CLIENT_SECRET = 'test-client-secret';
+      process.env.OPENPANEL_API_URL = TEST_OPENPANEL_API_URL;
+    });
+
+    afterEach(() => {
+      if (restoreFetch) {
+        restoreFetch();
+        restoreFetch = null;
+      }
+      if (originalClientId === undefined) {
+        delete process.env.OPENPANEL_CLIENT_ID;
+      } else {
+        process.env.OPENPANEL_CLIENT_ID = originalClientId;
+      }
+      if (originalClientSecret === undefined) {
+        delete process.env.OPENPANEL_CLIENT_SECRET;
+      } else {
+        process.env.OPENPANEL_CLIENT_SECRET = originalClientSecret;
+      }
+      if (originalApiUrl === undefined) {
+        delete process.env.OPENPANEL_API_URL;
+      } else {
+        process.env.OPENPANEL_API_URL = originalApiUrl;
+      }
+      nock.cleanAll();
+      setupPersistentNocks();
+    });
+
+    it('should send revenue to OpenPanel on checkout.session.completed when device_id is present', async () => {
+      const event = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            customer: 'cus_openpanel',
+            subscription: 'sub_openpanel',
+            amount_total: 1999,
+            currency: 'eur',
+            metadata: {
+              device_id: 'openpanel-device-123',
+              plan: 'plus',
+            },
+          },
+        },
+      };
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/sub_openpanel')
+        .reply(200, {
+          id: 'sub_openpanel',
+          current_period_end: 1289482682000,
+          items: {
+            data: [
+              {
+                price: {
+                  product: 'plus-plan-id',
+                },
+              },
+            ],
+          },
+        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/customers/cus_openpanel')
+        .reply(200, { id: 'cus_openpanel', email: 'openpanel@test.fr' });
+
+      let receivedBody = null;
+      restoreFetch = installOpenPanelFetchMock(async (url, options) => {
+        receivedBody = JSON.parse(options.body);
+        return {
+          status: 200,
+          text: async () => JSON.stringify({ deviceId: 'openpanel-device-123', sessionId: 'session-abc' }),
+        };
+      });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(receivedBody).to.deep.equal({
+        type: 'track',
+        payload: {
+          name: 'revenue',
+          properties: {
+            currency: 'eur',
+            plan: 'plus',
+            __deviceId: 'openpanel-device-123',
+            __revenue: 19.99,
+          },
+        },
+      });
+    });
+
+    it('should NOT send revenue to OpenPanel when device_id is missing', async () => {
+      const event = {
+        id: 'evt_test_webhook',
+        object: 'event',
+        type: 'checkout.session.completed',
+        data: {
+          object: {
+            customer: 'cus_no_device',
+            subscription: 'sub_no_device',
+            amount_total: 1999,
+            currency: 'eur',
+            metadata: {},
+          },
+        },
+      };
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/subscriptions/sub_no_device')
+        .reply(200, {
+          id: 'sub_no_device',
+          current_period_end: 1289482682000,
+          items: {
+            data: [
+              {
+                price: {
+                  product: 'plus-plan-id',
+                },
+              },
+            ],
+          },
+        });
+      nock('https://api.stripe.com:443', { encodedQueryParams: true })
+        .get('/v1/customers/cus_no_device')
+        .reply(200, { id: 'cus_no_device', email: 'nodevice@test.fr' });
+
+      let fetchCalled = false;
+      restoreFetch = installOpenPanelFetchMock(async () => {
+        fetchCalled = true;
+        return {
+          status: 200,
+          text: async () => '{}',
+        };
+      });
+
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+
+      expect(fetchCalled).to.equal(false);
+    });
+  });
 });

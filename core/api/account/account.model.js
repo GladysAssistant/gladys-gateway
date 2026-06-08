@@ -28,6 +28,7 @@ module.exports = function AccountModel(
   mailService,
   telegramService,
   emailListService,
+  openPanelService,
 ) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
@@ -595,9 +596,12 @@ module.exports = function AccountModel(
     }
 
     switch (event.type) {
-      case 'checkout.session.completed':
-        await createAccountFromStripeSession(event.data.object);
+      case 'checkout.session.completed': {
+        const session = event.data.object;
+        await openPanelService.trackRevenueFromCheckoutSession(session);
+        await createAccountFromStripeSession(session);
         break;
+      }
       case 'charge.succeeded': {
         // get currentPeriodEnd threw the API
         const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);

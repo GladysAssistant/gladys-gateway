@@ -3,11 +3,14 @@ const { expect } = require('chai');
 const {
   buildPaymentFailedScope,
   buildTrialWillEndScope,
+  buildWelcomeScope,
   formatBillingDate,
   formatInvoiceAmount,
   formatPrice,
   getPlanBenefits,
   getPlanName,
+  getPlanProductName,
+  getWelcomeSteps,
 } = require('../../../core/common/billing-email-scope');
 
 describe('billing-email-scope', () => {
@@ -26,6 +29,8 @@ describe('billing-email-scope', () => {
   it('should detect lite and plus plan names', () => {
     expect(getPlanName('lite-product-id')).to.equal('Lite');
     expect(getPlanName('plus-product-id')).to.equal('Plus');
+    expect(getPlanProductName('Lite')).to.equal('Gladys Plus Lite');
+    expect(getPlanProductName('Plus')).to.equal('Gladys Plus');
   });
 
   it('should format monthly and yearly prices', () => {
@@ -90,5 +95,35 @@ describe('billing-email-scope', () => {
     expect(scope.hostedInvoiceUrl).to.equal('https://invoice.stripe.com/example');
     expect(scope.nextRetryDate).to.equal('25 June 2026');
     expect(formatInvoiceAmount(699, 'eur', 'en')).to.equal('€6.99');
+  });
+
+  it('should include backup step only for Plus welcome steps', () => {
+    const liteSteps = getWelcomeSteps('Lite', 'en');
+    const plusSteps = getWelcomeSteps('Plus', 'en');
+
+    expect(liteSteps).to.have.lengthOf(6);
+    expect(plusSteps).to.have.lengthOf(8);
+    expect(plusSteps.some((step) => step.includes('backups'))).to.equal(true);
+    expect(liteSteps.some((step) => step.includes('backups'))).to.equal(false);
+    expect(plusSteps.some((step) => step.includes('AI'))).to.equal(true);
+    expect(liteSteps.some((step) => step.includes('AI'))).to.equal(false);
+  });
+
+  it('should build welcome scope with trial info', () => {
+    const trialEnd = Math.floor(new Date('2026-07-25T12:00:00Z').getTime() / 1000);
+    const scope = buildWelcomeScope({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup',
+      customer: { name: 'Marie Dupont' },
+      subscription: { trial_end: trialEnd },
+      plan: 'plus',
+      language: 'fr',
+    });
+
+    expect(scope.firstname).to.equal('Marie');
+    expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
+    expect(scope.hasTrial).to.equal(true);
+    expect(scope.trialEndDate).to.equal('25 juillet 2026');
+    expect(scope.welcomeSteps).to.have.lengthOf(8);
   });
 });

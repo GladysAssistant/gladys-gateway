@@ -12,6 +12,7 @@ const {
 const {
   buildPaymentFailedScope,
   buildTrialWillEndScope,
+  buildWelcomeScope,
   extractFirstname,
   hasRecentPaymentFailedEmail,
 } = require('../../common/billing-email-scope');
@@ -267,9 +268,17 @@ module.exports = function AccountModel(
     );
 
     logger.info(`createAccountFromStripeSession: sending welcome email to ${email} (lang=${language})`);
-    await mailService.send({ email, language }, 'welcome', {
-      confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
-    });
+    await mailService.send(
+      { email, language },
+      'welcome',
+      buildWelcomeScope({
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+        customer,
+        subscription,
+        plan,
+        language,
+      }),
+    );
 
     telegramService.sendAlert(`New customer ! Customer email = ${email}, language = ${language}`);
 
@@ -380,9 +389,17 @@ module.exports = function AccountModel(
       account_id: insertedAccount.id,
     });
 
-    await mailService.send({ email, language }, 'welcome', {
-      confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
-    });
+    await mailService.send(
+      { email, language },
+      'welcome',
+      buildWelcomeScope({
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+        customer: { name: email },
+        subscription,
+        plan: insertedAccount.plan || 'plus',
+        language,
+      }),
+    );
 
     return insertedAccount;
   }

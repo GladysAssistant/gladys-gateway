@@ -88,6 +88,80 @@ function formatInvoiceAmount(amountDue, currency, language) {
   }).format(amountDue / 100);
 }
 
+function getWelcomeSteps(planName, language) {
+  const isFr = language === 'fr';
+  const owntracksUrl = isFr
+    ? 'https://gladysassistant.com/fr/docs/integrations/owntracks'
+    : 'https://gladysassistant.com/docs/integrations/owntracks';
+  const openapiUrl = isFr
+    ? 'https://gladysassistant.com/fr/docs/plus/open-api'
+    : 'https://gladysassistant.com/docs/plus/open-api';
+
+  const steps = isFr
+    ? [
+        'Active ton compte Gladys Plus avec le bouton ci-dessous.',
+        'Connecte ton instance Gladys locale à Gladys Plus.',
+        'Essaie d\'accéder à ton instance depuis ton téléphone.',
+      ]
+    : [
+        'Activate your Gladys Plus account using the button below.',
+        'Connect your local Gladys instance to Gladys Plus.',
+        'Try accessing your instance from your phone.',
+      ];
+
+  if (planName === 'Plus') {
+    steps.push(
+      isFr
+        ? 'Vérifie que les sauvegardes fonctionnent (Paramètres → Sauvegardes). Tu peux lancer une sauvegarde manuelle pour tester.'
+        : 'Verify your backups are working (Settings → Backups). You can trigger a manual backup to test.',
+    );
+    steps.push(
+      isFr
+        ? 'Essaie de discuter avec l\'agent IA dans le chat, ou utilise l\'action « Demander à l\'IA » dans les scènes pour automatiser tes actions avec l\'IA.'
+        : 'Try chatting with the AI agent in the chat, or use the "Ask AI" action in scenes to automate your actions with AI.',
+    );
+  }
+
+  steps.push(
+    isFr
+      ? 'Invite les membres de ta famille (Paramètres → Utilisateurs Plus). Autant d\'utilisateurs que tu veux, c\'est inclus !'
+      : 'Invite family members (Settings → Plus Users). As many users as you want, it\'s included!',
+  );
+
+  steps.push(
+    isFr
+      ? `Configure OwnTracks sur ton téléphone pour les scènes GPS (<a href="${owntracksUrl}">voir la doc</a>).`
+      : `Set up OwnTracks on your phone for GPS scenes (<a href="${owntracksUrl}">read the docs</a>).`,
+  );
+
+  steps.push(
+    isFr
+      ? `Découvre l'OpenAPI Gladys Plus (<a href="${openapiUrl}">voir la doc</a>).`
+      : `Explore the Gladys Plus OpenAPI (<a href="${openapiUrl}">see the docs</a>).`,
+  );
+
+  return steps;
+}
+
+function getPlanProductName(planName) {
+  return planName === 'Lite' ? 'Gladys Plus Lite' : 'Gladys Plus';
+}
+
+function buildWelcomeScope({ confirmationUrlGladys4, customer, subscription, plan, language }) {
+  const planName = plan === 'lite' ? 'Lite' : 'Plus';
+  const hasTrial = !!(subscription?.trial_end && subscription.trial_end * 1000 > Date.now());
+
+  return {
+    confirmationUrlGladys4,
+    firstname: extractFirstname(customer?.name),
+    planName,
+    planProductName: getPlanProductName(planName),
+    welcomeSteps: getWelcomeSteps(planName, language),
+    hasTrial,
+    trialEndDate: hasTrial ? formatBillingDate(subscription.trial_end, language) : '',
+  };
+}
+
 function buildUpdateCardLink(account) {
   return `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`;
 }
@@ -144,11 +218,14 @@ async function hasRecentPaymentFailedEmail(db, accountId) {
 module.exports = {
   buildPaymentFailedScope,
   buildTrialWillEndScope,
+  buildWelcomeScope,
   extractFirstname,
   formatBillingDate,
   formatInvoiceAmount,
   formatPrice,
   getPlanBenefits,
   getPlanName,
+  getPlanProductName,
+  getWelcomeSteps,
   hasRecentPaymentFailedEmail,
 };

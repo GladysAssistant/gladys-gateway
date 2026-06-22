@@ -17,29 +17,13 @@ function getPlanName(productId) {
 function getPlanBenefits(planName, language) {
   if (planName === 'Lite') {
     return language === 'fr'
-      ? [
-          'Accès à distance chiffré de bout en bout',
-          'Google Home et Amazon Alexa',
-          'Comptes pour toute la famille',
-        ]
-      : [
-          'End-to-end encrypted remote access',
-          'Google Home & Amazon Alexa',
-          'Family accounts included',
-        ];
+      ? ['Accès à distance chiffré de bout en bout', 'Google Home et Amazon Alexa', 'Comptes pour toute la famille']
+      : ['End-to-end encrypted remote access', 'Google Home & Amazon Alexa', 'Family accounts included'];
   }
 
   return language === 'fr'
-    ? [
-        'Sauvegardes quotidiennes chiffrées',
-        'Streaming caméra à distance',
-        'Intégrations avancées (IA, Enedis, MCP)',
-      ]
-    : [
-        'Daily encrypted backups',
-        'Remote camera streaming',
-        'Advanced integrations (AI, Enedis, MCP)',
-      ];
+    ? ['Sauvegardes quotidiennes chiffrées', 'Streaming caméra à distance', 'Intégrations avancées (IA, Enedis, MCP)']
+    : ['Daily encrypted backups', 'Remote camera streaming', 'Advanced integrations (AI, Enedis, MCP)'];
 }
 
 function formatBillingDate(timestamp, language) {
@@ -101,7 +85,7 @@ function getWelcomeSteps(planName, language) {
     ? [
         'Active ton compte Gladys Plus avec le bouton ci-dessous.',
         'Connecte ton instance Gladys locale à Gladys Plus.',
-        'Essaie d\'accéder à ton instance depuis ton téléphone.',
+        "Essaie d'accéder à ton instance depuis ton téléphone.",
       ]
     : [
         'Activate your Gladys Plus account using the button below.',
@@ -117,15 +101,15 @@ function getWelcomeSteps(planName, language) {
     );
     steps.push(
       isFr
-        ? 'Essaie de discuter avec l\'agent IA dans le chat, ou utilise l\'action « Demander à l\'IA » dans les scènes pour automatiser tes actions avec l\'IA.'
+        ? "Essaie de discuter avec l'agent IA dans le chat, ou utilise l'action « Demander à l'IA » dans les scènes pour automatiser tes actions avec l'IA."
         : 'Try chatting with the AI agent in the chat, or use the "Ask AI" action in scenes to automate your actions with AI.',
     );
   }
 
   steps.push(
     isFr
-      ? 'Invite les membres de ta famille (Paramètres → Utilisateurs Plus). Autant d\'utilisateurs que tu veux, c\'est inclus !'
-      : 'Invite family members (Settings → Plus Users). As many users as you want, it\'s included!',
+      ? "Invite les membres de ta famille (Paramètres → Utilisateurs Plus). Autant d'utilisateurs que tu veux, c'est inclus !"
+      : "Invite family members (Settings → Plus Users). As many users as you want, it's included!",
   );
 
   steps.push(
@@ -189,9 +173,7 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
     firstname: extractFirstname(customer?.name),
     amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, language),
     attemptDate: formatBillingDate(invoice.created, language),
-    nextRetryDate: invoice.next_payment_attempt
-      ? formatBillingDate(invoice.next_payment_attempt, language)
-      : '',
+    nextRetryDate: invoice.next_payment_attempt ? formatBillingDate(invoice.next_payment_attempt, language) : '',
     planName,
     planBenefits: getPlanBenefits(planName, language),
     updateCardLink: buildUpdateCardLink(account),

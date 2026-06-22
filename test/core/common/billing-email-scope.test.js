@@ -70,9 +70,7 @@ describe('billing-email-scope', () => {
     expect(scope.planName).to.equal('Plus');
     expect(scope.amount).to.equal('9,99\u00a0€/mois');
     expect(scope.planBenefits).to.deep.equal(getPlanBenefits('Plus', 'fr'));
-    expect(scope.updateCardLink).to.equal(
-      'https://api.gladys.plus/accounts/stripe_customer_portal/portal-key',
-    );
+    expect(scope.updateCardLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
   });
 
   it('should build payment_failed scope with invoice details', () => {

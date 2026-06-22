@@ -4,6 +4,7 @@ const {
   buildPaymentFailedScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
+  extractFirstname,
   formatBillingDate,
   formatInvoiceAmount,
   formatPrice,
@@ -11,6 +12,7 @@ const {
   getPlanName,
   getPlanProductName,
   getWelcomeSteps,
+  hasRecentPaymentFailedEmail,
 } = require('../../../core/common/billing-email-scope');
 
 describe('billing-email-scope', () => {
@@ -35,7 +37,9 @@ describe('billing-email-scope', () => {
 
   it('should format monthly and yearly prices', () => {
     expect(formatPrice(999, 'eur', 'month', 'fr')).to.equal('9,99\u00a0€/mois');
+    expect(formatPrice(999, 'eur', 'month', 'en')).to.equal('€9.99/month');
     expect(formatPrice(9999, 'eur', 'year', 'en')).to.equal('€99.99/year');
+    expect(formatPrice(9999, 'eur', 'year', 'fr')).to.equal('99,99\u00a0€/an');
   });
 
   it('should format billing dates per language', () => {
@@ -123,5 +127,74 @@ describe('billing-email-scope', () => {
     expect(scope.hasTrial).to.equal(true);
     expect(scope.trialEndDate).to.equal('25 juillet 2026');
     expect(scope.welcomeSteps).to.have.lengthOf(8);
+  });
+
+  it('should handle empty billing inputs and firstname edge cases', () => {
+    expect(extractFirstname(null)).to.equal('');
+    expect(extractFirstname('   ')).to.equal('');
+    expect(formatBillingDate(null, 'en')).to.equal('');
+    expect(formatPrice(null, 'eur', 'month', 'en')).to.equal('');
+    expect(formatInvoiceAmount(null, 'eur', 'en')).to.equal('');
+  });
+
+  it('should build lite welcome scope without trial', () => {
+    const scope = buildWelcomeScope({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup',
+      customer: {},
+      subscription: {},
+      plan: 'lite',
+      language: 'en',
+    });
+
+    expect(scope.planName).to.equal('Lite');
+    expect(scope.planProductName).to.equal('Gladys Plus Lite');
+    expect(scope.hasTrial).to.equal(false);
+    expect(scope.trialEndDate).to.equal('');
+    expect(scope.welcomeSteps).to.have.lengthOf(6);
+    expect(getPlanBenefits('Lite', 'en')).to.have.lengthOf(3);
+    expect(getPlanBenefits('Lite', 'fr')).to.have.lengthOf(3);
+    expect(getPlanBenefits('Plus', 'en')).to.have.lengthOf(3);
+    expect(getPlanBenefits('Plus', 'fr')).to.have.lengthOf(3);
+  });
+
+  it('should build french welcome steps and payment scope without optional invoice fields', () => {
+    const frSteps = getWelcomeSteps('Plus', 'fr');
+    expect(frSteps.some((step) => step.includes('agent IA'))).to.equal(true);
+
+    const scope = buildPaymentFailedScope({
+      invoice: {
+        amount_due: 999,
+        currency: 'eur',
+        created: Math.floor(new Date('2026-06-22T12:00:00Z').getTime() / 1000),
+      },
+      customer: {},
+      language: 'fr',
+      account: { stripe_portal_key: 'portal-key', plan: 'plus' },
+    });
+
+    expect(scope.nextRetryDate).to.equal('');
+    expect(scope.hostedInvoiceUrl).to.equal('');
+    expect(scope.planName).to.equal('Plus');
+  });
+
+  it('should detect recent payment failed emails in the database', async () => {
+    const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+
+    const hasRecentBefore = await hasRecentPaymentFailedEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentBefore).to.equal(false);
+
+    await TEST_DATABASE_INSTANCE.t_account_payment_activity.insert({
+      stripe_event: 'invoice.payment_failed',
+      account_id: accountId,
+      hosted_invoice_url: 'https://invoice.test',
+      invoice_pdf: 'https://invoice.test/pdf',
+      amount_paid: 0,
+      closed: false,
+      currency: 'eur',
+      params: {},
+    });
+
+    const hasRecentAfter = await hasRecentPaymentFailedEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentAfter).to.equal(true);
   });
 });

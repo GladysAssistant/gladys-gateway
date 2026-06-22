@@ -905,6 +905,87 @@ describe('stripeWebhook', () => {
     });
   });
 
+  describe('billing emails', () => {
+    const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+
+    function sendStripeWebhook(event) {
+      const stringEvent = JSON.stringify(event);
+      const signatureHeader = stripe.webhooks.generateTestHeaderString({
+        payload: stringEvent,
+        secret: process.env.STRIPE_ENDPOINT_SECRET,
+      });
+
+      return request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader)
+        .set('Content-type', 'application/json')
+        .send(stringEvent)
+        .expect(200);
+    }
+
+    it('should send trial_will_end email scope on customer.subscription.trial_will_end', async () => {
+      const trialEnd = Math.floor(Date.now() / 1000) + 7 * 24 * 60 * 60;
+      await sendStripeWebhook({
+        id: 'evt_trial_will_end',
+        object: 'event',
+        type: 'customer.subscription.trial_will_end',
+        data: {
+          object: {
+            customer: 'cus',
+            trial_end: trialEnd,
+            items: {
+              data: [
+                {
+                  price: {
+                    unit_amount: 999,
+                    currency: 'eur',
+                    recurring: { interval: 'month' },
+                    product: 'plus-plan-id',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      });
+    });
+
+    it('should record payment_failed activity and deduplicate emails within 24 hours', async () => {
+      const paymentFailedEvent = {
+        id: 'evt_payment_failed',
+        object: 'event',
+        type: 'invoice.payment_failed',
+        data: {
+          object: {
+            customer: 'cus',
+            amount_due: 999,
+            currency: 'eur',
+            created: Math.floor(Date.now() / 1000),
+            next_payment_attempt: Math.floor(Date.now() / 1000) + 3 * 24 * 60 * 60,
+            hosted_invoice_url: 'https://invoice.stripe.com/example',
+            invoice_pdf: 'https://invoice.stripe.com/example/pdf',
+            amount_paid: 0,
+            closed: false,
+          },
+        },
+      };
+
+      await sendStripeWebhook(paymentFailedEvent);
+      await sendStripeWebhook({
+        ...paymentFailedEvent,
+        id: 'evt_payment_failed_2',
+      });
+
+      const activities = await TEST_DATABASE_INSTANCE.t_account_payment_activity.find({
+        account_id: accountId,
+        stripe_event: 'invoice.payment_failed',
+      });
+
+      expect(activities).to.have.lengthOf(2);
+    });
+  });
+
   describe('openpanel revenue tracking', () => {
     const TEST_OPENPANEL_API_URL = 'https://openpanel.test.example.com';
     let originalClientId;

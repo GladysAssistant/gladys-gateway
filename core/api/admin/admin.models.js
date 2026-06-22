@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
+const { buildWelcomeScope } = require('../../common/billing-email-scope');
 const { NotFoundError, ForbiddenError } = require('../../common/error');
 
 module.exports = function AdminModel(logger, db, redisClient, mailService, slackService, stripeService) {
@@ -53,9 +54,17 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       account_id: account.id,
     });
 
-    await mailService.send({ email, language }, 'welcome', {
-      confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
-    });
+    await mailService.send(
+      { email, language },
+      'welcome',
+      buildWelcomeScope({
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+        customer: { name: email },
+        subscription: {},
+        plan: account.plan || 'plus',
+        language,
+      }),
+    );
 
     return account;
   }

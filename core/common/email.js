@@ -34,11 +34,11 @@ module.exports = {
   },
   payment_failed: {
     en: {
-      subject: 'Payment failed on Gladys Plus',
+      subject: 'Action needed: update your card to keep Gladys Plus',
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/payment_failed.ejs`, 'utf8')),
     },
     fr: {
-      subject: 'Le paiement a échoué sur Gladys Plus',
+      subject: 'Mets à jour ta carte pour garder Gladys Plus',
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/payment_failed.ejs`, 'utf8')),
     },
   },
@@ -64,11 +64,11 @@ module.exports = {
   },
   trial_will_end: {
     en: {
-      subject: 'Your Gladys Plus Trial is ending soon',
+      subject: 'Your Gladys Plus trial is ending soon, keep your backups running',
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/trial_will_end.ejs`, 'utf8')),
     },
     fr: {
-      subject: "Votre période d'essai de Gladys Plus est bientôt terminée",
+      subject: 'Ton essai Gladys Plus se termine bientôt',
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/trial_will_end.ejs`, 'utf8')),
     },
   },

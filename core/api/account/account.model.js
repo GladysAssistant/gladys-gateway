@@ -9,16 +9,16 @@ const {
   BadRequestError,
 } = require('../../common/error');
 
+const {
+  buildPaymentFailedScope,
+  buildTrialWillEndScope,
+  extractFirstname,
+  hasRecentPaymentFailedEmail,
+} = require('../../common/billing-email-scope');
+
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
 const GLADYS_PLUS_TRIAL_LIST = 'gladysPlusTrial';
-
-function extractFirstname(name) {
-  if (!name || typeof name !== 'string') {
-    return '';
-  }
-  return name.trim().split(/\s+/)[0] || '';
-}
 
 module.exports = function AccountModel(
   logger,
@@ -620,16 +620,22 @@ module.exports = function AccountModel(
         break;
       }
 
-      case 'customer.subscription.trial_will_end':
+      case 'customer.subscription.trial_will_end': {
         if (language && email) {
-          await mailService.send({ email, language }, 'trial_will_end', {
-            updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+          const customer = await stripeService.getCustomer(event.data.object.customer);
+          const trialWillEndScope = buildTrialWillEndScope({
+            subscription: event.data.object,
+            customer,
+            language,
+            account,
           });
+          await mailService.send({ email, language }, 'trial_will_end', trialWillEndScope);
         }
 
         telegramService.sendAlert(`Trial will end! Customer email = ${email}, language = ${language}`);
 
         break;
+      }
 
       case 'customer.subscription.updated': {
         const stripeProductId = event.data.object.items?.data[0]?.price?.product;
@@ -687,12 +693,19 @@ module.exports = function AccountModel(
           params: event,
         };
 
+        const shouldSendPaymentFailedEmail = !(await hasRecentPaymentFailedEmail(db, account.id));
+
         await db.t_account_payment_activity.insert(activity);
 
-        if (language && email) {
-          await mailService.send({ email, language }, 'payment_failed', {
-            updateCardLink: `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`,
+        if (language && email && shouldSendPaymentFailedEmail) {
+          const customer = await stripeService.getCustomer(event.data.object.customer);
+          const paymentFailedScope = buildPaymentFailedScope({
+            invoice: event.data.object,
+            customer,
+            language,
+            account,
           });
+          await mailService.send({ email, language }, 'payment_failed', paymentFailedScope);
         }
 
         telegramService.sendAlert(`Payment failed! Customer email = ${email}, language = ${language}`);

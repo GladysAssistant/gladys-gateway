@@ -1,8 +1,8 @@
 const { TooManyRequestsError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
 const {
-  MAX_TEXT_REQUESTS,
-  MAX_IMAGE_REQUESTS,
+  getMaxTextRequests,
+  getMaxImageRequests,
   hasImageInput,
   createOpenAILimiters,
 } = require('../service/openAIRateLimit');
@@ -26,7 +26,7 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
     const uniqueIdentifier = instanceWithAccount.id;
     const hasImage = hasImageInput(req.body);
     const limiter = hasImage ? imageLimiter : textLimiter;
-    const maxRequests = hasImage ? MAX_IMAGE_REQUESTS : MAX_TEXT_REQUESTS;
+    const maxRequests = hasImage ? getMaxImageRequests() : getMaxTextRequests();
     const requestType = hasImage ? 'image' : 'text';
 
     // we check if the current account is rate limited

@@ -1,6 +1,6 @@
 const axios = require('axios');
 
-module.exports = function OpenAIController() {
+module.exports = function OpenAIController(openAIModel) {
   /**
    * @api {post} /openai/ask Ask GPT-3 a question
    * @apiName Ask GPT-3
@@ -28,7 +28,34 @@ module.exports = function OpenAIController() {
     res.json(data);
   }
 
+  /**
+   * @api {get} /openai/quota Get remaining OpenAI requests quota
+   * @apiName Get OpenAI quota
+   * @apiGroup OpenAI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "text": {
+   *     "remaining": 95,
+   *     "max": 100,
+   *     "reset_in_seconds": 2592000
+   *   },
+   *   "image": {
+   *     "remaining": 100,
+   *     "max": 50,
+   *     "reset_in_seconds": 0
+   *   }
+   * }
+   */
+  async function getQuota(req, res, next) {
+    const quota = await openAIModel.getQuota(req.instance);
+    res.json(quota);
+  }
+
   return {
     ask,
+    getQuota,
   };
 };

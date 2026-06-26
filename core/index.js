@@ -46,6 +46,7 @@ const AccountController = require('./api/account/account.controller');
 const DeviceController = require('./api/device/device.controller');
 const AdminController = require('./api/admin/admin.controller');
 const OpenAIController = require('./api/openai/openai.controller');
+const OpenAIModel = require('./api/openai/openai.model');
 const OpenApiController = require('./api/openapi/openapi.controller');
 const VersionController = require('./api/version/version.controller');
 const BackupController = require('./api/backup/backup.controller');
@@ -162,11 +163,13 @@ module.exports = async (port) => {
     emailListService: EmailList(logger),
   };
 
+  const instanceModel = Instance(logger, db, redisClient, services.jwtService, services.fingerprint);
+
   const models = {
     pingModel: Ping(logger, db, redisClient),
     userModel: User(logger, db, redisClient, services.jwtService, services.mailService),
     socketModel: Socket(logger, db, redisClient, io, services.fingerprint, services.analyticsService),
-    instanceModel: Instance(logger, db, redisClient, services.jwtService, services.fingerprint),
+    instanceModel,
     invitationModel: Invitation(logger, db, redisClient, services.mailService, services.telegramService),
     accountModel: Account(
       logger,
@@ -189,6 +192,7 @@ module.exports = async (port) => {
     enedisModel: EnedisModel(logger, db, redisClient),
     ecowattModel: EcowattModel(logger, redisClient),
     tempoModel: TempoModel(logger, db, redisClient),
+    openAIModel: OpenAIModel(legacyRedisClient, instanceModel),
   };
 
   const controllers = {
@@ -200,7 +204,7 @@ module.exports = async (port) => {
     accountController: AccountController(models.accountModel, models.socketModel),
     deviceController: DeviceController(models.deviceModel),
     adminController: AdminController(models.adminModel),
-    openAIController: OpenAIController(),
+    openAIController: OpenAIController(models.openAIModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
     versionController: VersionController(models.versionModel),
     backupController: BackupController(models.backupModel, models.accountModel, logger),

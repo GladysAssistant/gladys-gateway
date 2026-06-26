@@ -68,6 +68,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     middlewares.openAIAuthAndRateLimit,
     asyncMiddleware(controllers.openAIController.ask),
   );
+  app.get(
+    '/openai/quota',
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    middlewares.checkUserPlan('plus'),
+    asyncMiddleware(controllers.openAIController.getQuota),
+  );
 
   // TTS API
   app.post(

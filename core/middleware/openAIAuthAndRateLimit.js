@@ -1,49 +1,15 @@
-const { RateLimiterRedis } = require('rate-limiter-flexible');
-
 const { TooManyRequestsError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
-
-const MAX_TEXT_REQUESTS = parseInt(process.env.OPEN_AI_MAX_TEXT_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
-const MAX_IMAGE_REQUESTS = parseInt(process.env.OPEN_AI_MAX_IMAGE_REQUESTS_PER_MONTH_PER_ACCOUNT, 10);
-
-function messageContainsImageContent(message) {
-  if (!message || !message.content) {
-    return false;
-  }
-  if (!Array.isArray(message.content)) {
-    return false;
-  }
-  return message.content.some((contentPart) => {
-    if (!contentPart || typeof contentPart !== 'object') {
-      return false;
-    }
-    return contentPart.type === 'image_url' || contentPart.type === 'input_image' || !!contentPart.image_url;
-  });
-}
-
-function hasImageInput(data) {
-  if (data && data.image) {
-    return true;
-  }
-  if (!data || !Array.isArray(data.messages)) {
-    return false;
-  }
-  return data.messages.some(messageContainsImageContent);
-}
+const {
+  getMaxTextRequests,
+  getMaxImageRequests,
+  hasImageInput,
+  createOpenAILimiters,
+} = require('../service/openAIRateLimit');
 
 module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
-  const textLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    keyPrefix: 'rate_limit:open_ai:text',
-    points: MAX_TEXT_REQUESTS, // max text requests per month
-    duration: 30 * 24 * 60 * 60, // 30 days
-  });
-  const imageLimiter = new RateLimiterRedis({
-    storeClient: redisClient,
-    keyPrefix: 'rate_limit:open_ai:image',
-    points: MAX_IMAGE_REQUESTS, // max image requests per month
-    duration: 30 * 24 * 60 * 60, // 30 days
-  });
+  const { textLimiter, imageLimiter } = createOpenAILimiters(redisClient);
+
   return asyncMiddleware(async (req, res, next) => {
     const instanceWithAccount = await db.t_account
       .join({
@@ -60,7 +26,7 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
     const uniqueIdentifier = instanceWithAccount.id;
     const hasImage = hasImageInput(req.body);
     const limiter = hasImage ? imageLimiter : textLimiter;
-    const maxRequests = hasImage ? MAX_IMAGE_REQUESTS : MAX_TEXT_REQUESTS;
+    const maxRequests = hasImage ? getMaxImageRequests() : getMaxTextRequests();
     const requestType = hasImage ? 'image' : 'text';
 
     // we check if the current account is rate limited

@@ -16,6 +16,7 @@ const {
   extractFirstname,
   hasRecentPaymentFailedEmail,
 } = require('../../common/billing-email-scope');
+const { normalizeLanguage } = require('../../common/language');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -156,7 +157,7 @@ module.exports = function AccountModel(
     }
 
     const role = 'admin';
-    const language = session.locale ? session.locale.substr(0, 2).toLowerCase() : 'en';
+    const language = normalizeLanguage(session.locale, session.locale ? 'fr' : 'en');
 
     // we get subscription from stripe side
     logger.info(

@@ -129,6 +129,20 @@ describe('billing-email-scope', () => {
     expect(scope.welcomeSteps).to.have.lengthOf(8);
   });
 
+  it('should treat Stripe auto locale as French in welcome scope', () => {
+    const trialEnd = Math.floor(new Date('2026-12-26T12:00:00Z').getTime() / 1000);
+    const scope = buildWelcomeScope({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup',
+      customer: { name: 'Marc' },
+      subscription: { trial_end: trialEnd },
+      plan: 'plus',
+      language: 'auto',
+    });
+
+    expect(scope.trialEndDate).to.equal('26 décembre 2026');
+    expect(scope.welcomeSteps[0]).to.include('Active ton compte');
+  });
+
   it('should handle empty billing inputs and firstname edge cases', () => {
     expect(extractFirstname(null)).to.equal('');
     expect(extractFirstname('   ')).to.equal('');

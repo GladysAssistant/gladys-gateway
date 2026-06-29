@@ -177,7 +177,9 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
     firstname: extractFirstname(customer?.name),
     amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
     attemptDate: formatBillingDate(invoice.created, normalizedLanguage),
-    nextRetryDate: invoice.next_payment_attempt ? formatBillingDate(invoice.next_payment_attempt, normalizedLanguage) : '',
+    nextRetryDate: invoice.next_payment_attempt
+      ? formatBillingDate(invoice.next_payment_attempt, normalizedLanguage)
+      : '',
     planName,
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),

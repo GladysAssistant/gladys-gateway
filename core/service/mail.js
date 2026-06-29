@@ -1,8 +1,7 @@
 const Promise = require('bluebird');
 const nodemailer = require('nodemailer');
 const emails = require('../common/email');
-
-const SUPPORTED_LANGUAGE = ['en', 'fr'];
+const { normalizeLanguage } = require('../common/language');
 
 module.exports = function MailService(logger) {
   let transporter;
@@ -28,10 +27,7 @@ module.exports = function MailService(logger) {
 
   function send(userParam, template, scope) {
     const user = userParam;
-    // default language = fr
-    if (SUPPORTED_LANGUAGE.indexOf(user.language) === -1) {
-      user.language = 'fr';
-    }
+    user.language = normalizeLanguage(user.language);
 
     if (!emails[template] || !emails[template][user.language]) {
       logger.warn(`Invalid template or language. Template = "${template}", language = "${user.language}."`);

@@ -1,4 +1,5 @@
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
+const { normalizeLanguage } = require('./language');
 
 function extractFirstname(name) {
   if (!name || typeof name !== 'string') {
@@ -132,6 +133,7 @@ function getPlanProductName(planName) {
 }
 
 function buildWelcomeScope({ confirmationUrlGladys4, customer, subscription, plan, language }) {
+  const normalizedLanguage = normalizeLanguage(language);
   const planName = plan === 'lite' ? 'Lite' : 'Plus';
   const hasTrial = !!(subscription?.trial_end && subscription.trial_end * 1000 > Date.now());
 
@@ -140,9 +142,9 @@ function buildWelcomeScope({ confirmationUrlGladys4, customer, subscription, pla
     firstname: extractFirstname(customer?.name),
     planName,
     planProductName: getPlanProductName(planName),
-    welcomeSteps: getWelcomeSteps(planName, language),
+    welcomeSteps: getWelcomeSteps(planName, normalizedLanguage),
     hasTrial,
-    trialEndDate: hasTrial ? formatBillingDate(subscription.trial_end, language) : '',
+    trialEndDate: hasTrial ? formatBillingDate(subscription.trial_end, normalizedLanguage) : '',
   };
 }
 
@@ -151,31 +153,33 @@ function buildUpdateCardLink(account) {
 }
 
 function buildTrialWillEndScope({ subscription, customer, language, account }) {
+  const normalizedLanguage = normalizeLanguage(language);
   const price = subscription.items?.data?.[0]?.price;
   const productId = price?.product;
   const planName = getPlanName(productId);
 
   return {
     firstname: extractFirstname(customer?.name),
-    trialEndDate: formatBillingDate(subscription.trial_end, language),
-    amount: formatPrice(price?.unit_amount, price?.currency, price?.recurring?.interval, language),
+    trialEndDate: formatBillingDate(subscription.trial_end, normalizedLanguage),
+    amount: formatPrice(price?.unit_amount, price?.currency, price?.recurring?.interval, normalizedLanguage),
     planName,
-    planBenefits: getPlanBenefits(planName, language),
+    planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
   };
 }
 
 function buildPaymentFailedScope({ invoice, customer, language, account }) {
+  const normalizedLanguage = normalizeLanguage(language);
   const planName = account.plan === 'lite' ? 'Lite' : 'Plus';
 
   return {
     firstname: extractFirstname(customer?.name),
-    amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, language),
-    attemptDate: formatBillingDate(invoice.created, language),
-    nextRetryDate: invoice.next_payment_attempt ? formatBillingDate(invoice.next_payment_attempt, language) : '',
+    amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
+    attemptDate: formatBillingDate(invoice.created, normalizedLanguage),
+    nextRetryDate: invoice.next_payment_attempt ? formatBillingDate(invoice.next_payment_attempt, normalizedLanguage) : '',
     planName,
-    planBenefits: getPlanBenefits(planName, language),
+    planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     hostedInvoiceUrl: invoice.hosted_invoice_url || '',
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,

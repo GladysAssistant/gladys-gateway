@@ -140,8 +140,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       if (socket.constructor.name === 'RemoteSocket') {
         io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socket.id, message }, (err, replies) => {
           if (err) {
-            logger.error('NO_INSTANCE_FOUND (error)');
-            logger.error(err);
+            logger.warn(`NO_INSTANCE_FOUND (error) user_id=${user.id}`);
             const notFound = new NotFoundError('NO_INSTANCE_FOUND');
             return callback(notFound.jsonError());
           }
@@ -150,7 +149,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           const filteredReplies = replies.filter((reply) => reply !== null);
 
           if (filteredReplies.length === 0) {
-            logger.error('NO_INSTANCE_FOUND (no replies)');
+            logger.warn(`NO_INSTANCE_FOUND (no replies) user_id=${user.id}`);
             const notFound = new NotFoundError('NO_INSTANCE_FOUND');
             return callback(notFound.jsonError());
           }
@@ -168,8 +167,15 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
       return null;
     } catch (e) {
-      logger.error(`HANDLE_NEW_MESSAGE_FROM_USER_ERROR - user_id = ${user.id}`);
-      logger.error(e);
+      if (e.message === 'INSTANCE_NOT_FOUND') {
+        // Expected when the instance is offline — compact warn, no stack
+        logger.warn(`INSTANCE_NOT_FOUND user_id=${user.id}`);
+      } else {
+        logger.error(`HANDLE_NEW_MESSAGE_FROM_USER_ERROR user_id=${user.id}: ${e.message}`);
+        if (e.stack) {
+          logger.error(e.stack);
+        }
+      }
       const notFound = new NotFoundError('NO_INSTANCE_FOUND');
       return callback(notFound.jsonError());
     }

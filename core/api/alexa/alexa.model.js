@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
 const get = require('get-value');
+const plainAxios = require('axios');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 
 const axios = require('../../service/axios');
@@ -223,10 +224,12 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
             data: payload,
             url: 'https://api.eu.amazonalexa.com/v3/events',
           };
-          await axios(options);
+          await plainAxios(options);
           // report state
         } catch (e) {
-          logger.error(`ALEXA_REPORT_STATE_ERROR, user_id = ${users[0].id}`);
+          const status = get(e, 'response.status') || e.code;
+          const description = get(e, 'response.data.payload.description') || get(e, 'response.statusText') || e.message;
+          logger.warn(`ALEXA_REPORT_STATE_ERROR user=${user.id} status=${status} message=${description}`);
         }
       });
     }

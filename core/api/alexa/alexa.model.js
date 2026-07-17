@@ -228,8 +228,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
           // report state
         } catch (e) {
           const status = get(e, 'response.status') || e.code;
-          const description =
-            get(e, 'response.data.payload.description') || get(e, 'response.statusText') || e.message;
+          const description = get(e, 'response.data.payload.description') || get(e, 'response.statusText') || e.message;
           logger.warn(`ALEXA_REPORT_STATE_ERROR user=${user.id} status=${status} message=${description}`);
         }
       });

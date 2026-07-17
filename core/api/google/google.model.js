@@ -180,7 +180,9 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
         const message = get(e, 'response.data.error.message') || e.message;
         const deviceIds = Object.keys(get(payloadCleaned, 'devices.states') || {});
         logger.warn(
-          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${deviceIds.join(',') || '—'}`,
+          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${
+            deviceIds.join(',') || '—'
+          }`,
         );
       }
     }

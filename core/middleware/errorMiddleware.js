@@ -70,9 +70,6 @@ function formatAxiosError(error) {
 }
 
 function formatUnexpectedError(error) {
-  if (isAxiosError(error)) {
-    return formatAxiosError(error);
-  }
   return `${error.name || 'Error'}: ${error.message}`;
 }
 

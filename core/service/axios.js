@@ -22,6 +22,7 @@ const requestLogger = (request) =>
 
 const errorLogger = (error) =>
   AxiosLogger.errorLogger(error, {
+    data: false,
     logger: logger.warn.bind(this),
   });
 

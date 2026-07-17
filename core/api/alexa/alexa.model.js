@@ -3,10 +3,10 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const uuid = require('uuid');
 const get = require('get-value');
+const plainAxios = require('axios');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 
 const axios = require('../../service/axios');
-const plainAxios = require('axios');
 const { ForbiddenError } = require('../../common/error');
 
 const ALEXA_OAUTH_CODE_REDIS_PREFIX = `ALEXA_OAUTH_CODE`;

@@ -8,4 +8,5 @@ yarn-error.log*
 apidoc
 .nyc_output
 coverage.lcov
-coveragedump.rdb
+coverage
+dump.rdb

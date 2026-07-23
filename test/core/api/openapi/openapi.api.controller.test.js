@@ -53,6 +53,19 @@ describe('POST /v1/api/netatmo/:open-api-key', () => {
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
       .expect(404));
+
+  it('should return 404 when account has no primary instance', async () => {
+    await TEST_DATABASE_INSTANCE.t_instance.update(
+      { id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' },
+      { primary_instance: false },
+    );
+    return request(TEST_BACKEND_APP)
+      .post('/v1/api/netatmo/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(404);
+  });
 });
 
 describe('POST /v1/api/external-integration/:open-api-key/:selector/:webhook-key', () => {
@@ -74,6 +87,23 @@ describe('POST /v1/api/external-integration/:open-api-key/:selector/:webhook-key
       .then((response) => {
         response.text.should.equal('');
       }));
+
+  it('should return 200 empty when account has no primary instance', async () => {
+    await TEST_DATABASE_INSTANCE.t_instance.update(
+      { id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' },
+      { primary_instance: false },
+    );
+    return request(TEST_BACKEND_APP)
+      .post(
+        '/v1/api/external-integration/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db/my-integration/events',
+      )
+      .set('Accept', 'application/json')
+      .send({ test: true })
+      .expect(200)
+      .then((response) => {
+        response.text.should.equal('');
+      });
+  });
 });
 
 describe('GET /v1/api/external-integration/:open-api-key/:selector/:webhook-key', () => {

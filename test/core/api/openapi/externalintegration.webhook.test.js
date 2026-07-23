@@ -82,6 +82,32 @@ describe('External integration webhook end-to-end', function Describe() {
     );
   });
 
+  it('should return an empty 200 when the instance never answers (timeout)', (done) => {
+    process.env.EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS = '200';
+    const socketInstance = connectInstance(
+      (message, cb) => {
+        // the instance never acks the message
+      },
+      () => {
+        request(TEST_BACKEND_APP)
+          .post(`/v1/api/external-integration/${OPEN_API_KEY}/my-integration/events`)
+          .set('Content-Type', 'application/json')
+          .send('{}')
+          .expect(200)
+          .then((response) => {
+            expect(response.text).to.equal('');
+            delete process.env.EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS;
+            socketInstance.disconnect();
+            done();
+          })
+          .catch((e) => {
+            delete process.env.EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS;
+            done(e);
+          });
+      },
+    );
+  });
+
   it('should return an empty 200 when the instance ack is invalid', (done) => {
     const socketInstance = connectInstance(
       (message, cb) => {

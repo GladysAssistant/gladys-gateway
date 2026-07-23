@@ -1,6 +1,6 @@
 // External webhook providers ban webhooks failing repeatedly, so past this
 // delay we give up on the instance answer and return an empty 200
-const EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS = 10 * 1000;
+const DEFAULT_EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS = 10 * 1000;
 
 module.exports = function OpenApiController(openApiModel, socketModel) {
   /**
@@ -171,8 +171,12 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
       req.headers['content-type'],
     );
 
+    const timeoutMs =
+      parseInt(process.env.EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS, 10) ||
+      DEFAULT_EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS;
+
     const response = await new Promise((resolve) => {
-      const timeout = setTimeout(() => resolve(null), EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS);
+      const timeout = setTimeout(() => resolve(null), timeoutMs);
       socketModel
         .sendMessageOpenApi(req.user, message)
         .then((instanceResponse) => {

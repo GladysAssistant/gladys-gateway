@@ -20,10 +20,26 @@ module.exports = function OpenAIController(openAIModel) {
    * }
    */
   async function ask(req, res, next) {
+    const startTime = Date.now();
     const { data } = await axios.post(process.env.OPEN_AI_ASK_API_URL, req.body, {
       headers: {
         authorization: `Bearer ${process.env.OPEN_AI_ASK_API_KEY}`,
       },
+    });
+    const responseTimeMs = Date.now() - startTime;
+    const usage = data && data.usage ? data.usage : {};
+    const firstChoice = data && data.choices && data.choices.length > 0 ? data.choices[0] : {};
+    await openAIModel.saveUsage({
+      account_id: req.accountId,
+      instance_id: req.instance.id,
+      request_type: req.aiRequestType,
+      model: data && data.model ? data.model : null,
+      prompt_tokens: usage.prompt_tokens !== undefined ? usage.prompt_tokens : null,
+      completion_tokens: usage.completion_tokens !== undefined ? usage.completion_tokens : null,
+      total_tokens: usage.total_tokens !== undefined ? usage.total_tokens : null,
+      response_time_ms: responseTimeMs,
+      finish_reason: firstChoice.finish_reason ? firstChoice.finish_reason : null,
+      api_response_id: data && data.id ? data.id : null,
     });
     res.json(data);
   }

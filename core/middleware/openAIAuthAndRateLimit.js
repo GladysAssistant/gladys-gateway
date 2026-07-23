@@ -29,6 +29,10 @@ module.exports = function OpenAIAuthAndRateLimit(logger, redisClient, db) {
     const maxRequests = hasImage ? getMaxImageRequests() : getMaxTextRequests();
     const requestType = hasImage ? 'image' : 'text';
 
+    // Expose the account id and request type so next handlers can track AI usage
+    req.accountId = instanceWithAccount.id;
+    req.aiRequestType = requestType;
+
     // we check if the current account is rate limited
     const limiterResult = await limiter.get(uniqueIdentifier);
     if (limiterResult && limiterResult.consumedPoints > maxRequests) {

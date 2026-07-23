@@ -55,6 +55,47 @@ describe('POST /v1/api/netatmo/:open-api-key', () => {
       .expect(404));
 });
 
+describe('POST /v1/api/external-integration/:open-api-key/:selector/:webhook-key', () => {
+  it('should refuse access, invalid API key', () =>
+    request(TEST_BACKEND_APP)
+      .post('/v1/api/external-integration/wrong-api-key/my-integration/events')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should return 200 empty when instance is not connected', () =>
+    request(TEST_BACKEND_APP)
+      .post(
+        '/v1/api/external-integration/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db/my-integration/events',
+      )
+      .set('Accept', 'application/json')
+      .send({ test: true })
+      .expect(200)
+      .then((response) => {
+        response.text.should.equal('');
+      }));
+});
+
+describe('GET /v1/api/external-integration/:open-api-key/:selector/:webhook-key', () => {
+  it('should refuse access, invalid API key', () =>
+    request(TEST_BACKEND_APP)
+      .get('/v1/api/external-integration/wrong-api-key/my-integration/events')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should return 200 empty when instance is not connected', () =>
+    request(TEST_BACKEND_APP)
+      .get(
+        '/v1/api/external-integration/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db/my-integration/events',
+      )
+      .set('Accept', 'application/json')
+      .expect(200)
+      .then((response) => {
+        response.text.should.equal('');
+      }));
+});
+
 describe('POST /v1/api/mcp/:open-api-key', () => {
   it('should refuse access, invalid API key', () =>
     request(TEST_BACKEND_APP)

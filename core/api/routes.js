@@ -20,6 +20,10 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.use(middlewares.requestExecutionTime);
 
+  // external integration webhooks: keep the raw body (any content-type) so it can
+  // be relayed as-is to the instance. Must be registered before the other parsers.
+  app.use('/v1/api/external-integration', bodyParser.raw({ type: '*/*', limit: '256kb' }));
+
   // parse application/x-www-form-urlencoded
   app.use(
     bodyParser.urlencoded({
@@ -347,6 +351,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/v1/api/netatmo/:open_api_key',
     asyncMiddleware(middlewares.openApiKeyAuth),
     asyncMiddleware(controllers.openApiController.handleNetatmoWebhook),
+  );
+  app.post(
+    '/v1/api/external-integration/:open_api_key/:selector/:webhook_key',
+    asyncMiddleware(middlewares.openApiKeyAuthInstanceOptional),
+    asyncMiddleware(controllers.openApiController.handleExternalIntegrationWebhook),
+  );
+  app.get(
+    '/v1/api/external-integration/:open_api_key/:selector/:webhook_key',
+    asyncMiddleware(middlewares.openApiKeyAuthInstanceOptional),
+    asyncMiddleware(controllers.openApiController.handleExternalIntegrationWebhook),
   );
   app.post(
     '/v1/api/mcp/:open_api_key',

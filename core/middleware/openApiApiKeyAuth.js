@@ -1,6 +1,6 @@
-const { UnauthorizedError } = require('../common/error');
+const { UnauthorizedError, NotFoundError } = require('../common/error');
 
-module.exports = function OpenApiKeyAuthMiddleware(openApiModel, userModel, instanceModel) {
+module.exports = function OpenApiKeyAuthMiddleware(openApiModel, userModel, instanceModel, options = {}) {
   return async function OpenApiKeyAuth(req, res, next) {
     // find open api key in DB
     const apiKey = await openApiModel.findOpenApiKey(req.params.open_api_key);
@@ -14,9 +14,17 @@ module.exports = function OpenApiKeyAuthMiddleware(openApiModel, userModel, inst
     req.user = user;
 
     // get instance id
-    const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
-
-    req.primaryInstance = primaryInstance;
+    try {
+      req.primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
+    } catch (e) {
+      // some routes (external integration webhooks) must never fail when the
+      // instance is missing, so they get a null primaryInstance instead of a 404
+      if (options.instanceRequired === false && e instanceof NotFoundError) {
+        req.primaryInstance = null;
+      } else {
+        throw e;
+      }
+    }
 
     // update last used in DB
     await openApiModel.updateLastUsed(apiKey.id);

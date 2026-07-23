@@ -252,6 +252,14 @@ module.exports = async (port) => {
     rateLimiter: RateLimiterMiddleware(rateLimitRedisClient),
     isSuperAdmin: IsSuperAdminMiddleware(logger),
     openApiKeyAuth: OpenApiKeyAuthMiddleware(models.openApiModel, models.userModel, models.instanceModel),
+    openApiKeyAuthInstanceOptional: OpenApiKeyAuthMiddleware(
+      models.openApiModel,
+      models.userModel,
+      models.instanceModel,
+      {
+        instanceRequired: false,
+      },
+    ),
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, legacyRedisClient),

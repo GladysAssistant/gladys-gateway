@@ -1,3 +1,7 @@
+// External webhook providers ban webhooks failing repeatedly, so past this
+// delay we give up on the instance answer and return an empty 200
+const EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS = 10 * 1000;
+
 module.exports = function OpenApiController(openApiModel, socketModel) {
   /**
    * @api {post} /open-api-keys Create new open API key
@@ -131,6 +135,71 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
   }
 
   /**
+   * @api {post} /v1/api/external-integration/:open-api-key/:selector/:webhook-key Receive external integration webhook
+   * @apiName handleExternalIntegrationWebhook
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   */
+  /**
+   * @api {get} /v1/api/external-integration/:open-api-key/:selector/:webhook-key Receive external integration webhook
+   * @apiName getExternalIntegrationWebhook
+   * @apiGroup OpenAPI
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   */
+  async function handleExternalIntegrationWebhook(req, res, next) {
+    // instance deleted or account without instance: answer an empty 200, never an error
+    if (!req.primaryInstance) {
+      return res.status(200).send();
+    }
+
+    // the body is parsed as a raw buffer on this route (see routes.js), it is
+    // relayed as-is to the instance with its content-type
+    const body = Buffer.isBuffer(req.body) ? req.body.toString('utf8') : '';
+
+    const message = await openApiModel.createExternalIntegrationWebhookMessage(
+      req.user,
+      req.primaryInstance,
+      req.params.selector,
+      req.params.webhook_key,
+      req.method,
+      req.query,
+      body,
+      req.headers['content-type'],
+    );
+
+    const response = await new Promise((resolve) => {
+      const timeout = setTimeout(() => resolve(null), EXTERNAL_INTEGRATION_WEBHOOK_TIMEOUT_MS);
+      socketModel
+        .sendMessageOpenApi(req.user, message)
+        .then((instanceResponse) => {
+          clearTimeout(timeout);
+          resolve(instanceResponse);
+        })
+        .catch(() => {
+          // instance not connected: same contract as the timeout, empty 200
+          clearTimeout(timeout);
+          resolve(null);
+        });
+    });
+
+    // the instance ack contains { status (200-499), content_type, body },
+    // anything else (timeout, offline instance, invalid ack) is an empty 200
+    if (!response || typeof response.status !== 'number' || response.status < 200 || response.status >= 500) {
+      return res.status(200).send();
+    }
+
+    res.status(response.status);
+    if (response.content_type) {
+      res.set('Content-Type', response.content_type);
+    }
+    return res.send(response.body === undefined || response.body === null ? '' : response.body);
+  }
+
+  /**
    * @api {post} /v1/api/mcp/:open-api-key Send mcp webhook
    * @apiName sendMcpWebhook
    * @apiGroup OpenAPI
@@ -232,6 +301,7 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
     createMessage,
     createDeviceState,
     handleNetatmoWebhook,
+    handleExternalIntegrationWebhook,
     handleMcpWebhook,
   };
 };

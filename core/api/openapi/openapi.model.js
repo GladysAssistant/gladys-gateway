@@ -143,6 +143,36 @@ module.exports = function OpenApiModel(logger, db) {
     return message;
   }
 
+  async function createExternalIntegrationWebhookMessage(
+    user,
+    primaryInstance,
+    selector,
+    webhookKey,
+    method,
+    query,
+    body,
+    contentType,
+  ) {
+    const data = {
+      selector,
+      webhook_key: webhookKey,
+      method,
+      query,
+      body,
+      content_type: contentType,
+    };
+
+    const message = {
+      version: '1.0',
+      type: 'gladys-open-api',
+      action: 'external-integration-webhook',
+      instance_id: primaryInstance.id,
+      data,
+    };
+
+    return message;
+  }
+
   async function createMcpWebhookMessage(user, primaryInstance, method, body, headers) {
     const headersToPass = {
       ...headers,
@@ -208,6 +238,7 @@ module.exports = function OpenApiModel(logger, db) {
     createEvent,
     createOwntrackLocation,
     createNetatmoWebhookMessage,
+    createExternalIntegrationWebhookMessage,
     createMcpWebhookMessage,
     createMessage,
     createDeviceState,

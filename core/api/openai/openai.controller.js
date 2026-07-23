@@ -20,6 +20,12 @@ module.exports = function OpenAIController(openAIModel) {
    * }
    */
   async function ask(req, res, next) {
+    // Optional client-provided tracking fields. They are free-form and will
+    // evolve over time, so we only make sure they have the right shape.
+    const purpose = typeof req.body.purpose === 'string' ? req.body.purpose.substring(0, 255) : null;
+    const categories = Array.isArray(req.body.categories)
+      ? req.body.categories.filter((category) => typeof category === 'string')
+      : null;
     const startTime = Date.now();
     const { data } = await axios.post(process.env.OPEN_AI_ASK_API_URL, req.body, {
       headers: {
@@ -33,6 +39,8 @@ module.exports = function OpenAIController(openAIModel) {
       account_id: req.accountId,
       instance_id: req.instance.id,
       request_type: req.aiRequestType,
+      purpose,
+      categories,
       model: data && data.model ? data.model : null,
       prompt_tokens: usage.prompt_tokens !== undefined ? usage.prompt_tokens : null,
       completion_tokens: usage.completion_tokens !== undefined ? usage.completion_tokens : null,

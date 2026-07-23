@@ -89,6 +89,8 @@ describe('POST /openai/ask', () => {
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send({
         question: 'Crée une scène qui vérifie le niveau de CO2 au lever du soleil',
+        purpose: 'chat',
+        categories: ['scenes', 'device_query'],
       })
       .expect('Content-Type', /json/)
       .expect(200);
@@ -99,6 +101,7 @@ describe('POST /openai/ask', () => {
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
       instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
       request_type: 'text',
+      purpose: 'chat',
       model: 'mistral-small-3.2-24b-instruct-2506',
       prompt_tokens: 7966,
       completion_tokens: 75,
@@ -106,6 +109,7 @@ describe('POST /openai/ask', () => {
       finish_reason: 'tool_calls',
       api_response_id: 'chatcmpl-2e652b93-2da4-4a4a-a0e7-92adad47843f',
     });
+    expect(aiUsage.categories).to.deep.equal(['scenes', 'device_query']);
     expect(aiUsage.response_time_ms).to.be.a('number');
     expect(aiUsage.response_time_ms).to.be.at.least(0);
   });
@@ -140,6 +144,8 @@ describe('POST /openai/ask', () => {
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
       instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
       request_type: 'text',
+      purpose: null,
+      categories: null,
       model: null,
       prompt_tokens: null,
       completion_tokens: null,

@@ -3,6 +3,8 @@ CREATE TABLE t_ai_usage (
     account_id uuid NOT NULL,
     instance_id uuid NOT NULL,
     request_type character varying(50) NOT NULL,
+    purpose character varying(255),
+    categories text[],
     model character varying(255),
     prompt_tokens integer,
     completion_tokens integer,

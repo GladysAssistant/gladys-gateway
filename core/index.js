@@ -192,7 +192,7 @@ module.exports = async (port) => {
     enedisModel: EnedisModel(logger, db, redisClient),
     ecowattModel: EcowattModel(logger, redisClient),
     tempoModel: TempoModel(logger, db, redisClient),
-    openAIModel: OpenAIModel(legacyRedisClient, instanceModel),
+    openAIModel: OpenAIModel(logger, db, legacyRedisClient, instanceModel),
   };
 
   const controllers = {

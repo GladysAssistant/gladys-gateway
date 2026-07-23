@@ -41,6 +41,119 @@ describe('POST /openai/ask', () => {
       room: 'cuisine',
     });
   });
+  it('should save AI usage in database', async () => {
+    nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+      .post('/', (body) => true)
+      .reply(200, {
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: null,
+              tool_calls: [
+                {
+                  id: 'VUX6HkFsJ',
+                  type: 'function',
+                  function: {
+                    name: 'scene_create',
+                    arguments: '{}',
+                  },
+                },
+              ],
+            },
+            finish_reason: 'tool_calls',
+          },
+        ],
+        created: 1783342697,
+        id: 'chatcmpl-2e652b93-2da4-4a4a-a0e7-92adad47843f',
+        model: 'mistral-small-3.2-24b-instruct-2506',
+        object: 'chat.completion',
+        usage: {
+          prompt_tokens: 7966,
+          total_tokens: 8041,
+          completion_tokens: 75,
+        },
+      });
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      {
+        status: 'active',
+      },
+    );
+    await request(TEST_BACKEND_APP)
+      .post('/openai/ask')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        question: 'Crée une scène qui vérifie le niveau de CO2 au lever du soleil',
+        purpose: 'chat',
+        categories: ['scenes', 'device_query'],
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    const aiUsages = await TEST_DATABASE_INSTANCE.t_ai_usage.find({});
+    expect(aiUsages).to.have.lengthOf(1);
+    const aiUsage = aiUsages[0];
+    expect(aiUsage).to.include({
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      request_type: 'text',
+      purpose: 'chat',
+      model: 'mistral-small-3.2-24b-instruct-2506',
+      prompt_tokens: 7966,
+      completion_tokens: 75,
+      total_tokens: 8041,
+      finish_reason: 'tool_calls',
+      api_response_id: 'chatcmpl-2e652b93-2da4-4a4a-a0e7-92adad47843f',
+    });
+    expect(aiUsage.categories).to.deep.equal(['scenes', 'device_query']);
+    expect(aiUsage.response_time_ms).to.be.a('number');
+    expect(aiUsage.response_time_ms).to.be.at.least(0);
+  });
+  it('should save AI usage without token data when API response has no usage field', async () => {
+    nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+      .post('/', (body) => true)
+      .reply(200, {
+        type: 'TURN_ON',
+        answer: "J'allume la lumière de la cuisine.",
+        room: 'cuisine',
+      });
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      {
+        status: 'active',
+      },
+    );
+    await request(TEST_BACKEND_APP)
+      .post('/openai/ask')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        question: 'Allume la lumière de la cuisine',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    const aiUsages = await TEST_DATABASE_INSTANCE.t_ai_usage.find({});
+    expect(aiUsages).to.have.lengthOf(1);
+    expect(aiUsages[0]).to.include({
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      request_type: 'text',
+      purpose: null,
+      categories: null,
+      model: null,
+      prompt_tokens: null,
+      completion_tokens: null,
+      total_tokens: null,
+      finish_reason: null,
+      api_response_id: null,
+    });
+  });
   it('should send question to AI when trialing', async () => {
     nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
       .post('/', (body) => true)

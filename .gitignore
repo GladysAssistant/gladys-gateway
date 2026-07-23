@@ -9,3 +9,4 @@ apidoc
 .nyc_output
 coverage.lcov
 coverage
+dump.rdb

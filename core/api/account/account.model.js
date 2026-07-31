@@ -17,6 +17,7 @@ const {
   hasRecentPaymentFailedEmail,
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
+const { normalizeEmail } = require('../../common/normalize-email');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -171,7 +172,7 @@ module.exports = function AccountModel(
     // we update the tax rate - Not needed anymore
     // await stripeService.addTaxRate(subscription.id);
 
-    const { email } = customer;
+    const email = normalizeEmail(customer.email);
     const stripeProductId = subscription?.items?.data[0]?.price?.product;
     const plan = stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
 
@@ -339,7 +340,7 @@ module.exports = function AccountModel(
   }
 
   async function subscribeMonthlyPlanWithoutAccount(rawEmail, language) {
-    const email = rawEmail.trim().toLowerCase();
+    const email = normalizeEmail(rawEmail);
     const role = 'admin';
 
     // we first test if an account already exist with this email

@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ValidationError, AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
+const { normalizeEmail } = require('../../common/normalize-email');
 const schema = require('../../common/schema');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailService, telegramService) {
@@ -20,7 +21,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
 
     const [invitation, userCreating, tokenGenerated] = await db.withTransaction(async (tx) => {
       // clean email
-      const email = value.email.trim().toLowerCase();
+      const email = normalizeEmail(value.email);
       const { role } = value;
 
       // first we get the user to see if he is allowed to do that
@@ -108,7 +109,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       throw new NotFoundError();
     }
 
-    data.email = invitation.email;
+    data.email = normalizeEmail(invitation.email);
 
     const { error, value } = Joi.validate(data, schema.signupSchema, {
       stripUnknown: true,
@@ -120,6 +121,9 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       logger.debug(error);
       throw new ValidationError('user', error);
     }
+
+    // Always store emails in lowercase, even if the invitation was created with mixed case
+    value.email = normalizeEmail(value.email);
 
     telegramService.sendAlert(`User ${data.email} is accepting the invitation, country = ${geo?.country}`);
 

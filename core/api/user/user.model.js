@@ -6,6 +6,7 @@ const speakeasy = require('speakeasy');
 const uuid = require('uuid');
 const srpServer = require('secure-remote-password/server');
 const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
+const { normalizeEmail } = require('../../common/normalize-email');
 const schema = require('../../common/schema');
 
 const REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS = 120;
@@ -17,7 +18,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
    */
   async function signup(newUserParam) {
     const newUser = newUserParam;
-    newUser.email = newUser.email.trim().toLowerCase();
+    newUser.email = normalizeEmail(newUser.email);
 
     const { error, value } = Joi.validate(newUser, schema.signupSchema, {
       stripUnknown: true,
@@ -135,7 +136,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     let emailConfirmationToken;
 
     if (value.email) {
-      value.email = value.email.trim().toLowerCase();
+      value.email = normalizeEmail(value.email);
 
       if (value.email !== currentUser.email) {
         value.email_confirmed = false;
@@ -190,7 +191,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       {
         is_deleted: false,
         email_confirmed: true,
-        email,
+        email: normalizeEmail(email),
       },
       { fields: ['srp_salt'] },
     );
@@ -208,7 +209,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       {
         is_deleted: false,
         email_confirmed: true,
-        email: data.email,
+        email: normalizeEmail(data.email),
       },
       { fields: ['id', 'email', 'srp_salt', 'srp_verifier', 'two_factor_enabled'] },
     );
@@ -491,7 +492,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   async function forgotPassword(email) {
     const user = await db.t_user.findOne(
       {
-        email,
+        email: normalizeEmail(email),
         email_confirmed: true,
         is_deleted: false,
       },

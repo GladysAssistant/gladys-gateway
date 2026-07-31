@@ -4,6 +4,7 @@ const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const path = require('path');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { buildWelcomeScope } = require('../../common/billing-email-scope');
+const { normalizeEmail } = require('../../common/normalize-email');
 const { NotFoundError, ForbiddenError } = require('../../common/error');
 
 module.exports = function AdminModel(logger, db, redisClient, mailService, slackService, stripeService) {
@@ -36,7 +37,7 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       throw new NotFoundError();
     }
 
-    const email = account.name;
+    const email = normalizeEmail(account.name);
     const role = 'admin';
     const language = languageParam || 'en';
 

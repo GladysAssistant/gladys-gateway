@@ -58,6 +58,64 @@ describe('stripeWebhook', () => {
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
   });
+
+  it('should store Stripe customer email in lowercase on account and invitation', async () => {
+    const event = {
+      id: 'evt_test_webhook_mixed_case_email',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cus_mixed_case',
+          subscription: 'sub_mixed_case',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub_mixed_case')
+      .reply(200, {
+        id: 'sub_mixed_case',
+        current_period_end: 1289482682000,
+        items: {
+          data: [
+            {
+              price: {
+                product: 'plus-plan-id',
+              },
+            },
+          ],
+        },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cus_mixed_case').reply(200, {
+      id: 'cus_mixed_case',
+      email: 'Tellierhtc@gmail.com',
+    });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({
+      stripe_customer_id: 'cus_mixed_case',
+    });
+    expect(account).to.have.property('name', 'tellierhtc@gmail.com');
+
+    const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({
+      account_id: account.id,
+      accepted: false,
+    });
+    expect(invitation).to.have.property('email', 'tellierhtc@gmail.com');
+  });
+
   it('should return 422 when checkout.session.completed has no customer or subscription', async () => {
     const event = {
       id: 'evt_test_webhook',

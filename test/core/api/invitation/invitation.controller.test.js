@@ -1,5 +1,6 @@
 const request = require('supertest');
 const should = require('should');
+const crypto = require('crypto');
 const configTest = require('../../../tasks/config');
 
 describe('POST /invitations', () => {
@@ -22,6 +23,26 @@ describe('POST /invitations', () => {
       is_invitation: true,
       created_at: response.body.created_at,
     });
+  });
+
+  it('should store invitation email in lowercase', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'Pepper.Potts.Mixed@StarkIndustries.com',
+        role: 'user',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    should.equal(response.body.email, 'pepper.potts.mixed@starkindustries.com');
+
+    const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({
+      id: response.body.id,
+    });
+    should.equal(invitation.email, 'pepper.potts.mixed@starkindustries.com');
   });
 
   it('should not send invitation, wrong email', () =>
@@ -63,6 +84,44 @@ describe('POST /invitations/accept', () => {
           message: 'User created with success.',
         });
       }));
+
+  it('should store accepted invitation email in lowercase even if invitation has mixed case', async () => {
+    const token =
+      'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    await TEST_DATABASE_INSTANCE.t_invitation.insert({
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      email: 'Tellierhtc@gmail.com',
+      role: 'admin',
+      token_hash: tokenHash,
+      accepted: false,
+      revoked: false,
+    });
+
+    await request(TEST_BACKEND_APP)
+      .post('/invitations/accept')
+      .set('Accept', 'application/json')
+      .send({
+        token,
+        name: 'Tellier',
+        language: 'fr',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+      })
+      .expect('Content-Type', /json/)
+      .expect(201);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
+      email: 'tellierhtc@gmail.com',
+    });
+    should.exist(user);
+    should.equal(user.email, 'tellierhtc@gmail.com');
+  });
 
   it('should not accept invitation, not found hash', () =>
     request(TEST_BACKEND_APP)

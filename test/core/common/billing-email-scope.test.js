@@ -112,7 +112,10 @@ describe('billing-email-scope', () => {
   });
 
   it('should build welcome scope with trial info', () => {
-    const trialEnd = Math.floor(new Date('2026-07-25T12:00:00Z').getTime() / 1000);
+    const trialEndDate = new Date();
+    trialEndDate.setUTCDate(trialEndDate.getUTCDate() + 30);
+    trialEndDate.setUTCHours(12, 0, 0, 0);
+    const trialEnd = Math.floor(trialEndDate.getTime() / 1000);
     const scope = buildWelcomeScope({
       confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup',
       customer: { name: 'Marie Dupont' },
@@ -125,12 +128,15 @@ describe('billing-email-scope', () => {
     expect(scope.planName).to.equal('Plus');
     expect(scope.planProductName).to.equal('Gladys Plus');
     expect(scope.hasTrial).to.equal(true);
-    expect(scope.trialEndDate).to.equal('25 juillet 2026');
+    expect(scope.trialEndDate).to.equal(formatBillingDate(trialEnd, 'fr'));
     expect(scope.welcomeSteps).to.have.lengthOf(8);
   });
 
   it('should treat Stripe auto locale as French in welcome scope', () => {
-    const trialEnd = Math.floor(new Date('2026-12-26T12:00:00Z').getTime() / 1000);
+    const trialEndDate = new Date();
+    trialEndDate.setUTCDate(trialEndDate.getUTCDate() + 60);
+    trialEndDate.setUTCHours(12, 0, 0, 0);
+    const trialEnd = Math.floor(trialEndDate.getTime() / 1000);
     const scope = buildWelcomeScope({
       confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup',
       customer: { name: 'Marc' },
@@ -139,7 +145,7 @@ describe('billing-email-scope', () => {
       language: 'auto',
     });
 
-    expect(scope.trialEndDate).to.equal('26 décembre 2026');
+    expect(scope.trialEndDate).to.equal(formatBillingDate(trialEnd, 'fr'));
     expect(scope.welcomeSteps[0]).to.include('Active ton compte');
   });
 

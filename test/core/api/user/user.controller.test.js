@@ -29,6 +29,31 @@ describe('POST /users/signup', () => {
     });
   });
 
+  it('should store signup email in lowercase', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/users/signup')
+      .send({
+        name: 'Tony',
+        email: 'Tony.Stark.Mixed@GladysAssistant.com',
+        language: 'en',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(201);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
+      email: 'tony.stark.mixed@gladysassistant.com',
+    });
+    expect(user).to.not.equal(null);
+    expect(user.email).to.equal('tony.stark.mixed@gladysassistant.com');
+  });
+
   it('should not signup user, missing attributes', async () => {
     await request(TEST_BACKEND_APP)
       .post('/users/signup')
@@ -74,6 +99,20 @@ describe('POST /users/login-salt', () => {
       .post('/users/login-salt')
       .send({
         email: 'email-confirmed@gladysprojet.com',
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        should.deepEqual(response.body, {
+          srp_salt: 'e0812f8c57be08780bafcc7e2cbacd155b6f63962114c12cc12462a7aa669fdb',
+        });
+      }));
+  it('should return a salt when email casing differs', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/login-salt')
+      .send({
+        email: 'Email-Confirmed@GladysProjet.com',
       })
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
@@ -355,6 +394,21 @@ describe('POST /users/forgot-password', () => {
       .set('Accept', 'application/json')
       .send({
         email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        should.deepEqual(response.body, {
+          success: true,
+        });
+      }));
+
+  it('should return success when email casing differs', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/forgot-password')
+      .set('Accept', 'application/json')
+      .send({
+        email: 'Email-Confirmed-Two-Factor-Enabled@GladysProjet.com',
       })
       .expect('Content-Type', /json/)
       .expect(200)

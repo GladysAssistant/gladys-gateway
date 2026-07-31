@@ -93,7 +93,7 @@ describe('stripeWebhook', () => {
       });
     nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cus_mixed_case').reply(200, {
       id: 'cus_mixed_case',
-      email: 'Tellierhtc@gmail.com',
+      email: 'Mixed.Case.User@Example.com',
     });
 
     await request(TEST_BACKEND_APP)
@@ -107,13 +107,13 @@ describe('stripeWebhook', () => {
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({
       stripe_customer_id: 'cus_mixed_case',
     });
-    expect(account).to.have.property('name', 'tellierhtc@gmail.com');
+    expect(account).to.have.property('name', 'mixed.case.user@example.com');
 
     const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({
       account_id: account.id,
       accepted: false,
     });
-    expect(invitation).to.have.property('email', 'tellierhtc@gmail.com');
+    expect(invitation).to.have.property('email', 'mixed.case.user@example.com');
   });
 
   it('should return 422 when checkout.session.completed has no customer or subscription', async () => {

@@ -4,7 +4,7 @@ const { normalizeEmail } = require('../../../core/common/normalize-email');
 
 describe('normalizeEmail', () => {
   it('should trim and lowercase emails', () => {
-    expect(normalizeEmail('Tellierhtc@gmail.com')).to.equal('tellierhtc@gmail.com');
+    expect(normalizeEmail('Mixed.Case.User@Example.com')).to.equal('mixed.case.user@example.com');
     expect(normalizeEmail('  User@Example.COM  ')).to.equal('user@example.com');
     expect(normalizeEmail('already.lower@test.fr')).to.equal('already.lower@test.fr');
   });

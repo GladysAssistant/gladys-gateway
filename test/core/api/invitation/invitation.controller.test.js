@@ -92,7 +92,7 @@ describe('POST /invitations/accept', () => {
 
     await TEST_DATABASE_INSTANCE.t_invitation.insert({
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
-      email: 'Tellierhtc@gmail.com',
+      email: 'Mixed.Case.User@Example.com',
       role: 'admin',
       token_hash: tokenHash,
       accepted: false,
@@ -104,7 +104,7 @@ describe('POST /invitations/accept', () => {
       .set('Accept', 'application/json')
       .send({
         token,
-        name: 'Tellier',
+        name: 'Mixed Case',
         language: 'fr',
         srp_salt: 'sfds',
         srp_verifier: 'dfdf',
@@ -117,10 +117,10 @@ describe('POST /invitations/accept', () => {
       .expect(201);
 
     const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
-      email: 'tellierhtc@gmail.com',
+      email: 'mixed.case.user@example.com',
     });
     should.exist(user);
-    should.equal(user.email, 'tellierhtc@gmail.com');
+    should.equal(user.email, 'mixed.case.user@example.com');
   });
 
   it('should not accept invitation, not found hash', () =>

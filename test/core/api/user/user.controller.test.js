@@ -1,5 +1,6 @@
 const request = require('supertest');
 const speakeasy = require('speakeasy');
+const jwt = require('jsonwebtoken');
 const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 const srpFixture = require('../../../tasks/srp-fixture.json');
@@ -302,6 +303,123 @@ describe('POST /users/login-two-factor', () => {
       .then((response) => {}));
 });
 
+describe('POST /users/two-factor/recovery-codes', () => {
+  it('should generate 10 recovery codes', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).to.have.property('recovery_codes');
+    expect(response.body.recovery_codes).to.have.lengthOf(10);
+    response.body.recovery_codes.forEach((recoveryCode) => {
+      expect(recoveryCode).to.match(/^[0-9a-f]{5}-[0-9a-f]{5}$/);
+    });
+
+    // only hashes of the codes should be stored in database
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
+      id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+    });
+    expect(user.two_factor_recovery_codes).to.have.lengthOf(10);
+    response.body.recovery_codes.forEach((recoveryCode) => {
+      expect(user.two_factor_recovery_codes).to.not.include(recoveryCode);
+    });
+  });
+
+  it('should return 403 when two factor is not enabled', async () => {
+    const accessToken = jwt.sign(
+      { user_id: 'bdb1a902-a65e-46f9-8c2a-5c09840e2e10', scope: ['dashboard:read', 'dashboard:write'] },
+      process.env.JWT_ACCESS_TOKEN_SECRET,
+      { algorithm: 'HS256', audience: 'user', issuer: 'gladys-gateway', expiresIn: 60 * 60 },
+    );
+
+    await request(TEST_BACKEND_APP)
+      .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', accessToken)
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
+
+  it('should return 401 unauthorized, no jwt provided', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401));
+});
+
+describe('POST /users/login-recovery-code', () => {
+  it('should return access_token and refresh_token, and consume the recovery code', async () => {
+    const userAgent = 'my-browser-is-awesome';
+
+    const response = await request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', userAgent)
+      .send({ two_factor_recovery_code: '1a2b3-c4d5e', device_name: 'my-device' })
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).to.have.property('access_token');
+    expect(response.body).to.have.property('refresh_token');
+    expect(response.body).to.have.property('device_id');
+    expect(response.body).to.have.property('rsa_encrypted_private_key');
+    expect(response.body).to.have.property('ecdsa_encrypted_private_key');
+    expect(response.body).to.have.property('encrypted_backup_key');
+    expect(response.body).to.have.property('gladys_4_user_id');
+
+    // the recovery code should have been consumed
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
+      id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+    });
+    expect(user.two_factor_recovery_codes).to.have.lengthOf(1);
+
+    // a recovery code is single-use
+    await request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', userAgent)
+      .send({ two_factor_recovery_code: '1a2b3-c4d5e', device_name: 'my-device' })
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
+
+  it('should accept a recovery code entered with different formatting', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', 'my-browser-is-awesome')
+      .send({ two_factor_recovery_code: 'F6A7B 8C9D0', device_name: 'my-device' })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        expect(response.body).to.have.property('access_token');
+      }));
+
+  it('should return 403 error, invalid recovery code', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .send({ two_factor_recovery_code: 'wrong-code', device_name: 'my-device' })
+      .expect('Content-Type', /json/)
+      .expect(403));
+
+  it('should return 401 error, unauthorized (no jwt)', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .send({ two_factor_recovery_code: '1a2b3-c4d5e', device_name: 'my-device' })
+      .expect('Content-Type', /json/)
+      .expect(401));
+});
+
 describe('GET /users/access-token', () => {
   it('should return a new access token', async () => {
     const userAgent = 'my-browser-is-awesome';
@@ -459,6 +577,47 @@ describe('POST /users/reset-password', () => {
           success: true,
         });
       }));
+
+  it('should reset password with a two factor recovery code', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/reset-password')
+      .set('Accept', 'application/json')
+      .send({
+        token:
+          'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
+        srp_salt: 'salt',
+        srp_verifier: 'verifier',
+        rsa_public_key: 'pubkey',
+        ecdsa_public_key: 'pubkey',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
+        two_factor_recovery_code: '1a2b3-c4d5e',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        should.deepEqual(response.body, {
+          success: true,
+        });
+      }));
+
+  it('should return 403, invalid two factor recovery code', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/reset-password')
+      .set('Accept', 'application/json')
+      .send({
+        token:
+          'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07',
+        srp_salt: 'salt',
+        srp_verifier: 'verifier',
+        rsa_public_key: 'pubkey',
+        ecdsa_public_key: 'pubkey',
+        rsa_encrypted_private_key: 'encrypted-private-key',
+        ecdsa_encrypted_private_key: 'encrypted-private-key',
+        two_factor_recovery_code: 'wrong-code',
+      })
+      .expect('Content-Type', /json/)
+      .expect(403));
 
   it('should return 422, missing srp_salt', () =>
     request(TEST_BACKEND_APP)

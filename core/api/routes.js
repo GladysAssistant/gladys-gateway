@@ -117,6 +117,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.twoFactorTokenAuth),
     asyncMiddleware(controllers.userController.loginTwoFactor),
   );
+  app.post(
+    '/users/login-recovery-code',
+    middlewares.rateLimiter,
+    asyncMiddleware(middlewares.twoFactorTokenAuth),
+    asyncMiddleware(controllers.userController.loginTwoFactorRecoveryCode),
+  );
 
   app.post(
     '/users/two-factor-configure',
@@ -172,6 +178,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/users/two-factor',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.userController.updateTwoFactor),
+  );
+  app.post(
+    '/users/two-factor/recovery-codes',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.userController.generateTwoFactorRecoveryCodes),
   );
 
   // devices

@@ -213,6 +213,20 @@ function getRenewalDate(invoice) {
 const MINIMUM_NOTICE_DAYS = 28;
 const MAXIMUM_NOTICE_DAYS = 92;
 
+/**
+ * Stripe also fires `invoice.upcoming` before the FIRST charge of a subscription
+ * still in trial. That invoice is not a tacit renewal: telling the customer
+ * they may refuse a renewal, at the very start of their trial, is both wrong
+ * and already covered by the `trial_will_end` email.
+ */
+function isSubscriptionTrialing(subscription, now = Date.now()) {
+  if (!subscription) {
+    return false;
+  }
+
+  return subscription.status === 'trialing' || !!(subscription.trial_end && subscription.trial_end * 1000 > now);
+}
+
 function isWithinRenewalNoticeWindow(renewalTimestamp, now = Date.now()) {
   if (!renewalTimestamp) {
     return false;
@@ -296,6 +310,7 @@ module.exports = {
   getPlanProductName,
   getInvoiceInterval,
   getRenewalDate,
+  isSubscriptionTrialing,
   isWithinRenewalNoticeWindow,
   getWelcomeSteps,
   hasRecentPaymentFailedEmail,

@@ -1094,6 +1094,25 @@ describe('stripeWebhook', () => {
         expect(await findRenewalReminders()).to.have.lengthOf(0);
       });
 
+      it('should not send a renewal reminder while the subscription is still in trial', async () => {
+        nock('https://api.stripe.com:443', { encodedQueryParams: true })
+          .get('/v1/subscriptions/sub_trialing')
+          .reply(200, {
+            id: 'sub_trialing',
+            status: 'trialing',
+            trial_end: Math.floor(Date.now() / 1000) + 20 * 24 * 60 * 60,
+            items: {
+              data: [{ price: { recurring: { interval: 'year' }, product: 'plus-plan-id' } }],
+            },
+          });
+
+        await sendStripeWebhook(
+          buildUpcomingInvoiceEvent({ id: 'evt_upcoming_trialing', interval: 'year', subscription: 'sub_trialing' }),
+        );
+
+        expect(await findRenewalReminders()).to.have.lengthOf(0);
+      });
+
       it('should read the interval from the subscription when the invoice does not carry it', async () => {
         nock('https://api.stripe.com:443', { encodedQueryParams: true })
           .get('/v1/subscriptions/sub_yearly')

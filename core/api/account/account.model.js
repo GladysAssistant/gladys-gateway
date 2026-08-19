@@ -19,6 +19,7 @@ const {
   getRenewalDate,
   hasRecentPaymentFailedEmail,
   hasRecentRenewalReminderEmail,
+  isSubscriptionTrialing,
   isWithinRenewalNoticeWindow,
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
@@ -714,12 +715,25 @@ module.exports = function AccountModel(
         // only exist on a yearly subscription — a monthly one is cancellable at
         // any time in one click, and a reminder every month would be spam.
         let interval = getInvoiceInterval(invoice);
-        if (!interval && invoice.subscription) {
-          const subscription = await stripeService.getSubscription(invoice.subscription);
-          interval = subscription?.items?.data?.[0]?.price?.recurring?.interval || null;
+        const subscriptionId = invoice.subscription || account.stripe_subscription_id;
+        let subscription = null;
+
+        // Fetched as soon as this could be a yearly renewal: the subscription
+        // carries both the interval, when the invoice does not, and the trial
+        // state, which `account.status` cannot be trusted for (a checkout
+        // account is inserted as `active` even while Stripe still has it
+        // trialing).
+        if ((!interval || interval === 'year') && subscriptionId) {
+          subscription = await stripeService.getSubscription(subscriptionId);
+          interval = interval || subscription?.items?.data?.[0]?.price?.recurring?.interval || null;
         }
 
         if (interval !== 'year') {
+          break;
+        }
+
+        // The first charge at the end of a trial is not a tacit renewal.
+        if (isSubscriptionTrialing(subscription)) {
           break;
         }
 

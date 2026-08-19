@@ -15,6 +15,7 @@ const {
   getInvoiceInterval,
   getRenewalDate,
   getWelcomeSteps,
+  isSubscriptionTrialing,
   isWithinRenewalNoticeWindow,
   hasRecentPaymentFailedEmail,
   hasRecentRenewalReminderEmail,
@@ -218,6 +219,17 @@ describe('billing-email-scope', () => {
     expect(getRenewalDate({ lines: { data: [{ period: { start: 1500000000, end: 1531536000 } }] } })).to.equal(
       1500000000,
     );
+  });
+
+  it('should detect a subscription still in trial', () => {
+    const now = Date.now();
+    const inDays = (days) => Math.floor((now + days * 24 * 60 * 60 * 1000) / 1000);
+
+    expect(isSubscriptionTrialing({ status: 'trialing' }, now)).to.equal(true);
+    expect(isSubscriptionTrialing({ status: 'active', trial_end: inDays(20) }, now)).to.equal(true);
+    expect(isSubscriptionTrialing({ status: 'active', trial_end: inDays(-20) }, now)).to.equal(false);
+    expect(isSubscriptionTrialing({ status: 'active' }, now)).to.equal(false);
+    expect(isSubscriptionTrialing(null, now)).to.equal(false);
   });
 
   it('should only accept renewals inside the legal notice window', () => {

@@ -188,6 +188,99 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
   };
 }
 
+/**
+ * Date the subscription renews, on an upcoming invoice. `next_payment_attempt`
+ * is the charge date when Stripe collects automatically. The fallbacks are the
+ * START of the period being invoiced — its end is one term later, a year off
+ * for a yearly subscription.
+ */
+function getRenewalDate(invoice) {
+  return invoice.next_payment_attempt || invoice.period_start || invoice.lines?.data?.[0]?.period?.start;
+}
+
+/**
+ * Article L. 215-1 of the French consumer code wants the notice sent between
+ * three months and one month before the term. Stripe fires `invoice.upcoming`
+ * as many days ahead as the "Upcoming renewal events" Dashboard setting says,
+ * so an event can perfectly well arrive a few days before the renewal — early
+ * enough to be a courtesy heads-up, too late to be the legal notice. Sending
+ * then, and recording it as if the notice had been given, is worse than not
+ * sending: it hides the gap.
+ *
+ * The lower bound keeps two days of slack, because the event fires on a daily
+ * schedule rather than to the second.
+ */
+const MINIMUM_NOTICE_DAYS = 28;
+const MAXIMUM_NOTICE_DAYS = 92;
+
+/**
+ * Stripe also fires `invoice.upcoming` before the FIRST charge of a subscription
+ * still in trial. That invoice is not a tacit renewal: telling the customer
+ * they may refuse a renewal, at the very start of their trial, is both wrong
+ * and already covered by the `trial_will_end` email.
+ */
+function isSubscriptionTrialing(subscription, now = Date.now()) {
+  if (!subscription) {
+    return false;
+  }
+
+  return subscription.status === 'trialing' || !!(subscription.trial_end && subscription.trial_end * 1000 > now);
+}
+
+function isWithinRenewalNoticeWindow(renewalTimestamp, now = Date.now()) {
+  if (!renewalTimestamp) {
+    return false;
+  }
+
+  const daysUntilRenewal = (renewalTimestamp * 1000 - now) / ONE_DAY_IN_MS;
+
+  return daysUntilRenewal >= MINIMUM_NOTICE_DAYS && daysUntilRenewal <= MAXIMUM_NOTICE_DAYS;
+}
+
+/**
+ * Billing interval of an upcoming invoice, when the invoice carries it. Returns
+ * null when it can't be read, so the caller can fall back to the subscription.
+ */
+function getInvoiceInterval(invoice) {
+  return invoice.lines?.data?.[0]?.price?.recurring?.interval || null;
+}
+
+function buildSubscriptionWillRenewScope({ invoice, customer, language, account }) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const planName = account.plan === 'lite' ? 'Lite' : 'Plus';
+
+  return {
+    firstname: extractFirstname(customer?.name),
+    renewalDate: formatBillingDate(getRenewalDate(invoice), normalizedLanguage),
+    amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
+    planName,
+    planBenefits: getPlanBenefits(planName, normalizedLanguage),
+    manageSubscriptionLink: buildUpdateCardLink(account),
+    loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+  };
+}
+
+/**
+ * Article L. 215-1 of the French consumer code requires the reminder to be sent
+ * once per renewal, and Stripe retries webhooks: a reminder already recorded for
+ * this account in the last 90 days is a duplicate, since only yearly
+ * subscriptions get one.
+ */
+async function hasRecentRenewalReminderEmail(db, accountId) {
+  const ninetyDaysAgo = new Date(Date.now() - 90 * ONE_DAY_IN_MS);
+  const recent = await db.query(
+    `SELECT id FROM t_account_payment_activity
+     WHERE account_id = $1
+       AND stripe_event = 'invoice.upcoming'
+       AND created_at > $2
+       AND is_deleted = false
+     LIMIT 1`,
+    [accountId, ninetyDaysAgo],
+  );
+
+  return recent.length > 0;
+}
+
 async function hasRecentPaymentFailedEmail(db, accountId) {
   const twentyFourHoursAgo = new Date(Date.now() - ONE_DAY_IN_MS);
   const recent = await db.query(
@@ -205,6 +298,7 @@ async function hasRecentPaymentFailedEmail(db, accountId) {
 
 module.exports = {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
@@ -214,6 +308,11 @@ module.exports = {
   getPlanBenefits,
   getPlanName,
   getPlanProductName,
+  getInvoiceInterval,
+  getRenewalDate,
+  isSubscriptionTrialing,
+  isWithinRenewalNoticeWindow,
   getWelcomeSteps,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
 };

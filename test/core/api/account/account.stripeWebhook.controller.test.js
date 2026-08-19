@@ -1009,6 +1009,128 @@ describe('stripeWebhook', () => {
       });
     });
 
+    function buildUpcomingInvoiceEvent({ id, interval, daysUntilRenewal = 45, subscription = 'sub' }) {
+      const lines = interval
+        ? {
+            data: [
+              {
+                price: {
+                  unit_amount: 9999,
+                  currency: 'eur',
+                  recurring: { interval },
+                  product: 'plus-plan-id',
+                },
+              },
+            ],
+          }
+        : { data: [{}] };
+
+      return {
+        id,
+        object: 'event',
+        type: 'invoice.upcoming',
+        data: {
+          object: {
+            customer: 'cus',
+            subscription,
+            amount_due: 9999,
+            amount_paid: 0,
+            currency: 'eur',
+            closed: false,
+            next_payment_attempt: Math.floor(Date.now() / 1000) + daysUntilRenewal * 24 * 60 * 60,
+            lines,
+          },
+        },
+      };
+    }
+
+    function findRenewalReminders() {
+      return TEST_DATABASE_INSTANCE.t_account_payment_activity.find({
+        account_id: accountId,
+        stripe_event: 'invoice.upcoming',
+      });
+    }
+
+    describe('renewal reminder', () => {
+      // Other cases in this file also write renewal reminders, and the handler
+      // deduplicates on the last 90 days: each case starts from a clean slate.
+      beforeEach(async () => {
+        await TEST_DATABASE_INSTANCE.t_account_payment_activity.destroy({
+          account_id: accountId,
+          stripe_event: 'invoice.upcoming',
+        });
+      });
+
+      it('should ignore invoice.upcoming for a monthly subscription', async () => {
+        await sendStripeWebhook(buildUpcomingInvoiceEvent({ id: 'evt_upcoming_monthly', interval: 'month' }));
+
+        expect(await findRenewalReminders()).to.have.lengthOf(0);
+      });
+
+      it('should send a renewal reminder for a yearly subscription', async () => {
+        await sendStripeWebhook(buildUpcomingInvoiceEvent({ id: 'evt_upcoming_yearly', interval: 'year' }));
+
+        // The row is written only after mailService.send resolved, so its
+        // presence is what proves the reminder actually went out.
+        const reminders = await findRenewalReminders();
+        expect(reminders).to.have.lengthOf(1);
+        expect(reminders[0]).to.have.property('currency', 'eur');
+      });
+
+      it('should not send a second reminder when Stripe retries the webhook', async () => {
+        const event = buildUpcomingInvoiceEvent({ id: 'evt_upcoming_retry', interval: 'year' });
+
+        await sendStripeWebhook(event);
+        await sendStripeWebhook(event);
+
+        expect(await findRenewalReminders()).to.have.lengthOf(1);
+      });
+
+      it('should not send a reminder when the renewal is too close to be the legal notice', async () => {
+        await sendStripeWebhook(
+          buildUpcomingInvoiceEvent({ id: 'evt_upcoming_too_close', interval: 'year', daysUntilRenewal: 5 }),
+        );
+
+        expect(await findRenewalReminders()).to.have.lengthOf(0);
+      });
+
+      it('should not send a renewal reminder while the subscription is still in trial', async () => {
+        nock('https://api.stripe.com:443', { encodedQueryParams: true })
+          .get('/v1/subscriptions/sub_trialing')
+          .reply(200, {
+            id: 'sub_trialing',
+            status: 'trialing',
+            trial_end: Math.floor(Date.now() / 1000) + 20 * 24 * 60 * 60,
+            items: {
+              data: [{ price: { recurring: { interval: 'year' }, product: 'plus-plan-id' } }],
+            },
+          });
+
+        await sendStripeWebhook(
+          buildUpcomingInvoiceEvent({ id: 'evt_upcoming_trialing', interval: 'year', subscription: 'sub_trialing' }),
+        );
+
+        expect(await findRenewalReminders()).to.have.lengthOf(0);
+      });
+
+      it('should read the interval from the subscription when the invoice does not carry it', async () => {
+        nock('https://api.stripe.com:443', { encodedQueryParams: true })
+          .get('/v1/subscriptions/sub_yearly')
+          .reply(200, {
+            id: 'sub_yearly',
+            items: {
+              data: [{ price: { recurring: { interval: 'year' }, product: 'plus-plan-id' } }],
+            },
+          });
+
+        await sendStripeWebhook(
+          buildUpcomingInvoiceEvent({ id: 'evt_upcoming_no_interval', interval: null, subscription: 'sub_yearly' }),
+        );
+
+        expect(await findRenewalReminders()).to.have.lengthOf(1);
+      });
+    });
+
     it('should record payment_failed activity and deduplicate emails within 24 hours', async () => {
       const paymentFailedEvent = {
         id: 'evt_payment_failed',

@@ -2,6 +2,7 @@ const { expect } = require('chai');
 
 const {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
@@ -11,8 +12,13 @@ const {
   getPlanBenefits,
   getPlanName,
   getPlanProductName,
+  getInvoiceInterval,
+  getRenewalDate,
   getWelcomeSteps,
+  isSubscriptionTrialing,
+  isWithinRenewalNoticeWindow,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
 } = require('../../../core/common/billing-email-scope');
 
 describe('billing-email-scope', () => {
@@ -195,6 +201,87 @@ describe('billing-email-scope', () => {
     expect(scope.nextRetryDate).to.equal('');
     expect(scope.hostedInvoiceUrl).to.equal('');
     expect(scope.planName).to.equal('Plus');
+  });
+
+  it('should read the billing interval of an upcoming invoice', () => {
+    expect(getInvoiceInterval({ lines: { data: [{ price: { recurring: { interval: 'year' } } }] } })).to.equal('year');
+    expect(getInvoiceInterval({ lines: { data: [{ price: { recurring: { interval: 'month' } } }] } })).to.equal(
+      'month',
+    );
+    expect(getInvoiceInterval({})).to.equal(null);
+  });
+
+  it('should read the renewal date of an upcoming invoice, never the end of the next term', () => {
+    expect(getRenewalDate({ next_payment_attempt: 1700000000, period_start: 1600000000 })).to.equal(1700000000);
+    // The period END of an upcoming invoice is one term later: on a yearly
+    // subscription it would show a date a year after the actual renewal.
+    expect(getRenewalDate({ period_start: 1600000000, period_end: 1631536000 })).to.equal(1600000000);
+    expect(getRenewalDate({ lines: { data: [{ period: { start: 1500000000, end: 1531536000 } }] } })).to.equal(
+      1500000000,
+    );
+  });
+
+  it('should detect a subscription still in trial', () => {
+    const now = Date.now();
+    const inDays = (days) => Math.floor((now + days * 24 * 60 * 60 * 1000) / 1000);
+
+    expect(isSubscriptionTrialing({ status: 'trialing' }, now)).to.equal(true);
+    expect(isSubscriptionTrialing({ status: 'active', trial_end: inDays(20) }, now)).to.equal(true);
+    expect(isSubscriptionTrialing({ status: 'active', trial_end: inDays(-20) }, now)).to.equal(false);
+    expect(isSubscriptionTrialing({ status: 'active' }, now)).to.equal(false);
+    expect(isSubscriptionTrialing(null, now)).to.equal(false);
+  });
+
+  it('should only accept renewals inside the legal notice window', () => {
+    const now = Date.now();
+    const inDays = (days) => Math.floor((now + days * 24 * 60 * 60 * 1000) / 1000);
+
+    expect(isWithinRenewalNoticeWindow(inDays(45), now)).to.equal(true);
+    expect(isWithinRenewalNoticeWindow(inDays(30), now)).to.equal(true);
+    expect(isWithinRenewalNoticeWindow(inDays(90), now)).to.equal(true);
+    // Too late to be the L. 215-1 notice, or so early it is not this renewal.
+    expect(isWithinRenewalNoticeWindow(inDays(5), now)).to.equal(false);
+    expect(isWithinRenewalNoticeWindow(inDays(120), now)).to.equal(false);
+    expect(isWithinRenewalNoticeWindow(undefined, now)).to.equal(false);
+  });
+
+  it('should build the subscription_will_renew scope', () => {
+    const scope = buildSubscriptionWillRenewScope({
+      invoice: {
+        next_payment_attempt: 1767225600, // 1 January 2026
+        amount_due: 9999,
+        currency: 'eur',
+      },
+      customer: { name: 'Pierre-Gilles Leymarie' },
+      language: 'fr',
+      account: { plan: 'plus', stripe_portal_key: 'portal-key' },
+    });
+
+    expect(scope.firstname).to.equal('Pierre-Gilles');
+    expect(scope.renewalDate).to.equal('1 janvier 2026');
+    expect(scope.amount).to.equal('99,99\u00a0€');
+    expect(scope.planName).to.equal('Plus');
+    expect(scope.planBenefits).to.have.length.above(0);
+    expect(scope.manageSubscriptionLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
+  });
+
+  it('should detect recent renewal reminder emails in the database', async () => {
+    const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+
+    const hasRecentBefore = await hasRecentRenewalReminderEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentBefore).to.equal(false);
+
+    await TEST_DATABASE_INSTANCE.t_account_payment_activity.insert({
+      stripe_event: 'invoice.upcoming',
+      account_id: accountId,
+      amount_paid: 0,
+      closed: false,
+      currency: 'eur',
+      params: {},
+    });
+
+    const hasRecentAfter = await hasRecentRenewalReminderEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentAfter).to.equal(true);
   });
 
   it('should detect recent payment failed emails in the database', async () => {

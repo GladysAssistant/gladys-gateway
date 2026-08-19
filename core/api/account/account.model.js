@@ -11,10 +11,16 @@ const {
 
 const {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
+  getInvoiceInterval,
+  getRenewalDate,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
+  isSubscriptionTrialing,
+  isWithinRenewalNoticeWindow,
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
@@ -697,6 +703,80 @@ module.exports = function AccountModel(
           email,
           language,
         });
+        break;
+      }
+
+      case 'invoice.upcoming': {
+        const invoice = event.data.object;
+
+        // Article L. 215-1 of the French consumer code: for a subscription with
+        // tacit renewal, the customer must be told they may decide not to renew,
+        // between three months and one month before the term. That window can
+        // only exist on a yearly subscription — a monthly one is cancellable at
+        // any time in one click, and a reminder every month would be spam.
+        let interval = getInvoiceInterval(invoice);
+        const subscriptionId = invoice.subscription || account.stripe_subscription_id;
+        let subscription = null;
+
+        // Fetched as soon as this could be a yearly renewal: the subscription
+        // carries both the interval, when the invoice does not, and the trial
+        // state, which `account.status` cannot be trusted for (a checkout
+        // account is inserted as `active` even while Stripe still has it
+        // trialing).
+        if ((!interval || interval === 'year') && subscriptionId) {
+          subscription = await stripeService.getSubscription(subscriptionId);
+          interval = interval || subscription?.items?.data?.[0]?.price?.recurring?.interval || null;
+        }
+
+        if (interval !== 'year') {
+          break;
+        }
+
+        // The first charge at the end of a trial is not a tacit renewal.
+        if (isSubscriptionTrialing(subscription)) {
+          break;
+        }
+
+        // An event arriving too close to the renewal cannot be the legal notice.
+        // Better to send nothing and leave the gap visible than to record a
+        // reminder that does not satisfy L. 215-1.
+        if (!isWithinRenewalNoticeWindow(getRenewalDate(invoice))) {
+          logger.warn(
+            `Stripe Webhook: invoice.upcoming received outside the renewal notice window for account ${account.id}. ` +
+              `Raise "Upcoming renewal events" in the Stripe dashboard to at least 30 days.`,
+          );
+          break;
+        }
+
+        // Stripe retries webhooks, and the reminder must go out once per renewal.
+        const alreadyReminded = await hasRecentRenewalReminderEmail(db, account.id);
+
+        if (language && email && !alreadyReminded) {
+          const customer = await stripeService.getCustomer(invoice.customer);
+          const subscriptionWillRenewScope = buildSubscriptionWillRenewScope({
+            invoice,
+            customer,
+            language,
+            account,
+          });
+          await mailService.send({ email, language }, 'subscription_will_renew', subscriptionWillRenewScope);
+
+          // Written only once the email actually went out: this row is what
+          // proves the notice was given, and what suppresses the next retry. A
+          // failed send throws before this point, so Stripe retries and the
+          // reminder is sent again rather than being silently skipped.
+          await db.t_account_payment_activity.insert({
+            stripe_event: event.type,
+            account_id: account.id,
+            hosted_invoice_url: invoice.hosted_invoice_url,
+            invoice_pdf: invoice.invoice_pdf,
+            amount_paid: invoice.amount_paid,
+            closed: invoice.closed,
+            currency: invoice.currency,
+            params: event,
+          });
+        }
+
         break;
       }
 

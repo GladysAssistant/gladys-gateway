@@ -33,6 +33,8 @@ app.get('/:template_name/:language', (req, res) => {
         'Streaming caméra à distance',
         'Intégrations avancées (IA, Enedis, MCP)',
       ],
+      renewalDate: '25 juin 2026',
+      manageSubscriptionLink: 'http://gladysassistant.com',
       attemptDate: '22 juin 2026',
       nextRetryDate: '25 juin 2026',
       hostedInvoiceUrl: 'https://invoice.stripe.com/example',

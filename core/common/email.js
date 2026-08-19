@@ -62,6 +62,16 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome_back.ejs`, 'utf8')),
     },
   },
+  subscription_will_renew: {
+    en: {
+      subject: 'Your Gladys Plus subscription renews soon',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/subscription_will_renew.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton abonnement Gladys Plus se renouvelle bientôt',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/subscription_will_renew.ejs`, 'utf8')),
+    },
+  },
   trial_will_end: {
     en: {
       subject: 'Your Gladys Plus trial is ending soon, keep your backups running',

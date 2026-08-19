@@ -1009,6 +1009,60 @@ describe('stripeWebhook', () => {
       });
     });
 
+    function buildUpcomingInvoiceEvent({ id, interval }) {
+      return {
+        id,
+        object: 'event',
+        type: 'invoice.upcoming',
+        data: {
+          object: {
+            customer: 'cus',
+            subscription: 'sub',
+            amount_due: 9999,
+            amount_paid: 0,
+            currency: 'eur',
+            closed: false,
+            next_payment_attempt: Math.floor(Date.now() / 1000) + 45 * 24 * 60 * 60,
+            lines: {
+              data: [
+                {
+                  price: {
+                    unit_amount: 9999,
+                    currency: 'eur',
+                    recurring: { interval },
+                    product: 'plus-plan-id',
+                  },
+                },
+              ],
+            },
+          },
+        },
+      };
+    }
+
+    it('should ignore invoice.upcoming for a monthly subscription', async () => {
+      await sendStripeWebhook(buildUpcomingInvoiceEvent({ id: 'evt_upcoming_monthly', interval: 'month' }));
+
+      const activities = await TEST_DATABASE_INSTANCE.t_account_payment_activity.find({
+        account_id: accountId,
+        stripe_event: 'invoice.upcoming',
+      });
+
+      expect(activities).to.have.lengthOf(0);
+    });
+
+    it('should record a renewal reminder on invoice.upcoming for a yearly subscription', async () => {
+      await sendStripeWebhook(buildUpcomingInvoiceEvent({ id: 'evt_upcoming_yearly', interval: 'year' }));
+
+      const activities = await TEST_DATABASE_INSTANCE.t_account_payment_activity.find({
+        account_id: accountId,
+        stripe_event: 'invoice.upcoming',
+      });
+
+      expect(activities).to.have.lengthOf(1);
+      expect(activities[0]).to.have.property('currency', 'eur');
+    });
+
     it('should record payment_failed activity and deduplicate emails within 24 hours', async () => {
       const paymentFailedEvent = {
         id: 'evt_payment_failed',

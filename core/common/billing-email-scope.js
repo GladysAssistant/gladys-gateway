@@ -188,6 +188,54 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
   };
 }
 
+function getRenewalDate(invoice) {
+  return invoice.next_payment_attempt || invoice.period_end || invoice.lines?.data?.[0]?.period?.end;
+}
+
+/**
+ * Billing interval of an upcoming invoice, when the invoice carries it. Returns
+ * null when it can't be read, so the caller can fall back to the subscription.
+ */
+function getInvoiceInterval(invoice) {
+  return invoice.lines?.data?.[0]?.price?.recurring?.interval || null;
+}
+
+function buildSubscriptionWillRenewScope({ invoice, customer, language, account }) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const planName = account.plan === 'lite' ? 'Lite' : 'Plus';
+
+  return {
+    firstname: extractFirstname(customer?.name),
+    renewalDate: formatBillingDate(getRenewalDate(invoice), normalizedLanguage),
+    amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
+    planName,
+    planBenefits: getPlanBenefits(planName, normalizedLanguage),
+    manageSubscriptionLink: buildUpdateCardLink(account),
+    loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+  };
+}
+
+/**
+ * Article L. 215-1 of the French consumer code requires the reminder to be sent
+ * once per renewal, and Stripe retries webhooks: a reminder already recorded for
+ * this account in the last 90 days is a duplicate, since only yearly
+ * subscriptions get one.
+ */
+async function hasRecentRenewalReminderEmail(db, accountId) {
+  const ninetyDaysAgo = new Date(Date.now() - 90 * ONE_DAY_IN_MS);
+  const recent = await db.query(
+    `SELECT id FROM t_account_payment_activity
+     WHERE account_id = $1
+       AND stripe_event = 'invoice.upcoming'
+       AND created_at > $2
+       AND is_deleted = false
+     LIMIT 1`,
+    [accountId, ninetyDaysAgo],
+  );
+
+  return recent.length > 0;
+}
+
 async function hasRecentPaymentFailedEmail(db, accountId) {
   const twentyFourHoursAgo = new Date(Date.now() - ONE_DAY_IN_MS);
   const recent = await db.query(
@@ -205,6 +253,7 @@ async function hasRecentPaymentFailedEmail(db, accountId) {
 
 module.exports = {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
@@ -214,6 +263,9 @@ module.exports = {
   getPlanBenefits,
   getPlanName,
   getPlanProductName,
+  getInvoiceInterval,
+  getRenewalDate,
   getWelcomeSteps,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
 };

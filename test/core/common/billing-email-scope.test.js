@@ -2,6 +2,7 @@ const { expect } = require('chai');
 
 const {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
@@ -11,8 +12,11 @@ const {
   getPlanBenefits,
   getPlanName,
   getPlanProductName,
+  getInvoiceInterval,
+  getRenewalDate,
   getWelcomeSteps,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
 } = require('../../../core/common/billing-email-scope');
 
 describe('billing-email-scope', () => {
@@ -195,6 +199,59 @@ describe('billing-email-scope', () => {
     expect(scope.nextRetryDate).to.equal('');
     expect(scope.hostedInvoiceUrl).to.equal('');
     expect(scope.planName).to.equal('Plus');
+  });
+
+  it('should read the billing interval of an upcoming invoice', () => {
+    expect(getInvoiceInterval({ lines: { data: [{ price: { recurring: { interval: 'year' } } }] } })).to.equal('year');
+    expect(getInvoiceInterval({ lines: { data: [{ price: { recurring: { interval: 'month' } } }] } })).to.equal(
+      'month',
+    );
+    expect(getInvoiceInterval({})).to.equal(null);
+  });
+
+  it('should read the renewal date of an upcoming invoice, whichever field carries it', () => {
+    expect(getRenewalDate({ next_payment_attempt: 1700000000, period_end: 1600000000 })).to.equal(1700000000);
+    expect(getRenewalDate({ period_end: 1600000000 })).to.equal(1600000000);
+    expect(getRenewalDate({ lines: { data: [{ period: { end: 1500000000 } }] } })).to.equal(1500000000);
+  });
+
+  it('should build the subscription_will_renew scope', () => {
+    const scope = buildSubscriptionWillRenewScope({
+      invoice: {
+        next_payment_attempt: 1767225600, // 1 January 2026
+        amount_due: 9999,
+        currency: 'eur',
+      },
+      customer: { name: 'Pierre-Gilles Leymarie' },
+      language: 'fr',
+      account: { plan: 'plus', stripe_portal_key: 'portal-key' },
+    });
+
+    expect(scope.firstname).to.equal('Pierre-Gilles');
+    expect(scope.renewalDate).to.equal('1 janvier 2026');
+    expect(scope.amount).to.equal('99,99\u00a0€');
+    expect(scope.planName).to.equal('Plus');
+    expect(scope.planBenefits).to.have.length.above(0);
+    expect(scope.manageSubscriptionLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
+  });
+
+  it('should detect recent renewal reminder emails in the database', async () => {
+    const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+
+    const hasRecentBefore = await hasRecentRenewalReminderEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentBefore).to.equal(false);
+
+    await TEST_DATABASE_INSTANCE.t_account_payment_activity.insert({
+      stripe_event: 'invoice.upcoming',
+      account_id: accountId,
+      amount_paid: 0,
+      closed: false,
+      currency: 'eur',
+      params: {},
+    });
+
+    const hasRecentAfter = await hasRecentRenewalReminderEmail(TEST_DATABASE_INSTANCE, accountId);
+    expect(hasRecentAfter).to.equal(true);
   });
 
   it('should detect recent payment failed emails in the database', async () => {

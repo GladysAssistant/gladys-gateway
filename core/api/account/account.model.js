@@ -11,10 +11,13 @@ const {
 
 const {
   buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
   buildWelcomeScope,
   extractFirstname,
+  getInvoiceInterval,
   hasRecentPaymentFailedEmail,
+  hasRecentRenewalReminderEmail,
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
@@ -697,6 +700,52 @@ module.exports = function AccountModel(
           email,
           language,
         });
+        break;
+      }
+
+      case 'invoice.upcoming': {
+        const invoice = event.data.object;
+
+        // Article L. 215-1 of the French consumer code: for a subscription with
+        // tacit renewal, the customer must be told they can decide not to renew,
+        // between three months and one month before the term. That window can
+        // only exist on a yearly subscription — a monthly one is cancellable at
+        // any time in one click, and a reminder every month would be spam.
+        let interval = getInvoiceInterval(invoice);
+        if (!interval && invoice.subscription) {
+          const subscription = await stripeService.getSubscription(invoice.subscription);
+          interval = subscription?.items?.data?.[0]?.price?.recurring?.interval || null;
+        }
+
+        if (interval !== 'year') {
+          break;
+        }
+
+        // Stripe retries webhooks, and the reminder must go out once per renewal.
+        const shouldSendRenewalReminderEmail = !(await hasRecentRenewalReminderEmail(db, account.id));
+
+        await db.t_account_payment_activity.insert({
+          stripe_event: event.type,
+          account_id: account.id,
+          hosted_invoice_url: invoice.hosted_invoice_url,
+          invoice_pdf: invoice.invoice_pdf,
+          amount_paid: invoice.amount_paid,
+          closed: invoice.closed,
+          currency: invoice.currency,
+          params: event,
+        });
+
+        if (language && email && shouldSendRenewalReminderEmail) {
+          const customer = await stripeService.getCustomer(invoice.customer);
+          const subscriptionWillRenewScope = buildSubscriptionWillRenewScope({
+            invoice,
+            customer,
+            language,
+            account,
+          });
+          await mailService.send({ email, language }, 'subscription_will_renew', subscriptionWillRenewScope);
+        }
+
         break;
       }
 

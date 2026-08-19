@@ -16,8 +16,10 @@ const {
   buildWelcomeScope,
   extractFirstname,
   getInvoiceInterval,
+  getRenewalDate,
   hasRecentPaymentFailedEmail,
   hasRecentRenewalReminderEmail,
+  isWithinRenewalNoticeWindow,
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
@@ -707,7 +709,7 @@ module.exports = function AccountModel(
         const invoice = event.data.object;
 
         // Article L. 215-1 of the French consumer code: for a subscription with
-        // tacit renewal, the customer must be told they can decide not to renew,
+        // tacit renewal, the customer must be told they may decide not to renew,
         // between three months and one month before the term. That window can
         // only exist on a yearly subscription — a monthly one is cancellable at
         // any time in one click, and a reminder every month would be spam.
@@ -721,21 +723,21 @@ module.exports = function AccountModel(
           break;
         }
 
+        // An event arriving too close to the renewal cannot be the legal notice.
+        // Better to send nothing and leave the gap visible than to record a
+        // reminder that does not satisfy L. 215-1.
+        if (!isWithinRenewalNoticeWindow(getRenewalDate(invoice))) {
+          logger.warn(
+            `Stripe Webhook: invoice.upcoming received outside the renewal notice window for account ${account.id}. ` +
+              `Raise "Upcoming renewal events" in the Stripe dashboard to at least 30 days.`,
+          );
+          break;
+        }
+
         // Stripe retries webhooks, and the reminder must go out once per renewal.
-        const shouldSendRenewalReminderEmail = !(await hasRecentRenewalReminderEmail(db, account.id));
+        const alreadyReminded = await hasRecentRenewalReminderEmail(db, account.id);
 
-        await db.t_account_payment_activity.insert({
-          stripe_event: event.type,
-          account_id: account.id,
-          hosted_invoice_url: invoice.hosted_invoice_url,
-          invoice_pdf: invoice.invoice_pdf,
-          amount_paid: invoice.amount_paid,
-          closed: invoice.closed,
-          currency: invoice.currency,
-          params: event,
-        });
-
-        if (language && email && shouldSendRenewalReminderEmail) {
+        if (language && email && !alreadyReminded) {
           const customer = await stripeService.getCustomer(invoice.customer);
           const subscriptionWillRenewScope = buildSubscriptionWillRenewScope({
             invoice,
@@ -744,6 +746,21 @@ module.exports = function AccountModel(
             account,
           });
           await mailService.send({ email, language }, 'subscription_will_renew', subscriptionWillRenewScope);
+
+          // Written only once the email actually went out: this row is what
+          // proves the notice was given, and what suppresses the next retry. A
+          // failed send throws before this point, so Stripe retries and the
+          // reminder is sent again rather than being silently skipped.
+          await db.t_account_payment_activity.insert({
+            stripe_event: event.type,
+            account_id: account.id,
+            hosted_invoice_url: invoice.hosted_invoice_url,
+            invoice_pdf: invoice.invoice_pdf,
+            amount_paid: invoice.amount_paid,
+            closed: invoice.closed,
+            currency: invoice.currency,
+            params: event,
+          });
         }
 
         break;

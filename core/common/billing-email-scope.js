@@ -188,8 +188,39 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
   };
 }
 
+/**
+ * Date the subscription renews, on an upcoming invoice. `next_payment_attempt`
+ * is the charge date when Stripe collects automatically. The fallbacks are the
+ * START of the period being invoiced — its end is one term later, a year off
+ * for a yearly subscription.
+ */
 function getRenewalDate(invoice) {
-  return invoice.next_payment_attempt || invoice.period_end || invoice.lines?.data?.[0]?.period?.end;
+  return invoice.next_payment_attempt || invoice.period_start || invoice.lines?.data?.[0]?.period?.start;
+}
+
+/**
+ * Article L. 215-1 of the French consumer code wants the notice sent between
+ * three months and one month before the term. Stripe fires `invoice.upcoming`
+ * as many days ahead as the "Upcoming renewal events" Dashboard setting says,
+ * so an event can perfectly well arrive a few days before the renewal — early
+ * enough to be a courtesy heads-up, too late to be the legal notice. Sending
+ * then, and recording it as if the notice had been given, is worse than not
+ * sending: it hides the gap.
+ *
+ * The lower bound keeps two days of slack, because the event fires on a daily
+ * schedule rather than to the second.
+ */
+const MINIMUM_NOTICE_DAYS = 28;
+const MAXIMUM_NOTICE_DAYS = 92;
+
+function isWithinRenewalNoticeWindow(renewalTimestamp, now = Date.now()) {
+  if (!renewalTimestamp) {
+    return false;
+  }
+
+  const daysUntilRenewal = (renewalTimestamp * 1000 - now) / ONE_DAY_IN_MS;
+
+  return daysUntilRenewal >= MINIMUM_NOTICE_DAYS && daysUntilRenewal <= MAXIMUM_NOTICE_DAYS;
 }
 
 /**
@@ -265,6 +296,7 @@ module.exports = {
   getPlanProductName,
   getInvoiceInterval,
   getRenewalDate,
+  isWithinRenewalNoticeWindow,
   getWelcomeSteps,
   hasRecentPaymentFailedEmail,
   hasRecentRenewalReminderEmail,

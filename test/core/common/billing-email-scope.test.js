@@ -15,6 +15,7 @@ const {
   getInvoiceInterval,
   getRenewalDate,
   getWelcomeSteps,
+  isWithinRenewalNoticeWindow,
   hasRecentPaymentFailedEmail,
   hasRecentRenewalReminderEmail,
 } = require('../../../core/common/billing-email-scope');
@@ -209,10 +210,27 @@ describe('billing-email-scope', () => {
     expect(getInvoiceInterval({})).to.equal(null);
   });
 
-  it('should read the renewal date of an upcoming invoice, whichever field carries it', () => {
-    expect(getRenewalDate({ next_payment_attempt: 1700000000, period_end: 1600000000 })).to.equal(1700000000);
-    expect(getRenewalDate({ period_end: 1600000000 })).to.equal(1600000000);
-    expect(getRenewalDate({ lines: { data: [{ period: { end: 1500000000 } }] } })).to.equal(1500000000);
+  it('should read the renewal date of an upcoming invoice, never the end of the next term', () => {
+    expect(getRenewalDate({ next_payment_attempt: 1700000000, period_start: 1600000000 })).to.equal(1700000000);
+    // The period END of an upcoming invoice is one term later: on a yearly
+    // subscription it would show a date a year after the actual renewal.
+    expect(getRenewalDate({ period_start: 1600000000, period_end: 1631536000 })).to.equal(1600000000);
+    expect(getRenewalDate({ lines: { data: [{ period: { start: 1500000000, end: 1531536000 } }] } })).to.equal(
+      1500000000,
+    );
+  });
+
+  it('should only accept renewals inside the legal notice window', () => {
+    const now = Date.now();
+    const inDays = (days) => Math.floor((now + days * 24 * 60 * 60 * 1000) / 1000);
+
+    expect(isWithinRenewalNoticeWindow(inDays(45), now)).to.equal(true);
+    expect(isWithinRenewalNoticeWindow(inDays(30), now)).to.equal(true);
+    expect(isWithinRenewalNoticeWindow(inDays(90), now)).to.equal(true);
+    // Too late to be the L. 215-1 notice, or so early it is not this renewal.
+    expect(isWithinRenewalNoticeWindow(inDays(5), now)).to.equal(false);
+    expect(isWithinRenewalNoticeWindow(inDays(120), now)).to.equal(false);
+    expect(isWithinRenewalNoticeWindow(undefined, now)).to.equal(false);
   });
 
   it('should build the subscription_will_renew scope', () => {

@@ -122,4 +122,22 @@ describe('POST /enedis/finalize', () => {
       .expect(200);
     expect(response.body.usage_points_id).to.include('16401220101720');
   });
+  it('should fail when the authorization resolves to no usage point', async () => {
+    mockAccessTokenRefresh();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .post('/subscribed_services/v1', (body) => body.autorisationId === 'emptyAutorisationId')
+      .reply(200, {
+        nbTotalServices: 0,
+        services: [],
+      });
+    await request(TEST_BACKEND_APP)
+      .post('/enedis/finalize')
+      .send({
+        autorisation_id: 'emptyAutorisationId',
+        state: 'someState',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(500);
+  });
 });

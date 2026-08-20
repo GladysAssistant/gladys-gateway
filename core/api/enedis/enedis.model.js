@@ -8,6 +8,7 @@ const {
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
   ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
 } = require('../../enedis/enedis.constants');
+const { ServerError } = require('../../common/error');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
@@ -125,6 +126,14 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
     // we need to exchange the autorisation_id for the usage points ids (PRM)
     // with the Enedis "services souscrits" API
     const usagePointsIds = await enedisCoreModel.getUsagePointsFromAuthorization(accountId, autorisationId);
+
+    // An authorization that resolves to no meter means the consent was not usable:
+    // fail instead of returning a success with the meters already linked, which
+    // would hide the problem while the authorization id is consumed.
+    if (usagePointsIds.length === 0) {
+      logger.warn(`Enedis.handleAcceptAuthorization: no usage point found for user ${user.id}`);
+      throw new ServerError();
+    }
 
     // Save usage points ids
     await Promise.each(usagePointsIds, async (usagePointId) => {

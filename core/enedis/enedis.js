@@ -55,11 +55,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
   const requestLogger = (request) =>
     AxiosLogger.requestLogger(request, {
+      data: false,
       logger: logger.info.bind(this),
     });
 
   const errorLogger = (error) =>
     AxiosLogger.errorLogger(error, {
+      data: false,
       logger: logger.warn.bind(this),
     });
 
@@ -164,6 +166,16 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       services = Array.isArray(response) ? response : [];
     }
     const usagePointsIds = [...new Set(services.map((service) => service.pointId).filter(Boolean))];
+    if (usagePointsIds.length === 0) {
+      // The subscribed services schema is not published by Enedis, so a wrapping or
+      // field mismatch would silently look like a consent without any meter.
+      // Log the response keys (never the payload) to be able to spot the mismatch.
+      const responseKeys = response && typeof response === 'object' ? Object.keys(response) : [];
+      logger.warn(
+        `Enedis - no usage point found in the subscribed services response for account ${accountId}. ` +
+          `Response keys: ${responseKeys.join(', ')}`,
+      );
+    }
     return usagePointsIds;
   }
   async function increaseSyncJobDone(syncId) {

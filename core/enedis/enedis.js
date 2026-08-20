@@ -179,10 +179,15 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       },
       accessToken,
     );
-    // The services list can be at the root of the response or nested under "services"
-    let services = get(response, 'services');
-    if (!services) {
-      services = Array.isArray(response) ? response : [];
+    // The services list can be at the root of the response or nested under "services".
+    // Anything else is treated as an empty list so a schema mismatch surfaces as the
+    // warning below rather than a TypeError.
+    const nestedServices = get(response, 'services');
+    let services = [];
+    if (Array.isArray(response)) {
+      services = response;
+    } else if (Array.isArray(nestedServices)) {
+      services = nestedServices;
     }
     const usagePointsIds = [...new Set(services.map((service) => service.pointId).filter(Boolean))];
     if (usagePointsIds.length === 0) {

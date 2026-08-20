@@ -58,8 +58,13 @@ module.exports = function EnedisController(logger, enedisModel) {
       }
       res.json(usagePoints);
     } catch (e) {
-      logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}`);
-      logger.error(e);
+      // Never log the error object itself here: an axios error carries the request body
+      // in config.data, which would put the authorization id in the logs.
+      const status = get(e, 'response.status');
+      logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}, status = ${status || 'none'}, ${e.message}`);
+      if (!status) {
+        logger.error(e.stack);
+      }
       throw parseError(e);
     }
   }

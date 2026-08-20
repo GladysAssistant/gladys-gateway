@@ -95,4 +95,31 @@ describe('POST /enedis/finalize', () => {
       .expect(200);
     expect(secondResponse.body.usage_points_id).to.have.members(['16401220101758', '16401220101710']);
   });
+  it('should handle a subscribed services response returned as a bare array', async () => {
+    mockAccessTokenRefresh();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .post('/subscribed_services/v1', (body) => body.autorisationId === 'bareArrayAutorisationId')
+      .reply(200, [
+        {
+          id: 4,
+          pointId: '16401220101720',
+          serviceCode: 'ACCES',
+          etatCode: 'ACTIF',
+          soutirage: true,
+          injection: false,
+          mesuresTypeCode: 'ENERGIE',
+        },
+      ]);
+    const response = await request(TEST_BACKEND_APP)
+      .post('/enedis/finalize')
+      .send({
+        autorisation_id: 'bareArrayAutorisationId',
+        state: 'someState',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body.usage_points_id).to.include('16401220101720');
+  });
 });

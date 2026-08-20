@@ -47,11 +47,24 @@ module.exports = function EnedisController(logger, enedisModel) {
   async function finalize(req, res) {
     logger.info(`Enedis.finalize`);
     try {
-      const usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user, req.body.usage_points_id);
+      let usagePoints;
+      if (req.body.autorisation_id) {
+        // New DataConnect 2026 flow: the redirect URL contains an autorisation_id
+        // to exchange for the usage points ids (PRM)
+        usagePoints = await enedisModel.handleAcceptAuthorization(req.body.autorisation_id, req.user);
+      } else {
+        // Legacy flow: the redirect URL contains an OAuth code and the usage points ids
+        usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user, req.body.usage_points_id);
+      }
       res.json(usagePoints);
     } catch (e) {
-      logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}`);
-      logger.error(e);
+      // Never log the error object itself here: an axios error carries the request body
+      // in config.data, which would put the authorization id in the logs.
+      const status = get(e, 'response.status');
+      logger.error(`ENEDIS_FINALIZE_ERROR, user_id = ${req.user.id}, status = ${status || 'none'}, ${e.message}`);
+      if (!status) {
+        logger.error(e.stack);
+      }
       throw parseError(e);
     }
   }

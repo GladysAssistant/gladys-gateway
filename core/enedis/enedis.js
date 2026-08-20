@@ -24,6 +24,25 @@ const {
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
+// Enedis is replacing the DataConnect APIs in 2026. Both generations are served by the
+// same host, so the switch is a runtime decision: deploying this code changes nothing
+// until ENEDIS_USE_2026_APIS is turned on, and turning it back off rolls back instantly.
+// Read at call time so the value can be flipped without recreating the model.
+const use2026Apis = () => process.env.ENEDIS_USE_2026_APIS === 'true';
+
+const ENDPOINTS = {
+  legacy: {
+    dailyConsumption: '/metering_data_dc/v5/daily_consumption',
+    consumptionLoadCurve: '/metering_data_clc/v5/consumption_load_curve',
+  },
+  v2026: {
+    dailyConsumption: '/mesure_synchrone_auto/v1/metering_data/daily_consumption',
+    consumptionLoadCurve: '/mesure_synchrone_auto/v1/metering_data/consumption_load_curve',
+  },
+};
+
+const getEndpoint = (name) => (use2026Apis() ? ENDPOINTS.v2026[name] : ENDPOINTS.legacy[name]);
+
 const getDevicesWithEnedisActivated = `
         SELECT DISTINCT t_user.id, t_user.account_id, 
         t_device.id as device_id, t_device.provider_refresh_token
@@ -55,11 +74,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
   const requestLogger = (request) =>
     AxiosLogger.requestLogger(request, {
+      data: false,
       logger: logger.info.bind(this),
     });
 
   const errorLogger = (error) =>
     AxiosLogger.errorLogger(error, {
+      data: false,
       logger: logger.warn.bind(this),
     });
 
@@ -128,6 +149,59 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const { data } = await axiosInstance(options);
     return data;
   }
+  async function makePostRequest(url, body, accessToken) {
+    const options = {
+      method: 'POST',
+      data: body,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      url: `https://${ENEDIS_BACKEND_URL}${url}`,
+    };
+    const { data } = await axiosInstance(options);
+    return data;
+  }
+  async function getUsagePointsFromAuthorization(accountId, autorisationId) {
+    logger.info(`Enedis - get usage points from authorization for account ${accountId}`);
+    const accessToken = await getAccessToken(accountId);
+    // New DataConnect 2026 flow: the consent callback returns an autorisation_id
+    // that needs to be exchanged against the PRM (usage point id) with the
+    // "services souscrits" API.
+    const response = await makePostRequest(
+      '/subscribed_services/v1',
+      {
+        autorisationId,
+        serviceType: 'ACCES',
+        etatCode: ['ACTIF'],
+        comptage: false,
+      },
+      accessToken,
+    );
+    // The services list can be at the root of the response or nested under "services".
+    // Anything else is treated as an empty list so a schema mismatch surfaces as the
+    // warning below rather than a TypeError.
+    const nestedServices = get(response, 'services');
+    let services = [];
+    if (Array.isArray(response)) {
+      services = response;
+    } else if (Array.isArray(nestedServices)) {
+      services = nestedServices;
+    }
+    const usagePointsIds = [...new Set(services.map((service) => service.pointId).filter(Boolean))];
+    if (usagePointsIds.length === 0) {
+      // The subscribed services schema is not published by Enedis, so a wrapping or
+      // field mismatch would silently look like a consent without any meter.
+      // Log the response keys (never the payload) to be able to spot the mismatch.
+      const responseKeys = response && typeof response === 'object' ? Object.keys(response) : [];
+      logger.warn(
+        `Enedis - no usage point found in the subscribed services response for account ${accountId}. ` +
+          `Response keys: ${responseKeys.join(', ')}`,
+      );
+    }
+    return usagePointsIds;
+  }
   async function increaseSyncJobDone(syncId) {
     const updateSyncQuery = `
       UPDATE t_enedis_sync
@@ -147,7 +221,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/metering_data_dc/v5/daily_consumption', data, accessToken);
+      response = await makeRequest(getEndpoint('dailyConsumption'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -190,7 +264,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/metering_data_clc/v5/consumption_load_curve', data, accessToken);
+      response = await makeRequest(getEndpoint('consumptionLoadCurve'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -232,6 +306,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     if (devices.length === 0) {
       logger.warn(`Forbidden: Enedis Oauth process was not done`);
       throw new ForbiddenError();
+    }
+    if (use2026Apis()) {
+      // Contractual summary API: the activation date is a flat field
+      const response = await makeRequest(`/synth_contrat_auto/v1/${usagePointId}`, {}, accessToken);
+      return {
+        lastActivationDate: get(response, 'consumption_last_activation_date'),
+      };
     }
     const data = {
       usage_point_id: usagePointId,
@@ -380,7 +461,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   return {
     queue,
     makeRequest,
+    makePostRequest,
     getAccessToken,
+    getUsagePointsFromAuthorization,
     getDataDailyConsumption,
     getConsumptionLoadCurve,
     getContract,

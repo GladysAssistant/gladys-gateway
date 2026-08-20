@@ -8,10 +8,11 @@ const {
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
   ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
 } = require('../../enedis/enedis.constants');
+const { ServerError } = require('../../common/error');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
-module.exports = function EnedisModel(logger, db, redisClient) {
+module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_AUTHORIZE_URL } = process.env;
 
   const queue = new Queue(ENEDIS_WORKER_KEY, {
@@ -49,8 +50,21 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     );
   }
 
-  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
-    logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
+  async function getPrimaryAccountId(user) {
+    const getInstanceIdByUserId = `
+      SELECT t_instance.id, t_instance.account_id
+      FROM t_user
+      INNER JOIN t_account ON t_account.id = t_user.account_id
+      INNER JOIN t_instance ON t_instance.account_id = t_account.id
+      WHERE t_user.id = $1
+      AND t_instance.primary_instance = true
+      AND t_instance.is_deleted = false;
+    `;
+    const instances = await db.query(getInstanceIdByUserId, [user.id]);
+    return instances.length > 0 ? instances[0].account_id : null;
+  }
+
+  async function resetEnedisDevicesAndCreateNew(user) {
     // Delete all devices that could exist prior to this operation
     await db.t_device.update(
       {
@@ -73,7 +87,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       WHERE t_user.id = $1
       AND t_instance.primary_instance = true
       AND t_instance.is_deleted = false;
-      
+
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
 
@@ -91,13 +105,111 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
     await db.t_device.insert(newDevice);
 
+    return instances.length > 0 ? instances[0].account_id : null;
+  }
+
+  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
+    logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
+    const accountId = await resetEnedisDevicesAndCreateNew(user);
+
     // Save usage points ids
     await Promise.each(usagePointsIds, async (usagePointId) => {
-      await saveUsagePointIfNotExist(instances[0].account_id, usagePointId);
+      await saveUsagePointIfNotExist(accountId, usagePointId);
     });
 
     return {
       usage_points_id: usagePointsIds,
+    };
+  }
+
+  async function getUsagePointsOfAccount(accountId) {
+    const getUsagePointsSql = `
+      SELECT usage_point_id
+      FROM t_enedis_usage_point
+      WHERE account_id = $1;
+    `;
+    const rows = await db.query(getUsagePointsSql, [accountId]);
+    return rows.map((row) => row.usage_point_id);
+  }
+
+  async function handleAcceptAuthorization(autorisationId, user) {
+    logger.info(`Enedis.handleAcceptAuthorization : ${user.id}`);
+    const accountId = await getPrimaryAccountId(user);
+
+    // Devices that were linked before this consent. They are only revoked once the
+    // new authorization is confirmed, so a failed exchange cannot leave the account
+    // without a working Enedis connection.
+    const previousDevices = await db.t_device.find(
+      {
+        client_id: ENEDIS_GRANT_CLIENT_ID,
+        user_id: user.id,
+        revoked: false,
+        is_deleted: false,
+      },
+      {
+        fields: ['id'],
+      },
+    );
+
+    // A device is needed before the exchange: it is what allows an access token
+    // to be minted for this account.
+    const newDevice = {
+      id: uuid.v4(),
+      name: 'Enedis',
+      client_id: ENEDIS_GRANT_CLIENT_ID,
+      user_id: user.id,
+    };
+    await db.t_device.insert(newDevice);
+
+    // Clearing the cached access token is not destructive: it is only a cache and the
+    // token can always be minted again. Unlike the devices, it can be cleared upfront.
+    if (accountId) {
+      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${accountId}`);
+    }
+
+    let usagePointsIds;
+    try {
+      // New DataConnect 2026 flow: the redirect URL no longer contains the usage points ids,
+      // we need to exchange the autorisation_id for the usage points ids (PRM)
+      // with the Enedis "services souscrits" API
+      usagePointsIds = await enedisCoreModel.getUsagePointsFromAuthorization(accountId, autorisationId);
+
+      // An authorization that resolves to no meter means the consent was not usable:
+      // fail instead of returning a success with the meters already linked, which
+      // would hide the problem while the authorization id is consumed.
+      if (usagePointsIds.length === 0) {
+        logger.warn(`Enedis.handleAcceptAuthorization: no usage point found for user ${user.id}`);
+        throw new ServerError();
+      }
+    } catch (e) {
+      // Roll back the device created for this attempt, leaving the previous connection intact
+      await db.t_device.update(newDevice.id, {
+        revoked: true,
+        is_deleted: true,
+      });
+      throw e;
+    }
+
+    // The new authorization is confirmed, the previous devices can be replaced
+    await Promise.each(previousDevices, async (previousDevice) => {
+      await db.t_device.update(previousDevice.id, {
+        revoked: true,
+        is_deleted: true,
+      });
+    });
+
+    // Save usage points ids
+    await Promise.each(usagePointsIds, async (usagePointId) => {
+      await saveUsagePointIfNotExist(accountId, usagePointId);
+    });
+
+    // The new flow only allows the customer to consent for one PRM at a time,
+    // so we return all the usage points of the account (previously linked ones included)
+    // to avoid dropping previously linked meters on the client side
+    const allUsagePointsIds = await getUsagePointsOfAccount(accountId);
+
+    return {
+      usage_points_id: allUsagePointsIds,
     };
   }
 
@@ -173,6 +285,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
   return {
     handleAcceptGrantMessage,
+    handleAcceptAuthorization,
     getRedirectUri,
     getDailyConsumption,
     getConsumptionLoadCurve,

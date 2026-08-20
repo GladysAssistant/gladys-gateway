@@ -24,6 +24,25 @@ const {
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
+// Enedis is replacing the DataConnect APIs in 2026. Both generations are served by the
+// same host, so the switch is a runtime decision: deploying this code changes nothing
+// until ENEDIS_USE_2026_APIS is turned on, and turning it back off rolls back instantly.
+// Read at call time so the value can be flipped without recreating the model.
+const use2026Apis = () => process.env.ENEDIS_USE_2026_APIS === 'true';
+
+const ENDPOINTS = {
+  legacy: {
+    dailyConsumption: '/metering_data_dc/v5/daily_consumption',
+    consumptionLoadCurve: '/metering_data_clc/v5/consumption_load_curve',
+  },
+  v2026: {
+    dailyConsumption: '/mesure_synchrone_auto/v1/metering_data/daily_consumption',
+    consumptionLoadCurve: '/mesure_synchrone_auto/v1/metering_data/consumption_load_curve',
+  },
+};
+
+const getEndpoint = (name) => (use2026Apis() ? ENDPOINTS.v2026[name] : ENDPOINTS.legacy[name]);
+
 const getDevicesWithEnedisActivated = `
         SELECT DISTINCT t_user.id, t_user.account_id, 
         t_device.id as device_id, t_device.provider_refresh_token
@@ -197,7 +216,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/mesure_synchrone_auto/v1/metering_data/daily_consumption', data, accessToken);
+      response = await makeRequest(getEndpoint('dailyConsumption'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -240,7 +259,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/mesure_synchrone_auto/v1/metering_data/consumption_load_curve', data, accessToken);
+      response = await makeRequest(getEndpoint('consumptionLoadCurve'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -283,8 +302,18 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       logger.warn(`Forbidden: Enedis Oauth process was not done`);
       throw new ForbiddenError();
     }
-    const response = await makeRequest(`/synth_contrat_auto/v1/${usagePointId}`, {}, accessToken);
-    const lastActivationDate = get(response, 'consumption_last_activation_date');
+    if (use2026Apis()) {
+      // Contractual summary API: the activation date is a flat field
+      const response = await makeRequest(`/synth_contrat_auto/v1/${usagePointId}`, {}, accessToken);
+      return {
+        lastActivationDate: get(response, 'consumption_last_activation_date'),
+      };
+    }
+    const data = {
+      usage_point_id: usagePointId,
+    };
+    const response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
+    const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');
     return {
       lastActivationDate,
     };

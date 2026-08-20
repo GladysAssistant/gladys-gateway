@@ -10,10 +10,28 @@ const contractQueryParams = {
 };
 
 const contractData = {
-  segments: ['C5'],
-  consumption_last_activation_date: '2013-08-14T00:00:00+01:00',
-  last_subscribed_power_change_date: '2017-05-25T00:00:00+01:00',
-  services_level: 2,
+  customer: {
+    customer_id: '1358019319',
+    usage_points: [
+      {
+        usage_point: {
+          usage_point_id: '16401220101758',
+          usage_point_status: 'com',
+          meter_type: 'AMM',
+        },
+        contracts: {
+          segment: 'C5',
+          subscribed_power: '9 kVA',
+          last_activation_date: '2013-08-14+01:00',
+          distribution_tariff: 'BTINFCUST',
+          offpeak_hours: 'HC (23h00-7h30)',
+          contract_type: 'CRAE',
+          contract_status: 'SERVC',
+          last_distribution_tariff_change_date: '2017-05-25+01:00',
+        },
+      },
+    ],
+  },
 };
 
 describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
@@ -80,12 +98,16 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
       });
 
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .get(`/synth_contrat_auto/v1/${contractQueryParams.usage_point_id}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(contractQueryParams)
       .reply(200, contractData);
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get('/synth_contrat_auto/v1/broken-usage-point').reply(403, {
-      error: 'ERRE001150',
-      error_description: 'No consent can be found for this customer and this usage point.',
-    });
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query({ usage_point_id: 'broken-usage-point' })
+      .reply(403, {
+        error: 'ERRE001150',
+        error_description: 'No consent can be found for this customer and this usage point.',
+      });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
@@ -124,7 +146,8 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .get(`/synth_contrat_auto/v1/${contractQueryParams.usage_point_id}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(contractQueryParams)
       .reply(200, contractData);
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')

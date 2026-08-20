@@ -10,13 +10,31 @@ const queryParams = {
 };
 
 const data = {
-  segments: ['C5'],
-  consumption_last_activation_date: '2013-08-14T00:00:00+01:00',
-  last_subscribed_power_change_date: '2017-05-25T00:00:00+01:00',
-  services_level: 2,
+  customer: {
+    customer_id: '1358019319',
+    usage_points: [
+      {
+        usage_point: {
+          usage_point_id: '12345678910123',
+          usage_point_status: 'com',
+          meter_type: 'AMM',
+        },
+        contracts: {
+          segment: 'C5',
+          subscribed_power: '9 kVA',
+          last_activation_date: '2013-08-14+01:00',
+          distribution_tariff: 'BTINFCUST',
+          offpeak_hours: 'HC (23h00-7h30)',
+          contract_type: 'CRAE',
+          contract_status: 'SERVC',
+          last_distribution_tariff_change_date: '2017-05-25+01:00',
+        },
+      },
+    ],
+  },
 };
 
-const enedisRoute = '/synth_contrat_auto/v1/12345678910123';
+const enedisRoute = '/customers_upc/v5/usage_points/contracts';
 
 describe('EnedisWorker.getContract', function Describe() {
   this.timeout(5000);
@@ -63,20 +81,20 @@ describe('EnedisWorker.getContract', function Describe() {
     mockAccessTokenRefresh();
 
     // First call: it'll refresh the access token from the API
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(200, data);
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
 
     // Refresh the usage point id
     await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
 
     const response = await enedisModel.getContract('b2d23f66-487d-493f-8acb-9c8adb400def', queryParams.usage_point_id);
     expect(response).to.deep.equal({
-      lastActivationDate: '2013-08-14T00:00:00+01:00',
+      lastActivationDate: '2013-08-14+01:00',
     });
     // second call: it'll get the access token from Redis
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(200, data);
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(200, data);
     const response2 = await enedisModel.getContract('b2d23f66-487d-493f-8acb-9c8adb400def', queryParams.usage_point_id);
     expect(response2).to.deep.equal({
-      lastActivationDate: '2013-08-14T00:00:00+01:00',
+      lastActivationDate: '2013-08-14+01:00',
     });
   });
   it('should return 403', async () => {
@@ -111,7 +129,7 @@ describe('EnedisWorker.getContract', function Describe() {
       .expect(200);
     // Then, send first request
     mockAccessTokenRefresh();
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(403);
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
 
     // Refresh the usage point id
     await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
@@ -151,7 +169,7 @@ describe('EnedisWorker.getContract', function Describe() {
       .expect(200);
     // Then, send first request
     mockAccessTokenRefresh();
-    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).reply(400);
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);
 
     // Refresh the usage point id
     await enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');

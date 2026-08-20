@@ -45,7 +45,7 @@ const data = {
   },
 };
 
-const enedisRoute = '/mesure_synchrone_auto/v1/metering_data/consumption_load_curve';
+const enedisRoute = '/metering_data_clc/v5/consumption_load_curve';
 
 describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
   this.timeout(5000);

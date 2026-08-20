@@ -270,7 +270,7 @@ module.exports = function UserController(userModel, mailService, socketModel, in
    * HTTP/1.1 200 OK
    *
    * {
-   *   "recovery_codes": ["1a2b3-c4d5e", "f6a7b-8c9d0"]
+   *   "recovery_codes": ["1a2b-3c4d-5e6f-7a8b-9c0d-1e2f-3a4b-5c6d"]
    * }
    */
   async function generateTwoFactorRecoveryCodes(req, res, next) {

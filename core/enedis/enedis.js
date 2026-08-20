@@ -143,7 +143,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     return data;
   }
   async function getUsagePointsFromAuthorization(accountId, autorisationId) {
-    logger.info(`Enedis - get usage points from autorisation_id = ${autorisationId}`);
+    logger.info(`Enedis - get usage points from authorization for account ${accountId}`);
     const accessToken = await getAccessToken(accountId);
     // New DataConnect 2026 flow: the consent callback returns an autorisation_id
     // that needs to be exchanged against the PRM (usage point id) with the

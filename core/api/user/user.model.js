@@ -11,6 +11,17 @@ const schema = require('../../common/schema');
 
 const REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS = 120;
 const resetPasswordTokenExpiryInMilliSeconds = 2 * 60 * 60 * 1000;
+const TWO_FACTOR_RECOVERY_CODE_COUNT = 10;
+// 128 bits of entropy per code, so knowing the SHA-256 hash of a code
+// doesn't allow to brute-force the code itself
+const TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES = 16;
+const TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS = 4;
+
+// recovery codes are case-insensitive and can be entered with or without dash/spaces
+function hashTwoFactorRecoveryCode(recoveryCode) {
+  const normalizedRecoveryCode = recoveryCode.toLowerCase().replace(/[\s-]/g, '');
+  return crypto.createHash('sha256').update(normalizedRecoveryCode).digest('hex');
+}
 
 module.exports = function UserModel(logger, db, redisClient, jwtService, mailService) {
   /**
@@ -386,6 +397,70 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
   }
 
+  async function createDeviceSession(tx, userWithSecret, deviceName, userAgent) {
+    const newDevice = {
+      id: uuid.v4(),
+      name: deviceName,
+      user_id: userWithSecret.id,
+    };
+
+    const scope = ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
+    const userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
+
+    const refreshToken = jwtService.generateRefreshToken(userWithSecret, scope, newDevice.id, userAgentHash);
+    const accessToken = jwtService.generateAccessToken(userWithSecret, scope);
+
+    // we save a hash of the refresh token so we can invalidate it after.
+    // We don't want to save the refresh token in clear text because if an attacker get read access
+    // to the DB (ex: SQL injection) he could get the token and use it for write use
+    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
+
+    const insertedDevice = await tx.t_device.insert(newDevice);
+
+    // save login action in history table
+    await tx.t_history.insert({
+      action: 'login',
+      user_id: userWithSecret.id,
+      params: {
+        device_id: insertedDevice.id,
+      },
+    });
+
+    return {
+      access_token: accessToken,
+      refresh_token: refreshToken,
+      device_id: insertedDevice.id,
+      rsa_encrypted_private_key: userWithSecret.rsa_encrypted_private_key,
+      ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key,
+      rsa_public_key: userWithSecret.rsa_public_key,
+      ecdsa_public_key: userWithSecret.ecdsa_public_key,
+      encrypted_backup_key: userWithSecret.encrypted_backup_key,
+      gladys_4_user_id: userWithSecret.gladys_4_user_id,
+    };
+  }
+
+  // Removing the recovery code and verifying that it was there is done in one single SQL query,
+  // so 2 concurrent requests can never use the same recovery code twice.
+  async function consumeTwoFactorRecoveryCode(tx, userId, recoveryCode) {
+    if (typeof recoveryCode !== 'string' || recoveryCode.length === 0) {
+      return false;
+    }
+
+    const recoveryCodeHash = hashTwoFactorRecoveryCode(recoveryCode);
+
+    const usersUpdated = await tx.query(
+      `
+      UPDATE t_user
+      SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2)
+      WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
+      RETURNING id
+    `,
+      [userId, recoveryCodeHash],
+    );
+
+    return usersUpdated.length === 1;
+  }
+
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent) {
     const userWithSecret = await db.t_user.findOne(
       {
@@ -415,46 +490,78 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ForbiddenError();
     }
 
-    const newDevice = {
-      id: uuid.v4(),
-      name: deviceName,
-      user_id: user.id,
+    return db.withTransaction((tx) => createDeviceSession(tx, userWithSecret, deviceName, userAgent));
+  }
+
+  async function generateTwoFactorRecoveryCodes(user) {
+    const fullUser = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'two_factor_enabled'] },
+    );
+
+    if (fullUser.two_factor_enabled !== true) {
+      throw new ForbiddenError('Two Factor Authentication is not enabled');
+    }
+
+    const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
+
+    const recoveryCodes = [];
+    for (let i = 0; i < TWO_FACTOR_RECOVERY_CODE_COUNT; i += 1) {
+      const code = buffer
+        .slice(i * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES, (i + 1) * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES)
+        .toString('hex');
+      // the code is displayed in groups of characters so it's easier to read & type
+      recoveryCodes.push(code.match(new RegExp(`.{${TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS}}`, 'g')).join('-'));
+    }
+
+    // we only store a hash of the codes so it's not possible to use them
+    // if the DB is compromised in read-only (due to SQL injection for example)
+    await db.t_user.update(user.id, {
+      two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
+    });
+
+    return {
+      recovery_codes: recoveryCodes,
     };
+  }
 
-    const scope = ['dashboard:read', 'dashboard:write', 'two-factor-configure'];
-    const userAgentHash = crypto.createHash('sha256').update(userAgent).digest('hex');
+  async function loginTwoFactorRecoveryCode(user, recoveryCode, deviceName, userAgent) {
+    const userWithSecret = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      {
+        fields: [
+          'id',
+          'two_factor_enabled',
+          'rsa_encrypted_private_key',
+          'ecdsa_encrypted_private_key',
+          'rsa_public_key',
+          'ecdsa_public_key',
+          'encrypted_backup_key',
+          'gladys_4_user_id',
+        ],
+      },
+    );
 
-    const refreshToken = jwtService.generateRefreshToken(user, scope, newDevice.id, userAgentHash);
-    const accessToken = jwtService.generateAccessToken(user, scope);
+    if (userWithSecret.two_factor_enabled !== true) {
+      logger.info(`Login with recovery code error: two factor is not enabled.`);
+      throw new ForbiddenError();
+    }
 
-    // we save a hash of the refresh token so we can invalidate it after.
-    // We don't want to save the refresh token in clear text because if an attacker get read access
-    // to the DB (ex: SQL injection) he could get the token and use it for write use
-    newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
-
+    // the recovery code is consumed in the same transaction as the session creation, so the
+    // user doesn't lose a recovery code if the session can't be created
     return db.withTransaction(async (tx) => {
-      const insertedDevice = await tx.t_device.insert(newDevice);
+      const recoveryCodeConsumed = await consumeTwoFactorRecoveryCode(tx, userWithSecret.id, recoveryCode);
 
-      // save login action in history table
-      await tx.t_history.insert({
-        action: 'login',
-        user_id: user.id,
-        params: {
-          device_id: insertedDevice.id,
-        },
-      });
+      if (!recoveryCodeConsumed) {
+        logger.info(`Login with recovery code error: recovery code is not valid.`);
+        throw new ForbiddenError();
+      }
 
-      return {
-        access_token: accessToken,
-        refresh_token: refreshToken,
-        device_id: insertedDevice.id,
-        rsa_encrypted_private_key: userWithSecret.rsa_encrypted_private_key,
-        ecdsa_encrypted_private_key: userWithSecret.ecdsa_encrypted_private_key,
-        rsa_public_key: userWithSecret.rsa_public_key,
-        ecdsa_public_key: userWithSecret.ecdsa_public_key,
-        encrypted_backup_key: userWithSecret.encrypted_backup_key,
-        gladys_4_user_id: userWithSecret.gladys_4_user_id,
-      };
+      return createDeviceSession(tx, userWithSecret, deviceName, userAgent);
     });
   }
 
@@ -586,8 +693,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       { fields: ['id', 'two_factor_secret', 'two_factor_enabled', 'account_id'] },
     );
 
-    // user need its two factor token to reset password if enabled
-    if (userWithSecret.two_factor_enabled === true) {
+    // user need its two factor token (or a recovery code) to reset password if enabled
+    const useRecoveryCode = userWithSecret.two_factor_enabled === true && data.two_factor_recovery_code !== undefined;
+
+    if (userWithSecret.two_factor_enabled === true && useRecoveryCode === false) {
       const tokenValidates = speakeasy.totp.verify({
         secret: userWithSecret.two_factor_secret,
         token: data.two_factor_code,
@@ -601,6 +710,21 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     }
 
     return db.withTransaction(async (tx) => {
+      // a recovery code is single-use, it's consumed in the same transaction as the password
+      // reset so the user doesn't lose a recovery code if the password reset fails
+      if (useRecoveryCode) {
+        const recoveryCodeConsumed = await consumeTwoFactorRecoveryCode(
+          tx,
+          userWithSecret.id,
+          data.two_factor_recovery_code,
+        );
+
+        if (!recoveryCodeConsumed) {
+          logger.info(`Reset password error: two factor recovery code is not valid.`);
+          throw new ForbiddenError();
+        }
+      }
+
       // now update user password
       const newUser = await tx.t_user.update(
         resetPasswordRequest.user_id,
@@ -671,6 +795,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     loginGenerateEphemeralValuePair,
     loginDeriveSession,
     loginTwoFactor,
+    loginTwoFactorRecoveryCode,
+    generateTwoFactorRecoveryCodes,
     getAccessToken,
     forgotPassword,
     resetPassword,

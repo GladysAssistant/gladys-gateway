@@ -33,6 +33,7 @@ const StatModel = require('./api/stat/stat.model');
 const GoogleModel = require('./api/google/google.model');
 const AlexaModel = require('./api/alexa/alexa.model');
 const EnedisModel = require('./api/enedis/enedis.model');
+const EnedisCoreModel = require('./enedis/enedis');
 const EcowattModel = require('./api/ecowatt/ecowatt.model');
 const TempoModel = require('./api/tempo/tempo.model');
 
@@ -189,7 +190,7 @@ module.exports = async (port) => {
     statModel: StatModel(logger, db, redisClient),
     googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
     alexaModel: AlexaModel(logger, db, redisClient, services.jwtService),
-    enedisModel: EnedisModel(logger, db, redisClient),
+    enedisModel: EnedisModel(logger, db, redisClient, EnedisCoreModel(logger, db, redisClient)),
     ecowattModel: EcowattModel(logger, redisClient),
     tempoModel: TempoModel(logger, db, redisClient),
     openAIModel: OpenAIModel(logger, db, legacyRedisClient, instanceModel),

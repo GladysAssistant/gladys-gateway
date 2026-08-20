@@ -128,6 +128,44 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     const { data } = await axiosInstance(options);
     return data;
   }
+  async function makePostRequest(url, body, accessToken) {
+    const options = {
+      method: 'POST',
+      data: body,
+      headers: {
+        authorization: `Bearer ${accessToken}`,
+        accept: 'application/json',
+        'content-type': 'application/json',
+      },
+      url: `https://${ENEDIS_BACKEND_URL}${url}`,
+    };
+    const { data } = await axiosInstance(options);
+    return data;
+  }
+  async function getUsagePointsFromAuthorization(accountId, autorisationId) {
+    logger.info(`Enedis - get usage points from autorisation_id = ${autorisationId}`);
+    const accessToken = await getAccessToken(accountId);
+    // New DataConnect 2026 flow: the consent callback returns an autorisation_id
+    // that needs to be exchanged against the PRM (usage point id) with the
+    // "services souscrits" API.
+    const response = await makePostRequest(
+      '/subscribed_services/v1',
+      {
+        autorisationId,
+        serviceType: 'ACCES',
+        etatCode: ['ACTIF'],
+        comptage: false,
+      },
+      accessToken,
+    );
+    // The services list can be at the root of the response or nested under "services"
+    let services = get(response, 'services');
+    if (!services) {
+      services = Array.isArray(response) ? response : [];
+    }
+    const usagePointsIds = [...new Set(services.map((service) => service.pointId).filter(Boolean))];
+    return usagePointsIds;
+  }
   async function increaseSyncJobDone(syncId) {
     const updateSyncQuery = `
       UPDATE t_enedis_sync
@@ -147,7 +185,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/metering_data_dc/v5/daily_consumption', data, accessToken);
+      response = await makeRequest('/mesure_synchrone_auto/v1/metering_data/daily_consumption', data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -190,7 +228,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     };
     let response;
     try {
-      response = await makeRequest('/metering_data_clc/v5/consumption_load_curve', data, accessToken);
+      response = await makeRequest('/mesure_synchrone_auto/v1/metering_data/consumption_load_curve', data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -233,11 +271,8 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       logger.warn(`Forbidden: Enedis Oauth process was not done`);
       throw new ForbiddenError();
     }
-    const data = {
-      usage_point_id: usagePointId,
-    };
-    const response = await makeRequest('/customers_upc/v5/usage_points/contracts', data, accessToken);
-    const lastActivationDate = get(response, 'customer.usage_points.0.contracts.last_activation_date');
+    const response = await makeRequest(`/synth_contrat_auto/v1/${usagePointId}`, {}, accessToken);
+    const lastActivationDate = get(response, 'consumption_last_activation_date');
     return {
       lastActivationDate,
     };
@@ -380,7 +415,9 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   return {
     queue,
     makeRequest,
+    makePostRequest,
     getAccessToken,
+    getUsagePointsFromAuthorization,
     getDataDailyConsumption,
     getConsumptionLoadCurve,
     getContract,

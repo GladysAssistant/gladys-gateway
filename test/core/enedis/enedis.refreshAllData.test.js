@@ -11,28 +11,10 @@ const contractQueryParams = {
 };
 
 const contractData = {
-  customer: {
-    customer_id: '1358019319',
-    usage_points: [
-      {
-        usage_point: {
-          usage_point_id: '16401220101758',
-          usage_point_status: 'com',
-          meter_type: 'AMM',
-        },
-        contracts: {
-          segment: 'C5',
-          subscribed_power: '9 kVA',
-          last_activation_date: '2013-08-14+01:00',
-          distribution_tariff: 'BTINFCUST',
-          offpeak_hours: 'HC (23h00-7h30)',
-          contract_type: 'CRAE',
-          contract_status: 'SERVC',
-          last_distribution_tariff_change_date: '2017-05-25+01:00',
-        },
-      },
-    ],
-  },
+  segments: ['C5'],
+  consumption_last_activation_date: '2013-08-14T00:00:00+01:00',
+  last_subscribed_power_change_date: '2017-05-25T00:00:00+01:00',
+  services_level: 2,
 };
 
 describe('EnedisWorker.refreshAllData', function Describe() {
@@ -65,8 +47,7 @@ describe('EnedisWorker.refreshAllData', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .get('/customers_upc/v5/usage_points/contracts')
-      .query(contractQueryParams)
+      .get(`/synth_contrat_auto/v1/${contractQueryParams.usage_point_id}`)
       .reply(200, contractData);
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
@@ -117,31 +98,12 @@ describe('EnedisWorker.refreshAllData', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .get('/customers_upc/v5/usage_points/contracts')
-      .query(contractQueryParams)
+      .get(`/synth_contrat_auto/v1/${contractQueryParams.usage_point_id}`)
       .reply(200, {
-        customer: {
-          customer_id: '1358019319',
-          usage_points: [
-            {
-              usage_point: {
-                usage_point_id: '16401220101758',
-                usage_point_status: 'com',
-                meter_type: 'AMM',
-              },
-              contracts: {
-                segment: 'C5',
-                subscribed_power: '9 kVA',
-                last_activation_date: dayjs().subtract(1, 'week').toISOString(),
-                distribution_tariff: 'BTINFCUST',
-                offpeak_hours: 'HC (23h00-7h30)',
-                contract_type: 'CRAE',
-                contract_status: 'SERVC',
-                last_distribution_tariff_change_date: '2017-05-25+01:00',
-              },
-            },
-          ],
-        },
+        segments: ['C5'],
+        consumption_last_activation_date: dayjs().subtract(1, 'week').toISOString(),
+        last_subscribed_power_change_date: '2017-05-25T00:00:00+01:00',
+        services_level: 2,
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
@@ -192,8 +154,7 @@ describe('EnedisWorker.refreshAllData', function Describe() {
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
-      .get('/customers_upc/v5/usage_points/contracts')
-      .query(contractQueryParams)
+      .get(`/synth_contrat_auto/v1/${contractQueryParams.usage_point_id}`)
       .reply(200, contractData);
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')

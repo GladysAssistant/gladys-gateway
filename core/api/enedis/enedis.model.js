@@ -11,7 +11,7 @@ const {
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
 
-module.exports = function EnedisModel(logger, db, redisClient) {
+module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_AUTHORIZE_URL } = process.env;
 
   const queue = new Queue(ENEDIS_WORKER_KEY, {
@@ -49,8 +49,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     );
   }
 
-  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
-    logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
+  async function resetEnedisDevicesAndCreateNew(user) {
     // Delete all devices that could exist prior to this operation
     await db.t_device.update(
       {
@@ -73,7 +72,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       WHERE t_user.id = $1
       AND t_instance.primary_instance = true
       AND t_instance.is_deleted = false;
-      
+
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
 
@@ -91,13 +90,54 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
     await db.t_device.insert(newDevice);
 
+    return instances.length > 0 ? instances[0].account_id : null;
+  }
+
+  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
+    logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
+    const accountId = await resetEnedisDevicesAndCreateNew(user);
+
     // Save usage points ids
     await Promise.each(usagePointsIds, async (usagePointId) => {
-      await saveUsagePointIfNotExist(instances[0].account_id, usagePointId);
+      await saveUsagePointIfNotExist(accountId, usagePointId);
     });
 
     return {
       usage_points_id: usagePointsIds,
+    };
+  }
+
+  async function getUsagePointsOfAccount(accountId) {
+    const getUsagePointsSql = `
+      SELECT usage_point_id
+      FROM t_enedis_usage_point
+      WHERE account_id = $1;
+    `;
+    const rows = await db.query(getUsagePointsSql, [accountId]);
+    return rows.map((row) => row.usage_point_id);
+  }
+
+  async function handleAcceptAuthorization(autorisationId, user) {
+    logger.info(`Enedis.handleAcceptAuthorization : ${user.id}`);
+    const accountId = await resetEnedisDevicesAndCreateNew(user);
+
+    // New DataConnect 2026 flow: the redirect URL no longer contains the usage points ids,
+    // we need to exchange the autorisation_id for the usage points ids (PRM)
+    // with the Enedis "services souscrits" API
+    const usagePointsIds = await enedisCoreModel.getUsagePointsFromAuthorization(accountId, autorisationId);
+
+    // Save usage points ids
+    await Promise.each(usagePointsIds, async (usagePointId) => {
+      await saveUsagePointIfNotExist(accountId, usagePointId);
+    });
+
+    // The new flow only allows the customer to consent for one PRM at a time,
+    // so we return all the usage points of the account (previously linked ones included)
+    // to avoid dropping previously linked meters on the client side
+    const allUsagePointsIds = await getUsagePointsOfAccount(accountId);
+
+    return {
+      usage_points_id: allUsagePointsIds,
     };
   }
 
@@ -173,6 +213,7 @@ module.exports = function EnedisModel(logger, db, redisClient) {
 
   return {
     handleAcceptGrantMessage,
+    handleAcceptAuthorization,
     getRedirectUri,
     getDailyConsumption,
     getConsumptionLoadCurve,

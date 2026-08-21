@@ -101,14 +101,20 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
-   * @api {get} /accounts/source Get card
-   * @apiName Get card
+   * @api {get} /accounts/source Get payment method
+   * @apiName Get payment method
    * @apiGroup Account
+   *
+   * @apiDescription Returns the payment method that will be charged for the
+   * account, or null when there is none. `type` is a Stripe PaymentMethod
+   * type ("card", "paypal", "sepa_debit"...); the card fields are null for
+   * non-card types.
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
    *
    * {
+   *   "type": "card",
    *   "brand": "VISA",
    *   "country": "US",
    *   "exp_month": 10,

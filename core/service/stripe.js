@@ -54,24 +54,81 @@ module.exports = function StripeService(logger) {
     return result;
   }
 
+  // A PaymentMethod is not always a card: customers coming through Stripe
+  // Checkout or the customer portal can pay with PayPal, SEPA debit, Link...
+  // The type-specific details (card number, PayPal email) live under a key
+  // named after the type; only cards carry brand/expiry fields, the others
+  // fall back to null and are identified by their type alone.
+  function formatPaymentMethod(paymentMethod) {
+    const details = paymentMethod[paymentMethod.type] || {};
+    return {
+      type: paymentMethod.type,
+      brand: details.brand || null,
+      country: details.country || null,
+      exp_month: details.exp_month || null,
+      exp_year: details.exp_year || null,
+      last4: details.last4 || null,
+    };
+  }
+
   async function getCard(stripeCustomerId) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');
       return Promise.resolve(null);
     }
 
-    const customer = await stripe.customers.retrieve(stripeCustomerId);
+    // Both expansions matter: on recent Stripe API versions `sources` is no
+    // longer included in the customer by default, and the default
+    // PaymentMethod is otherwise returned as a bare id.
+    const customer = await stripe.customers.retrieve(stripeCustomerId, {
+      expand: ['sources', 'invoice_settings.default_payment_method'],
+    });
 
-    if (customer && customer.sources && customer.sources.data && customer.sources.data.length > 0) {
+    if (!customer) {
+      return null;
+    }
+
+    // Modern flow: a PaymentMethod set as the customer's default for invoices
+    // (what the customer portal configures). Checked first because it is also
+    // what Stripe charges first when both it and a legacy source exist.
+    const defaultPaymentMethod = customer.invoice_settings && customer.invoice_settings.default_payment_method;
+    if (defaultPaymentMethod && typeof defaultPaymentMethod === 'object') {
+      return formatPaymentMethod(defaultPaymentMethod);
+    }
+
+    // Legacy flow: a card saved as a customer source (Elements + Sources API)
+    if (customer.sources && customer.sources.data && customer.sources.data.length > 0) {
       const card = customer.sources.data[0];
 
       return {
+        type: 'card',
         brand: card.brand,
         country: card.country,
         exp_month: card.exp_month,
         exp_year: card.exp_year,
         last4: card.last4,
       };
+    }
+    return null;
+  }
+
+  // A subscription created through Stripe Checkout keeps the collected
+  // PaymentMethod as its own default, without touching the customer object:
+  // an account can have a perfectly valid payment method that only shows up
+  // here.
+  async function getSubscriptionDefaultPaymentMethod(stripeSubscriptionId) {
+    if (stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(null);
+    }
+
+    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
+      expand: ['default_payment_method'],
+    });
+
+    const defaultPaymentMethod = subscription && subscription.default_payment_method;
+    if (defaultPaymentMethod && typeof defaultPaymentMethod === 'object') {
+      return formatPaymentMethod(defaultPaymentMethod);
     }
     return null;
   }
@@ -165,6 +222,7 @@ module.exports = function StripeService(logger) {
     cancelMonthlySubscription,
     createCustomer,
     getCard,
+    getSubscriptionDefaultPaymentMethod,
     updateCard,
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,

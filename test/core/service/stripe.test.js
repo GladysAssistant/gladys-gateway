@@ -30,8 +30,8 @@ describe('stripe service without STRIPE_SECRET_KEY', () => {
     expect(card).to.equal(null);
   });
 
-  it('should resolve null in getSubscriptionDefaultPaymentMethod', async () => {
-    const paymentMethod = await stripeService.getSubscriptionDefaultPaymentMethod('sub');
+  it('should resolve null in getPaymentMethod', async () => {
+    const paymentMethod = await stripeService.getPaymentMethod('pm');
     expect(paymentMethod).to.equal(null);
   });
 });

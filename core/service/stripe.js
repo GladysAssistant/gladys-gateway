@@ -109,25 +109,14 @@ module.exports = function StripeService(logger) {
     return null;
   }
 
-  // A subscription created through Stripe Checkout keeps the collected
-  // PaymentMethod as its own default, without touching the customer object:
-  // an account can have a perfectly valid payment method that only shows up
-  // here.
-  async function getSubscriptionDefaultPaymentMethod(stripeSubscriptionId) {
+  async function getPaymentMethod(stripePaymentMethodId) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');
       return Promise.resolve(null);
     }
 
-    const subscription = await stripe.subscriptions.retrieve(stripeSubscriptionId, {
-      expand: ['default_payment_method'],
-    });
-
-    const defaultPaymentMethod = subscription && subscription.default_payment_method;
-    if (defaultPaymentMethod && typeof defaultPaymentMethod === 'object') {
-      return formatPaymentMethod(defaultPaymentMethod);
-    }
-    return null;
+    const paymentMethod = await stripe.paymentMethods.retrieve(stripePaymentMethodId);
+    return formatPaymentMethod(paymentMethod);
   }
 
   async function getSubscription(stripeSubscriptionId) {
@@ -219,7 +208,7 @@ module.exports = function StripeService(logger) {
     cancelMonthlySubscription,
     createCustomer,
     getCard,
-    getSubscriptionDefaultPaymentMethod,
+    getPaymentMethod,
     updateCard,
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,

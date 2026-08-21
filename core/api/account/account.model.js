@@ -458,11 +458,17 @@ module.exports = function AccountModel(
       stripeService.getSubscription(account.stripe_subscription_id),
     ]);
 
-    // A subscription created through Stripe Checkout keeps its payment method
-    // (card, PayPal...) as its own default without touching the customer:
-    // look there too before concluding the account has none.
-    const card =
-      customerCard || (await stripeService.getSubscriptionDefaultPaymentMethod(account.stripe_subscription_id));
+    // Report the payment method in the order Stripe charges a subscription
+    // invoice: the subscription's own default first (where Stripe Checkout
+    // stores what it collected, without touching the customer — card,
+    // PayPal...), then the customer-level defaults.
+    let card = null;
+    if (subscription && subscription.default_payment_method) {
+      card = await stripeService.getPaymentMethod(subscription.default_payment_method);
+    }
+    if (!card) {
+      card = customerCard;
+    }
 
     // we add subscription cancellation
     if (card && subscription) {

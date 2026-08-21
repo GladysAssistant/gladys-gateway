@@ -84,20 +84,17 @@ module.exports = function StripeService(logger) {
       expand: ['sources', 'invoice_settings.default_payment_method'],
     });
 
-    if (!customer) {
-      return null;
-    }
-
     // Modern flow: a PaymentMethod set as the customer's default for invoices
     // (what the customer portal configures). Checked first because it is also
     // what Stripe charges first when both it and a legacy source exist.
-    const defaultPaymentMethod = customer.invoice_settings && customer.invoice_settings.default_payment_method;
+    const defaultPaymentMethod =
+      customer && customer.invoice_settings && customer.invoice_settings.default_payment_method;
     if (defaultPaymentMethod && typeof defaultPaymentMethod === 'object') {
       return formatPaymentMethod(defaultPaymentMethod);
     }
 
     // Legacy flow: a card saved as a customer source (Elements + Sources API)
-    if (customer.sources && customer.sources.data && customer.sources.data.length > 0) {
+    if (customer && customer.sources && customer.sources.data && customer.sources.data.length > 0) {
       const card = customer.sources.data[0];
 
       return {

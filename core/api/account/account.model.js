@@ -453,10 +453,22 @@ module.exports = function AccountModel(
     );
 
     // get card
-    const [card, subscription] = await Promise.all([
+    const [customerCard, subscription] = await Promise.all([
       stripeService.getCard(account.stripe_customer_id),
       stripeService.getSubscription(account.stripe_subscription_id),
     ]);
+
+    // Report the payment method in the order Stripe charges a subscription
+    // invoice: the subscription's own default first (where Stripe Checkout
+    // stores what it collected, without touching the customer — card,
+    // PayPal...), then the customer-level defaults.
+    let card = null;
+    if (subscription && subscription.default_payment_method) {
+      card = await stripeService.getPaymentMethod(subscription.default_payment_method);
+    }
+    if (!card) {
+      card = customerCard;
+    }
 
     // we add subscription cancellation
     if (card && subscription) {

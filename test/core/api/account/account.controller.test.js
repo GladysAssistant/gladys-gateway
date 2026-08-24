@@ -318,3 +318,208 @@ describe('POST /accounts/upgrade-to-yearly', () => {
     expect(response.body).to.deep.equal({ success: true });
   });
 });
+
+describe('GET /accounts/source', () => {
+  beforeEach(async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { stripe_customer_id: 'cus2', stripe_subscription_id: 'sub2' },
+    );
+  });
+  const CURRENT_PERIOD_END = 1750000000; // seconds, as returned by Stripe
+  // Matches only a query asking for exactly these Stripe expansions, whatever
+  // key format the query parser produced (expand[] or expand[0]/expand[1]).
+  const expectsExpansions =
+    (...expansions) =>
+    (actualQuery) => {
+      const values = Object.entries(actualQuery)
+        .filter(([key]) => key === 'expand' || key.startsWith('expand['))
+        .flatMap(([, value]) => (Array.isArray(value) ? value : [value]));
+      return values.length === expansions.length && expansions.every((expansion) => values.includes(expansion));
+    };
+  const nockSubscription = (subscription = {}) =>
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        id: 'sub2',
+        canceled_at: null,
+        current_period_end: CURRENT_PERIOD_END,
+        default_payment_method: null,
+        ...subscription,
+      });
+  const nockCustomer = (customer) =>
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cus2')
+      .query(expectsExpansions('sources', 'invoice_settings.default_payment_method'))
+      .reply(200, customer);
+  it('should return a legacy card source', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: { default_payment_method: null },
+      sources: {
+        data: [{ brand: 'Visa', country: 'FR', exp_month: 12, exp_year: 2030, last4: '4242' }],
+      },
+    });
+    nockSubscription();
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'card',
+      brand: 'Visa',
+      country: 'FR',
+      exp_month: 12,
+      exp_year: 2030,
+      last4: '4242',
+      canceled_at: null,
+      current_period_end: new Date(CURRENT_PERIOD_END * 1000).toISOString(),
+    });
+  });
+  it('should return the card set as default PaymentMethod on the customer', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: {
+        default_payment_method: {
+          id: 'pm_1',
+          object: 'payment_method',
+          type: 'card',
+          card: { brand: 'mastercard', country: 'FR', exp_month: 4, exp_year: 2031, last4: '4444' },
+        },
+      },
+      sources: { data: [] },
+    });
+    nockSubscription();
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'card',
+      brand: 'mastercard',
+      country: 'FR',
+      exp_month: 4,
+      exp_year: 2031,
+      last4: '4444',
+      canceled_at: null,
+      current_period_end: new Date(CURRENT_PERIOD_END * 1000).toISOString(),
+    });
+  });
+  it('should return a PayPal default PaymentMethod', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: {
+        default_payment_method: {
+          id: 'pm_2',
+          object: 'payment_method',
+          type: 'paypal',
+          paypal: { payer_email: 'user@example.com' },
+        },
+      },
+      sources: { data: [] },
+    });
+    nockSubscription();
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'paypal',
+      brand: null,
+      country: null,
+      exp_month: null,
+      exp_year: null,
+      last4: null,
+      canceled_at: null,
+      current_period_end: new Date(CURRENT_PERIOD_END * 1000).toISOString(),
+    });
+  });
+  it('should return the payment method kept as default on the subscription (Stripe Checkout)', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: { default_payment_method: null },
+      sources: { data: [] },
+    });
+    nockSubscription({ default_payment_method: 'pm_3' });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/payment_methods/pm_3')
+      .reply(200, {
+        id: 'pm_3',
+        object: 'payment_method',
+        type: 'card',
+        card: { brand: 'visa', country: 'DE', exp_month: 7, exp_year: 2032, last4: '1234' },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'card',
+      brand: 'visa',
+      country: 'DE',
+      exp_month: 7,
+      exp_year: 2032,
+      last4: '1234',
+      canceled_at: null,
+      current_period_end: new Date(CURRENT_PERIOD_END * 1000).toISOString(),
+    });
+  });
+  it('should prefer the subscription default over the customer default, like Stripe does', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: {
+        default_payment_method: {
+          id: 'pm_customer',
+          object: 'payment_method',
+          type: 'card',
+          card: { brand: 'mastercard', country: 'FR', exp_month: 4, exp_year: 2031, last4: '4444' },
+        },
+      },
+      sources: { data: [] },
+    });
+    nockSubscription({ default_payment_method: 'pm_sub' });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/payment_methods/pm_sub')
+      .reply(200, {
+        id: 'pm_sub',
+        object: 'payment_method',
+        type: 'card',
+        card: { brand: 'visa', country: 'DE', exp_month: 7, exp_year: 2032, last4: '1234' },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      type: 'card',
+      brand: 'visa',
+      country: 'DE',
+      exp_month: 7,
+      exp_year: 2032,
+      last4: '1234',
+      canceled_at: null,
+      current_period_end: new Date(CURRENT_PERIOD_END * 1000).toISOString(),
+    });
+  });
+  it('should return null when the account has no payment method at all', async () => {
+    nockCustomer({
+      id: 'cus2',
+      invoice_settings: { default_payment_method: null },
+      sources: { data: [] },
+    });
+    nockSubscription();
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/source')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.equal(null);
+  });
+});

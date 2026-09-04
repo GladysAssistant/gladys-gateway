@@ -1,6 +1,6 @@
 {
   "name": "gladys-gateway-server",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "An End-to-End Encrypted Gateway to access Gladys from the internet",
   "main": "index.js",
   "engines": {

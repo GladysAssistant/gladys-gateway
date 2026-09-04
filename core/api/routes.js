@@ -6,11 +6,6 @@ const { shouldReportErrorToSentry } = require('../middleware/errorMiddleware');
 const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
-  // the gateway is behind a single reverse proxy (Caddy).
-  // Only trust the first hop so that a client can't spoof its IP
-  // (used by rate limiters and geoip) via X-Forwarded-For.
-  app.set('trust proxy', 1);
-
   // Sentry
   Sentry.init({
     dsn: process.env.SENTRY_DSN,

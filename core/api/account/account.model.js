@@ -497,6 +497,44 @@ module.exports = function AccountModel(
     return stripeService.cancelMonthlySubscription(account.stripe_subscription_id);
   }
 
+  /**
+   * @description Classify a Stripe subscription into a billing interval
+   * (monthly / yearly) and a product tier (lite / plus).
+   * @param {object} subscription - Stripe subscription object.
+   * @returns {{ plan: 'monthly'|'yearly'|'unknown', product: 'lite'|'plus'|'unknown' }} Plan and product.
+   */
+  function getPlanAndProductFromSubscription(subscription) {
+    const price = subscription?.items?.data[0]?.price;
+
+    // Billing interval: known Plus price IDs first, then fallback on the
+    // Stripe price interval so Lite prices and legacy prices are handled too.
+    let plan = 'unknown';
+    if (price?.id === process.env.STRIPE_MONTHLY_PLAN_ID) {
+      plan = 'monthly';
+    } else if (price?.id === process.env.STRIPE_YEARLY_PLAN_ID) {
+      plan = 'yearly';
+    } else if (price?.recurring?.interval === 'month') {
+      plan = 'monthly';
+    } else if (price?.recurring?.interval === 'year') {
+      plan = 'yearly';
+    }
+
+    // Product tier (lite / plus), same logic as the Stripe webhook handler
+    let product = 'unknown';
+    if (price?.product) {
+      product = price.product === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
+    }
+
+    if (plan === 'unknown' || product === 'unknown') {
+      // Keep visibility on misconfigured / unexpected prices without breaking the dashboard
+      logger.warn(
+        `Unknown plan for subscription ${subscription?.id}: price_id = ${price?.id}, interval = ${price?.recurring?.interval}, product = ${price?.product}`,
+      );
+    }
+
+    return { plan, product };
+  }
+
   async function upgradeFromMonthlyToYearly(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -513,6 +551,14 @@ module.exports = function AccountModel(
       },
       { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
     );
+
+    // Only Gladys Plus subscriptions can be upgraded: the yearly price is
+    // the Plus yearly price, so a Lite customer must not be moved onto it.
+    const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
+    const { product } = getPlanAndProductFromSubscription(subscription);
+    if (product !== 'plus') {
+      throw new ForbiddenError('Only Gladys Plus subscriptions can be upgraded to yearly');
+    }
 
     telegramService.sendAlert(
       `💰 Customer upgrading from monthly to yearly. Customer email = ${userWithAccount.email}`,
@@ -539,28 +585,7 @@ module.exports = function AccountModel(
     );
 
     const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
-    const price = subscription?.items?.data[0]?.price;
-
-    // Billing interval: known Plus price IDs first, then fallback on the
-    // Stripe price interval so Lite prices and legacy prices are handled too.
-    let plan = 'unknown';
-    if (price?.id === process.env.STRIPE_MONTHLY_PLAN_ID) {
-      plan = 'monthly';
-    } else if (price?.id === process.env.STRIPE_YEARLY_PLAN_ID) {
-      plan = 'yearly';
-    } else if (price?.recurring?.interval === 'month') {
-      plan = 'monthly';
-    } else if (price?.recurring?.interval === 'year') {
-      plan = 'yearly';
-    }
-
-    // Product tier (lite / plus), same logic as the Stripe webhook handler
-    let product = 'unknown';
-    if (price?.product) {
-      product = price.product === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
-    }
-
-    return { plan, product };
+    return getPlanAndProductFromSubscription(subscription);
   }
 
   async function subscribeAgainToMonthlySubscription(user) {

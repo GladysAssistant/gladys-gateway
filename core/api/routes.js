@@ -6,9 +6,6 @@ const { shouldReportErrorToSentry } = require('../middleware/errorMiddleware');
 const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
-  // the gateway is behing a proxy
-  app.enable('trust proxy');
-
   // Sentry
   Sentry.init({
     dsn: process.env.SENTRY_DSN,

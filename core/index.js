@@ -89,7 +89,12 @@ module.exports = async (port) => {
   });
 
   const app = express();
-  app.enable('trust proxy');
+  // The gateway runs on a VM that is not reachable from the internet: the only
+  // way in is through the Caddy reverse proxy on a separate VM. Trust exactly
+  // one hop (Caddy) so that req.ip, used by the rate limiters and geoip
+  // lookups, is the client address Caddy saw and not a client-supplied
+  // X-Forwarded-For value.
+  app.set('trust proxy', 1);
   const server = createServer(app);
 
   const io = new Server(server, {

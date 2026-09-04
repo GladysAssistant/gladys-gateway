@@ -150,8 +150,12 @@ module.exports = function AccountController(accountModel, socketModel) {
    * HTTP/1.1 200 OK
    *
    * {
-   *   "plan": "yearly"
+   *   "plan": "yearly",
+   *   "product": "plus"
    * }
+   *
+   * @apiSuccess {String="monthly","yearly","unknown"} plan Billing interval of the subscription
+   * @apiSuccess {String="lite","plus","unknown"} product Product tier of the subscription
    */
   async function getUserCurrentPlan(req, res, next) {
     const accountPlan = await accountModel.getUserCurrentPlan(req.user);

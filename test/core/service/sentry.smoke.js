@@ -26,6 +26,7 @@ sentryService.init({
 const express = require('express');
 const { ValidationError, UnauthorizedError, NotFoundError } = require('../../../core/common/error');
 const ErrorMiddleware = require('../../../core/middleware/errorMiddleware');
+const { mapUpstreamError, UPSTREAM_ERROR_METRIC } = require('../../../core/service/upstreamError');
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
@@ -44,6 +45,28 @@ function exceptionMessagesFromEnvelope(envelope) {
     .flatMap((item) => item.exception.values.map((exception) => exception.value));
 }
 
+function metricsFromEnvelope(envelope) {
+  return envelope
+    .split('\n')
+    .map((line) => {
+      try {
+        return JSON.parse(line);
+      } catch (e) {
+        return null;
+      }
+    })
+    .filter((item) => item && Array.isArray(item.items))
+    .flatMap((item) => item.items)
+    .filter((metric) => metric.name === UPSTREAM_ERROR_METRIC)
+    .map((metric) => ({
+      type: metric.type,
+      value: metric.value,
+      service: metric.attributes.service && metric.attributes.service.value,
+      reason: metric.attributes.reason && metric.attributes.reason.value,
+      upstream_status: metric.attributes.upstream_status && metric.attributes.upstream_status.value,
+    }));
+}
+
 (async () => {
   const app = express();
   app.get('/validation-error', () => {
@@ -58,6 +81,15 @@ function exceptionMessagesFromEnvelope(envelope) {
   app.get('/unexpected', () => {
     throw new Error('unexpected boom');
   });
+  app.get('/upstream-timeout', () => {
+    // what axios throws when the AI service answers 504
+    const axiosError = new Error('Request failed with status code 504');
+    axiosError.isAxiosError = true;
+    axiosError.code = 'ERR_BAD_RESPONSE';
+    axiosError.config = { method: 'post', url: 'https://ai.example.com' };
+    axiosError.response = { status: 504, statusText: 'Gateway Timeout', data: 'timed out' };
+    throw mapUpstreamError('openai_ask', axiosError, 'AI service');
+  });
   Sentry.setupExpressErrorHandler(app);
   app.use(ErrorMiddleware(silentLogger));
 
@@ -65,7 +97,7 @@ function exceptionMessagesFromEnvelope(envelope) {
   const { port } = server.address();
   const statuses = {};
   // eslint-disable-next-line no-restricted-syntax
-  for (const route of ['/validation-error', '/unauthorized', '/not-found', '/unexpected']) {
+  for (const route of ['/validation-error', '/unauthorized', '/not-found', '/unexpected', '/upstream-timeout']) {
     // eslint-disable-next-line no-await-in-loop
     const response = await fetch(`http://127.0.0.1:${port}${route}`);
     statuses[route] = response.status;
@@ -77,6 +109,7 @@ function exceptionMessagesFromEnvelope(envelope) {
     JSON.stringify({
       statuses,
       captured: captured.flatMap(exceptionMessagesFromEnvelope),
+      metrics: captured.flatMap(metricsFromEnvelope),
     }),
   );
   await Sentry.close(1000);

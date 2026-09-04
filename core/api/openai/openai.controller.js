@@ -1,4 +1,14 @@
 const axios = require('axios');
+const { mapUpstreamError } = require('../../service/upstreamError');
+
+// How long we wait for the AI service before answering 504 ourselves.
+// Keeps a hung upstream from holding gateway connections forever.
+const DEFAULT_ASK_TIMEOUT_MS = 60 * 1000;
+
+function getAskTimeoutMs() {
+  const configured = parseInt(process.env.OPEN_AI_ASK_TIMEOUT_MS, 10);
+  return Number.isFinite(configured) && configured > 0 ? configured : DEFAULT_ASK_TIMEOUT_MS;
+}
 
 module.exports = function OpenAIController(openAIModel) {
   /**
@@ -27,11 +37,19 @@ module.exports = function OpenAIController(openAIModel) {
       ? req.body.categories.filter((category) => typeof category === 'string')
       : null;
     const startTime = Date.now();
-    const { data } = await axios.post(process.env.OPEN_AI_ASK_API_URL, req.body, {
-      headers: {
-        authorization: `Bearer ${process.env.OPEN_AI_ASK_API_KEY}`,
-      },
-    });
+    let data;
+    try {
+      ({ data } = await axios.post(process.env.OPEN_AI_ASK_API_URL, req.body, {
+        headers: {
+          authorization: `Bearer ${process.env.OPEN_AI_ASK_API_KEY}`,
+        },
+        timeout: getAskTimeoutMs(),
+      }));
+    } catch (e) {
+      // The AI service timing out or failing is not a gateway bug: answer a clean
+      // 504 / 502 and count it in Sentry instead of reporting a generic 500 exception.
+      throw mapUpstreamError('openai_ask', e, 'AI service');
+    }
     const responseTimeMs = Date.now() - startTime;
     const usage = data && data.usage ? data.usage : {};
     const firstChoice = data && data.choices && data.choices.length > 0 ? data.choices[0] : {};

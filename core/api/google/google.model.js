@@ -9,9 +9,16 @@ const { ForbiddenError } = require('../../common/error');
 
 const GOOGLE_OAUTH_CODE_REDIS_PREFIX = `GOOGLE_OAUTH_CODE`;
 const GOOGLE_USERS_REDIS_PREFIX = 'google-users';
+const GOOGLE_REQUEST_SYNC_LOCK_REDIS_PREFIX = 'google-request-sync-lock';
+const GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS = 60 * 60; // 1 hour
 const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
+
+const getGoogleErrorMessage = (e) => {
+  const message = get(e, 'response.data.error.message') || e.message;
+  return typeof message === 'string' ? message : JSON.stringify(message);
+};
 
 const cleanNullProperties = (obj) =>
   Object.entries(obj)
@@ -144,14 +151,44 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
       AND t_device.client_id = $2;
     `;
 
+  async function sendRequestSync(agentUserId) {
+    await homegraphClient.devices.requestSync({
+      requestBody: {
+        agentUserId,
+      },
+    });
+  }
+
   async function requestSync(instanceId) {
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
     if (users.length > 0) {
-      await homegraphClient.devices.requestSync({
-        requestBody: {
-          agentUserId: users[0].account_id,
-        },
-      });
+      await sendRequestSync(users[0].account_id);
+    }
+  }
+
+  // Google answers 404 to a report state when the device no longer exists in the user's
+  // HomeGraph (removed or renamed on Google side). The instance keeps reporting it forever,
+  // so we ask Google to re-sync the device list, at most once per hour per account.
+  // The lock is taken with SET NX EX so concurrent 404s only trigger a single sync.
+  async function requestSyncAfterDeviceNotFound(agentUserId, userId, deviceIds) {
+    const lockKey = `${GOOGLE_REQUEST_SYNC_LOCK_REDIS_PREFIX}:${agentUserId}`;
+    const lockAcquired = await redisClient.set(lockKey, '1', {
+      NX: true,
+      EX: GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS,
+    });
+    if (lockAcquired === null) {
+      logger.debug(
+        `GOOGLE_HOME_REPORT_STATE_DEVICE_NOT_FOUND user=${userId} devices=${deviceIds} (sync already requested recently)`,
+      );
+      return;
+    }
+    logger.info(`GOOGLE_HOME_REPORT_STATE_DEVICE_NOT_FOUND user=${userId} devices=${deviceIds}, requesting sync`);
+    try {
+      await sendRequestSync(agentUserId);
+    } catch (e) {
+      const status = get(e, 'response.status');
+      const message = getGoogleErrorMessage(e);
+      logger.warn(`GOOGLE_HOME_REQUEST_SYNC_ERROR user=${userId} status=${status} message=${message}`);
     }
   }
 
@@ -183,12 +220,14 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
         });
       } catch (e) {
         const status = get(e, 'response.status');
-        const message = get(e, 'response.data.error.message') || e.message;
-        const deviceIds = Object.keys(get(payloadCleaned, 'devices.states') || {});
+        const message = getGoogleErrorMessage(e);
+        const deviceIds = Object.keys(get(payloadCleaned, 'devices.states') || {}).join(',') || '—';
+        if (status === 404) {
+          await requestSyncAfterDeviceNotFound(users[0].account_id, users[0].id, deviceIds);
+          return;
+        }
         logger.warn(
-          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${
-            deviceIds.join(',') || '—'
-          }`,
+          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${deviceIds}`,
         );
       }
     }

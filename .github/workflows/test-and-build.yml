@@ -79,7 +79,7 @@ jobs:
       - name: 💽 Setup nodejs
         uses: actions/setup-node@v3
         with:
-          node-version: 18
+          node-version: 24
       - name: Get npm cache directory
         id: npm-cache-dir
         run: |
@@ -157,8 +157,10 @@ jobs:
           DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Docker build
-        run: docker build --build-arg MAX_MIND_LICENSE_KEY="${{ secrets.MAX_MIND_LICENSE_KEY }}" -t gladysassistant/gladys-gateway-server:latest .
+        # The MaxMind key is passed as a BuildKit secret: it is only mounted
+        # during the build step and never persisted in the image.
+        run: docker build --secret id=maxmind_license_key,env=MAX_MIND_LICENSE_KEY -t gladysassistant/gladys-gateway-server:latest .
         env:
-          DOCKERHUB_USER: ${{ secrets.MAX_MIND_LICENSE_KEY }}
+          MAX_MIND_LICENSE_KEY: ${{ secrets.MAX_MIND_LICENSE_KEY }}
       - name: Docker push
         run: docker push gladysassistant/gladys-gateway-server:latest

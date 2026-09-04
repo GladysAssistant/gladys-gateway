@@ -517,6 +517,13 @@ module.exports = function AccountModel(
       { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
     );
 
+    // Internal / tester accounts have no Stripe subscription: there is no plan to
+    // look up, and calling Stripe with a null id throws (500 on the dashboard).
+    if (!account.stripe_subscription_id) {
+      logger.info(`getUserCurrentPlan: account ${account.id} has no stripe_subscription_id, returning unknown plan`);
+      return { plan: 'unknown', product: 'unknown' };
+    }
+
     const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
     return getPlanAndProductFromSubscription(subscription);
   }

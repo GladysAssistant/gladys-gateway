@@ -1,6 +1,5 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
-const Joi = require('joi');
 const { ValidationError, NotFoundError } = require('../../common/error');
 const schemas = require('../../common/schema');
 
@@ -8,11 +7,14 @@ const randomBytes = Promise.promisify(crypto.randomBytes);
 
 module.exports = function OpenApiModel(logger, db) {
   async function createNewApiKey(user, name) {
-    const { error } = Joi.validate({ name }, schemas.openApiSchema, {
-      stripUnknown: true,
-      abortEarly: false,
-      presence: 'required',
-    });
+    const { error } = schemas.openApiSchema.validate(
+      { name },
+      {
+        stripUnknown: true,
+        abortEarly: false,
+        presence: 'required',
+      },
+    );
 
     if (error) {
       logger.debug(error);
@@ -66,11 +68,14 @@ module.exports = function OpenApiModel(logger, db) {
   }
 
   async function updateApiKeyName(user, id, name) {
-    const { error } = Joi.validate({ name }, schemas.openApiSchema, {
-      stripUnknown: true,
-      abortEarly: false,
-      presence: 'required',
-    });
+    const { error } = schemas.openApiSchema.validate(
+      { name },
+      {
+        stripUnknown: true,
+        abortEarly: false,
+        presence: 'required',
+      },
+    );
 
     if (error) {
       logger.debug(error);

@@ -1,4 +1,5 @@
 const path = require('path');
+const crypto = require('crypto');
 const {
   S3Client,
   CreateMultipartUploadCommand,
@@ -8,7 +9,6 @@ const {
 const { getSignedUrl } = require('@aws-sdk/s3-request-presigner');
 const { GetObjectCommand, UploadPartCommand } = require('@aws-sdk/client-s3');
 const Promise = require('bluebird');
-const uuid = require('uuid');
 
 const asyncMiddleware = require('../../middleware/asyncMiddleware');
 const { BadRequestError } = require('../../common/error');
@@ -91,7 +91,7 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
     }
 
     // Generate file destination ID
-    const name = `${uuid.v4()}.enc`;
+    const name = `${crypto.randomUUID()}.enc`;
     const numberOfParts = Math.ceil(fileSize / CHUNK_SIZE_IN_BYTES);
 
     const multipartParams = {

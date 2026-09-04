@@ -53,7 +53,19 @@ const PROPERTIES_TO_OMIT = [
   'batt',
 ];
 
+// Errors raised on these routes are never reported: they carry credentials
+// or location data and are noisy by nature.
+const DENIED_URLS = ['/instances/access-token', '/v1/api/owntracks/'];
+
+function isDeniedUrl(event) {
+  const url = event && event.request && event.request.url;
+  return typeof url === 'string' && DENIED_URLS.some((deniedUrl) => url.includes(deniedUrl));
+}
+
 function beforeSend(event) {
+  if (isDeniedUrl(event)) {
+    return null;
+  }
   return omitDeep(event, PROPERTIES_TO_OMIT);
 }
 

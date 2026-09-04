@@ -1,7 +1,6 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const uuid = require('uuid');
 const get = require('get-value');
 const plainAxios = require('axios');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
@@ -43,7 +42,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     );
 
     const newDevice = {
-      id: uuid.v4(),
+      id: crypto.randomUUID(),
       name: 'Alexa',
       client_id: ALEXA_OAUTH_CLIENT_ID,
       user_id: user.id,
@@ -64,6 +63,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     let userId;
     try {
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_TOKEN_SECRET, {
+        algorithms: ['HS256'],
         audience: JWT_AUDIENCE,
         issuer: 'gladys-gateway',
       });
@@ -164,7 +164,7 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
         header: {
           namespace: 'Alexa.Authorization',
           name: 'AcceptGrant.Response',
-          messageId: uuid.v4(),
+          messageId: crypto.randomUUID(),
           payloadVersion: '3',
         },
         payload: {},

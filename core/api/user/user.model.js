@@ -1,9 +1,7 @@
-const Joi = require('joi');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const crypto = require('crypto');
 const speakeasy = require('speakeasy');
-const uuid = require('uuid');
 const srpServer = require('secure-remote-password/server');
 const {
   ValidationError,
@@ -85,7 +83,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     const newUser = newUserParam;
     newUser.email = normalizeEmail(newUser.email);
 
-    const { error, value } = Joi.validate(newUser, schema.signupSchema, {
+    const { error, value } = schema.signupSchema.validate(newUser, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'required',
@@ -179,7 +177,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function updateUser(user, data) {
-    const { error, value } = Joi.validate(data, schema.updateUserSchema, {
+    const { error, value } = schema.updateUserSchema.validate(data, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'optional',
@@ -284,7 +282,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     }
 
     const serverEphemeral = srpServer.generateEphemeral(user.srp_verifier);
-    const loginSessionKey = uuid.v4();
+    const loginSessionKey = crypto.randomUUID();
 
     const loginSessionState = {
       serverEphemeral,
@@ -453,7 +451,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
   async function createDeviceSession(tx, userWithSecret, deviceName, userAgent) {
     const newDevice = {
-      id: uuid.v4(),
+      id: crypto.randomUUID(),
       name: deviceName,
       user_id: userWithSecret.id,
     };
@@ -698,7 +696,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
   async function resetPassword(forgotPasswordToken, data) {
     // first, we validate the data sent
-    const { error } = Joi.validate(data, schema.resetPasswordSchema, {
+    const { error } = schema.resetPasswordSchema.validate(data, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'required',

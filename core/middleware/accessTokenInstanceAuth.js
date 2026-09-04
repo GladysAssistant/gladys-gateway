@@ -5,6 +5,7 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
   return async function AccessTokenAuth(req, res, next) {
     try {
       const decoded = jwt.verify(req.headers.authorization, process.env.JWT_ACCESS_TOKEN_SECRET, {
+        algorithms: ['HS256'],
         issuer: 'gladys-gateway',
         audience: 'instance',
       });

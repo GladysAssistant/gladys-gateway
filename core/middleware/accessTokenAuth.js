@@ -10,6 +10,7 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
           jwtToken = jwtToken.substr(7);
         }
         const decoded = jwt.verify(jwtToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
+          algorithms: ['HS256'],
           issuer: 'gladys-gateway',
           audience,
         });

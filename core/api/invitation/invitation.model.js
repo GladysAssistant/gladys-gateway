@@ -1,4 +1,3 @@
-const Joi = require('joi');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
@@ -8,7 +7,7 @@ const schema = require('../../common/schema');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailService, telegramService) {
   async function inviteUser(user, newInvitation) {
-    const { error, value } = Joi.validate(newInvitation, schema.invitationSchema, {
+    const { error, value } = schema.invitationSchema.validate(newInvitation, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'required',
@@ -111,7 +110,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
 
     data.email = normalizeEmail(invitation.email);
 
-    const { error, value } = Joi.validate(data, schema.signupSchema, {
+    const { error, value } = schema.signupSchema.validate(data, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'required',

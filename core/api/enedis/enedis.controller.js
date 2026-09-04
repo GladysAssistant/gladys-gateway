@@ -1,5 +1,4 @@
 const get = require('get-value');
-const Joi = require('joi');
 
 const { ServerError, ForbiddenError, ValidationError } = require('../../common/error');
 const schema = require('../../common/schema');
@@ -13,7 +12,7 @@ module.exports = function EnedisController(logger, enedisModel) {
   };
 
   const validateEnedisQuery = (data) => {
-    const { error, value } = Joi.validate(data, schema.enedisApiQuerySchema, {
+    const { error, value } = schema.enedisApiQuerySchema.validate(data, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'required',

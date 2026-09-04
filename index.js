@@ -1,4 +1,6 @@
 require('dotenv').config();
+// Sentry must be initialized before Express / http are loaded
+require('./core/service/sentry').init();
 const DBMigrate = require('db-migrate');
 const server = require('./core/index');
 

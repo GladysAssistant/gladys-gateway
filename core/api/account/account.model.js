@@ -345,73 +345,6 @@ module.exports = function AccountModel(
     return accountUpdated;
   }
 
-  async function subscribeMonthlyPlanWithoutAccount(rawEmail, language) {
-    const email = normalizeEmail(rawEmail);
-    const role = 'admin';
-
-    // we first test if an account already exist with this email
-    const account = await db.t_account.findOne({ name: email });
-
-    // it means an account already exist with this email
-    if (account !== null) {
-      throw new AlreadyExistError();
-    }
-
-    // create the customer on stripe side
-    const customer = await stripeService.createCustomer(email);
-
-    // contact stripe to save the subscription id
-    let subscription = await stripeService.subscribeToMonthlyPlan(customer.id);
-
-    // it means stripe is disabled
-    // so we add to the account 100 years of life
-    if (subscription === null) {
-      subscription = {
-        id: 'stripe-subcription-sample',
-        current_period_end: new Date().getTime() + 100 * 365 * 24 * 60 * 60 * 1000,
-      };
-    }
-
-    const newAccount = {
-      name: email,
-      stripe_customer_id: customer.id,
-      stripe_subscription_id: subscription.id,
-      current_period_end: new Date(subscription.current_period_end * 1000),
-      status: 'trialing',
-    };
-
-    const insertedAccount = await db.t_account.insert(newAccount);
-
-    // generate email confirmation token
-    const token = (await randomBytes(64)).toString('hex');
-
-    // we hash the token in DB so it's not possible to get the token
-    // if the DB is compromised in read-only
-    // (due to SQL injection for example)
-    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
-
-    await db.t_invitation.insert({
-      email,
-      role,
-      token_hash: tokenHash,
-      account_id: insertedAccount.id,
-    });
-
-    await mailService.send(
-      { email, language },
-      'welcome',
-      buildWelcomeScope({
-        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
-        customer: { name: email },
-        subscription,
-        plan: insertedAccount.plan || 'plus',
-        language,
-      }),
-    );
-
-    return insertedAccount;
-  }
-
   async function updateCard(user, sourceId) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -923,16 +856,6 @@ module.exports = function AccountModel(
     return invoices;
   }
 
-  async function createPaymentSession(locale) {
-    if (['en', 'fr'].indexOf(locale) === -1) {
-      throw new ValidationError('Locale can only be en or fr');
-    }
-    const session = await stripeService.createSession(locale);
-    return {
-      id: session.id,
-    };
-  }
-
   async function createBillingPortalSession(stripePortalKey, geo) {
     const account = await db.t_account.findOne({
       stripe_portal_key: stripePortalKey,
@@ -956,11 +879,9 @@ module.exports = function AccountModel(
     subscribeMonthlyPlan,
     cancelMonthlySubscription,
     subscribeAgainToMonthlySubscription,
-    subscribeMonthlyPlanWithoutAccount,
     stripeEvent,
     getCard,
     getInvoices,
-    createPaymentSession,
     createBillingPortalSession,
     getAllAccounts,
     upgradeFromMonthlyToYearly,

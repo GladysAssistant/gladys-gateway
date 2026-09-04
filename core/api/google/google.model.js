@@ -37,7 +37,13 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   });
 
   async function getRefreshTokenAndAccessToken(code) {
-    const userId = await redisClient.get(`${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`);
+    if (typeof code !== 'string' || code.length === 0) {
+      throw new ForbiddenError('INVALID_CODE');
+    }
+    const codeKey = `${GOOGLE_OAUTH_CODE_REDIS_PREFIX}:${code}`;
+    // an authorization code is single use: GETDEL reads and removes it atomically,
+    // so two concurrent exchanges cannot both succeed
+    const userId = await redisClient.getDel(codeKey);
     if (userId === null) {
       throw new ForbiddenError('INVALID_CODE');
     }

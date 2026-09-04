@@ -2,7 +2,11 @@ const path = require('path');
 const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const retry = require('async-retry');
 
-const { NotFoundError } = require('../../common/error');
+const { NotFoundError, BadRequestError } = require('../../common/error');
+
+const DEFAULT_BACKUP_PAGE_SIZE = 20;
+const MAX_BACKUP_PAGE_SIZE = 100;
+const MAX_BACKUP_PAGINATION_OFFSET = 100000;
 
 module.exports = function BackupModel(logger, db) {
   const s3Client = new S3Client({
@@ -43,9 +47,36 @@ module.exports = function BackupModel(logger, db) {
     return updatedRows[0];
   }
 
-  async function get(instanceId, options) {
-    const offset = options.skip || 0;
-    const limit = options.take || 20;
+  // skip/take come straight from the query string and massive interpolates
+  // OFFSET/LIMIT in the SQL (no bind parameter), so they must be validated as integers
+  function parsePaginationInteger(value, defaultValue, maxValue) {
+    if (value === undefined || value === null || value === '') {
+      return defaultValue;
+    }
+    if (!/^\d+$/.test(String(value))) {
+      throw new BadRequestError('skip and take must be positive integers');
+    }
+    return Math.min(parseInt(value, 10), maxValue);
+  }
+
+  async function getStartedBackup(instanceId, backupId) {
+    const instance = await db.t_instance.findOne({
+      id: instanceId,
+    });
+    const backup = await db.t_backup.findOne({
+      account_id: instance.account_id,
+      id: backupId,
+      status: 'started',
+    });
+    if (backup === null) {
+      throw new NotFoundError('Backup id was not found');
+    }
+    return backup;
+  }
+
+  async function get(instanceId, options = {}) {
+    const offset = parsePaginationInteger(options.skip, 0, MAX_BACKUP_PAGINATION_OFFSET);
+    const limit = parsePaginationInteger(options.take, DEFAULT_BACKUP_PAGE_SIZE, MAX_BACKUP_PAGE_SIZE);
     const instance = await db.t_instance.findOne({
       id: instanceId,
     });
@@ -130,6 +161,7 @@ module.exports = function BackupModel(logger, db) {
   return {
     createBackup,
     get,
+    getStartedBackup,
     updateBackup,
     getBackupPurgeList,
     deleteBackup,

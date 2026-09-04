@@ -1,6 +1,7 @@
 const request = require('supertest');
 const should = require('should');
 const configTest = require('../../../tasks/config');
+const Jwt = require('../../../../core/service/jwt');
 
 describe('GET /instances', () => {
   it('should return list of instances', () =>
@@ -64,6 +65,42 @@ describe('POST /instances', () => {
         response.body.should.have.property('refresh_token');
         response.body.should.have.property('id');
       }));
+
+  it('should not create an instance with a read-only token', () =>
+    request(TEST_BACKEND_APP)
+      .post('/instances')
+      .send({
+        name: 'rasp',
+        rsa_public_key: 'hey',
+        ecdsa_public_key: 'hey',
+      })
+      .set('Accept', 'application/json')
+      .set(
+        'Authorization',
+        Jwt().generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, ['dashboard:read']),
+      )
+      .expect('Content-Type', /json/)
+      .expect(401));
+
+  it('should not create an instance when the user is not admin of the account', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { role: 'user' });
+    await request(TEST_BACKEND_APP)
+      .post('/instances')
+      .send({
+        name: 'rasp',
+        rsa_public_key: 'hey',
+        ecdsa_public_key: 'hey',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+    const instances = await TEST_DATABASE_INSTANCE.t_instance.find({
+      account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+    });
+    instances.should.have.length(1);
+    instances[0].should.have.property('primary_instance', true);
+  });
 });
 
 describe('GET /instances/access-token', () => {

@@ -36,6 +36,94 @@ describe('GET /backups', () => {
   });
 });
 
+describe('GET /backups pagination', () => {
+  it('should accept integer skip and take', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .get('/backups?skip=1&take=1')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal([]);
+  });
+  it('should reject a non-integer take (SQL injection attempt)', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .get('/backups?take=1%20UNION%20SELECT%20srp_verifier%20FROM%20t_user')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(400);
+    expect(response.body).to.have.property('error_code', 'BAD_REQUEST');
+  });
+  it('should reject a non-integer skip', async () => {
+    await request(TEST_BACKEND_APP)
+      .get('/backups?skip=-1')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
+});
+
+describe('Multipart upload scoping', () => {
+  it('should not finalize an upload started by another account', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/finalize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: 'other-account-started-backup.enc',
+        file_id: 'upload-id',
+        parts: [],
+        backup_id: 'f0b2c4d6-1a3b-4c5d-8e9f-0a1b2c3d4e5f',
+      })
+      .expect('Content-Type', /json/)
+      .expect(404);
+    expect(response.body).to.have.property('error_message', 'Backup id was not found');
+  });
+  it('should not finalize an upload with a file_key that is not the one of the backup', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/finalize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: 'other-account-started-backup.enc',
+        file_id: 'upload-id',
+        parts: [],
+        backup_id: '5c2d0a3e-8f4b-4d3a-9d7e-2a6f1b9c0e11',
+      })
+      .expect('Content-Type', /json/)
+      .expect(400);
+    expect(response.body).to.have.property('error_message', 'file_key does not match this backup');
+  });
+  it('should not abort an upload started by another account', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/abort')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_key: 'other-account-started-backup.enc',
+        file_id: 'upload-id',
+        backup_id: 'f0b2c4d6-1a3b-4c5d-8e9f-0a1b2c3d4e5f',
+      })
+      .expect('Content-Type', /json/)
+      .expect(404);
+    const backup = await TEST_DATABASE_INSTANCE.t_backup.findOne({ id: 'f0b2c4d6-1a3b-4c5d-8e9f-0a1b2c3d4e5f' });
+    expect(backup).to.have.property('status', 'started');
+  });
+  it('should reject an invalid file_size', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/backups/multi_parts/initialize')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({
+        file_size: 'not-a-number',
+      })
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
+});
+
 describe('Upload backup', () => {
   it('should upload small backup', async function Test() {
     this.timeout(10000);

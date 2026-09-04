@@ -4,6 +4,7 @@
 const get = require('get-value');
 const clone = require('clone');
 const { BadRequestError } = require('../../common/error');
+const { isAllowedRedirectUri, buildRedirectUrl } = require('../../common/oauth-redirect-uri');
 
 const VALID_REDIRECT_URIS = [
   'https://pitangui.amazon.com/api/skill/link/M1CD0NOTQVDMUV',
@@ -26,12 +27,13 @@ module.exports = function AlexaController(
    * @apiGroup Alexa
    */
   async function smartHome(req, res) {
-    logger.debug(`Alexa : smartHome request`);
-    logger.debug(req.body);
-    analyticsService.sendMetric('alexa.smart-home', 1, req.user.id);
-    const user = await userModel.getMySelf({ id: req.user.id });
     const directiveNamespace = get(req.body, 'directive.header.namespace');
     const directiveName = get(req.body, 'directive.header.name');
+    // The body carries the gateway bearer token (directive.endpoint.scope.token)
+    // and the Amazon grant code, so only the directive identity is logged
+    logger.debug(`Alexa : smartHome request ${directiveNamespace}.${directiveName}`);
+    analyticsService.sendMetric('alexa.smart-home', 1, req.user.id);
+    const user = await userModel.getMySelf({ id: req.user.id });
     const primaryInstance = await instanceModel.getPrimaryInstanceByAccount(user.account_id);
 
     try {
@@ -69,9 +71,9 @@ module.exports = function AlexaController(
       const response = await socketModel.sendMessageOpenApi(user, message);
       return res.json(response);
     } catch (e) {
-      logger.error(`ALEXA_SMART_HOME_ERROR, user_id = ${user.id}`);
-      logger.error(req.body);
-      logger.error(e);
+      logger.error(
+        `ALEXA_SMART_HOME_ERROR, user_id = ${user.id}, directive = ${directiveNamespace}.${directiveName}, message = ${e.message}`,
+      );
 
       throw e;
     }
@@ -88,14 +90,11 @@ module.exports = function AlexaController(
     if (req.body.client_id !== ALEXA_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
     }
-    const baseUrlFound = VALID_REDIRECT_URIS.find(
-      (redirectUriBaseUrl) => req.body.redirect_uri && req.body.redirect_uri.startsWith(redirectUriBaseUrl),
-    );
-    if (!baseUrlFound) {
+    if (!isAllowedRedirectUri(req.body.redirect_uri, VALID_REDIRECT_URIS)) {
       throw new BadRequestError('invalid redirect_uri');
     }
     const code = await alexaModel.getCode(req.user.id);
-    const redirectUrl = `${req.body.redirect_uri}?state=${req.body.state}&code=${code}`;
+    const redirectUrl = buildRedirectUrl(req.body.redirect_uri, req.body.state, code);
     res.json({
       redirectUrl,
     });

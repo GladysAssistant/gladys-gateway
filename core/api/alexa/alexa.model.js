@@ -23,7 +23,13 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   const { ALEXA_OAUTH_CLIENT_ID } = process.env;
 
   async function getRefreshTokenAndAccessToken(code) {
-    const userId = await redisClient.get(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`);
+    if (typeof code !== 'string' || code.length === 0) {
+      throw new ForbiddenError('INVALID_CODE');
+    }
+    const codeKey = `${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`;
+    // an authorization code is single use: GETDEL reads and removes it atomically,
+    // so two concurrent exchanges cannot both succeed
+    const userId = await redisClient.getDel(codeKey);
     if (userId === null) {
       throw new ForbiddenError('INVALID_CODE');
     }

@@ -42,29 +42,6 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
-   * @api {post} /accounts/subscribe/new New account with plan
-   * @apiName New account with plan
-   * @apiGroup Account
-   *
-   * @apiParam {String} email email
-   * @apiParam {String} language Language
-   * @apiParam {String} stripe_source_id Stripe source id
-   *
-   * @apiSuccessExample {json} Success-Response:
-   * HTTP/1.1 200 OK
-   *
-   * {
-   *   "current_period_end": 1537841579580,
-   * }
-   */
-  async function subscribeMonthlyPlanWithoutAccount(req, res, next) {
-    const account = await accountModel.subscribeMonthlyPlanWithoutAccount(req.body.email, req.body.language);
-    res.json({
-      current_period_end: account.current_period_end,
-    });
-  }
-
-  /**
    * @api {post} /stripe/webhook Stripe Webhook
    * @apiName Stripe Webhook
    * @apiGroup Stripe
@@ -243,24 +220,6 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
-   * @api {post} /accounts/payments/sessions Create new payment session
-   * @apiName Create new payment session
-   * @apiGroup Account
-   *
-   *
-   * @apiSuccessExample {json} Success-Response:
-   * HTTP/1.1 200 OK
-   *
-   * {
-   *   "id": "unique-id"
-   * }
-   */
-  async function createPaymentSession(req, res, next) {
-    const session = await accountModel.createPaymentSession(req.body.locale || 'en');
-    res.json(session);
-  }
-
-  /**
    * @api {get} /accounts/stripe_customer_portal/:stripe_portal_key Redirect to stripe customer portal
    * @apiName Redirect to stripe customer portal
    * @apiGroup Account
@@ -279,14 +238,12 @@ module.exports = function AccountController(accountModel, socketModel) {
     getUsers,
     subscribeMonthlyPlan,
     subscribeAgainToMonthlySubscription,
-    subscribeMonthlyPlanWithoutAccount,
     updateCard,
     revokeUser,
     getCard,
     cancelMonthlySubscription,
     stripeEvent,
     getInvoices,
-    createPaymentSession,
     redirectToStripeCustomerPortal,
     upgradeFromMonthlyToYearly,
     getUserCurrentPlan,

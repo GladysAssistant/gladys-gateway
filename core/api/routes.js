@@ -16,7 +16,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     denyUrls: ['/instances/access-token', '/v1/api/owntracks/'],
   });
 
-  app.use(Sentry.Handlers.requestHandler());
+  // headers (Authorization, Stripe signature) and cookies are never sent to Sentry,
+  // the body is kept for debugging but scrubbed by beforeSendSentry
+  app.use(Sentry.Handlers.requestHandler({ request: ['data', 'method', 'query_string', 'url'], ip: false }));
 
   app.use(middlewares.requestExecutionTime);
 
@@ -114,6 +116,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
   app.post(
     '/users/login-two-factor',
+    middlewares.rateLimiter,
     asyncMiddleware(middlewares.twoFactorTokenAuth),
     asyncMiddleware(controllers.userController.loginTwoFactor),
   );
@@ -205,7 +208,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
   app.post(
     '/instances',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.instanceController.createInstance),
   );
   app.get(
@@ -239,10 +242,6 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
 
   // account
-  app.post(
-    '/accounts/subscribe/new',
-    asyncMiddleware(controllers.accountController.subscribeMonthlyPlanWithoutAccount),
-  );
   app.get(
     '/accounts/users',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
@@ -293,8 +292,6 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
     asyncMiddleware(controllers.accountController.getInvoices),
   );
-
-  app.post('/accounts/payments/sessions', asyncMiddleware(controllers.accountController.createPaymentSession));
 
   app.get(
     '/accounts/stripe_customer_portal/:stripe_portal_key',

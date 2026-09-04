@@ -5,11 +5,22 @@ const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const uuid = require('uuid');
 const srpServer = require('secure-remote-password/server');
-const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
+const {
+  ValidationError,
+  AlreadyExistError,
+  NotFoundError,
+  ForbiddenError,
+  TooManyRequestsError,
+} = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
 const schema = require('../../common/schema');
 
 const REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS = 120;
+// A TOTP code has 6 digits and is accepted with a window of 2 steps: without a limit on
+// failed attempts per user, an attacker knowing the password can brute force the code.
+const TWO_FACTOR_MAX_FAILED_ATTEMPTS = 5;
+const TWO_FACTOR_FAILED_ATTEMPTS_WINDOW_IN_SECONDS = 15 * 60;
+const TWO_FACTOR_FAILED_ATTEMPTS_REDIS_PREFIX = 'two_factor_failed_attempts';
 const resetPasswordTokenExpiryInMilliSeconds = 2 * 60 * 60 * 1000;
 const TWO_FACTOR_RECOVERY_CODE_COUNT = 10;
 // 128 bits of entropy per code, so knowing the SHA-256 hash of a code
@@ -24,6 +35,49 @@ function hashTwoFactorRecoveryCode(recoveryCode) {
 }
 
 module.exports = function UserModel(logger, db, redisClient, jwtService, mailService) {
+  function getTwoFactorAttemptsKey(userId) {
+    return `${TWO_FACTOR_FAILED_ATTEMPTS_REDIS_PREFIX}:${userId}`;
+  }
+
+  // Counts the attempt BEFORE verifying the code, atomically (SET NX EX + INCR in one
+  // MULTI), so concurrent requests cannot all slip under the limit, and the key always
+  // carries a TTL even if the process dies between the two commands.
+  async function countTwoFactorAttempt(userId) {
+    const key = getTwoFactorAttemptsKey(userId);
+    const [, attempts] = await redisClient
+      .multi()
+      .set(key, 0, { NX: true, EX: TWO_FACTOR_FAILED_ATTEMPTS_WINDOW_IN_SECONDS })
+      .incr(key)
+      .exec();
+    return attempts;
+  }
+
+  async function resetFailedTwoFactorAttempts(userId) {
+    await redisClient.del(getTwoFactorAttemptsKey(userId));
+  }
+
+  // Verifies a TOTP code with the per-user failed attempts limit applied
+  async function verifyTwoFactorCode(userId, twoFactorSecret, twoFactorCode) {
+    const attempts = await countTwoFactorAttempt(userId);
+    if (attempts > TWO_FACTOR_MAX_FAILED_ATTEMPTS) {
+      logger.warn(`Two factor: too many failed attempts for user ${userId}`);
+      throw new TooManyRequestsError('Too many failed two factor attempts, try again later.');
+    }
+
+    const isCodeAStringOrANumber = typeof twoFactorCode === 'string' || typeof twoFactorCode === 'number';
+    const tokenValidates = speakeasy.totp.verify({
+      secret: twoFactorSecret,
+      token: isCodeAStringOrANumber ? String(twoFactorCode) : '',
+      window: 2,
+    });
+
+    if (!tokenValidates) {
+      throw new ForbiddenError();
+    }
+
+    await resetFailedTwoFactorAttempts(userId);
+  }
+
   /**
    * Create a new user with his email and language
    */
@@ -125,7 +179,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   }
 
   async function updateUser(user, data) {
-    const { error, value } = Joi.validate(data, schema.signupSchema, {
+    const { error, value } = Joi.validate(data, schema.updateUserSchema, {
       stripUnknown: true,
       abortEarly: false,
       presence: 'optional',
@@ -480,15 +534,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       },
     );
 
-    const tokenValidates = speakeasy.totp.verify({
-      secret: userWithSecret.two_factor_secret,
-      token: twoFactorCode,
-      window: 2,
-    });
-
-    if (!tokenValidates) {
-      throw new ForbiddenError();
-    }
+    await verifyTwoFactorCode(userWithSecret.id, userWithSecret.two_factor_secret, twoFactorCode);
 
     return db.withTransaction((tx) => createDeviceSession(tx, userWithSecret, deviceName, userAgent));
   }
@@ -697,15 +743,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     const useRecoveryCode = userWithSecret.two_factor_enabled === true && data.two_factor_recovery_code !== undefined;
 
     if (userWithSecret.two_factor_enabled === true && useRecoveryCode === false) {
-      const tokenValidates = speakeasy.totp.verify({
-        secret: userWithSecret.two_factor_secret,
-        token: data.two_factor_code,
-        window: 2,
-      });
-
-      if (!tokenValidates) {
+      try {
+        await verifyTwoFactorCode(userWithSecret.id, userWithSecret.two_factor_secret, data.two_factor_code);
+      } catch (e) {
         logger.info(`Reset password error: two factor code is not valid.`);
-        throw new ForbiddenError();
+        throw e;
       }
     }
 

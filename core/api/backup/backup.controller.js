@@ -81,13 +81,18 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
    * }
    */
   async function initializeMultipartUpload(req, res) {
-    // Generate file destination ID
-    const name = `${uuid.v4()}.enc`;
-    const numberOfParts = Math.ceil(req.body.file_size / CHUNK_SIZE_IN_BYTES);
+    const fileSize = req.body.file_size;
+    if (!Number.isInteger(fileSize) || fileSize <= 0) {
+      throw new BadRequestError('file_size must be a positive integer');
+    }
 
-    if (req.body.file_size > MAX_FILE_SIZE_IN_BYTES) {
+    if (fileSize > MAX_FILE_SIZE_IN_BYTES) {
       throw new BadRequestError(`File is too large. Maximum file size is ${MAX_FILE_SIZE_IN_BYTES / 1024 / 1024} MB.`);
     }
+
+    // Generate file destination ID
+    const name = `${uuid.v4()}.enc`;
+    const numberOfParts = Math.ceil(fileSize / CHUNK_SIZE_IN_BYTES);
 
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
@@ -120,8 +125,9 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       { concurrency: 10 },
     );
 
-    // create backup in database with "started" type
-    const backup = await backupModel.createBackup(req.instance.id, null, req.body.file_size, 'started');
+    // create backup in database with "started" type. The S3 key is saved with it so
+    // finalize/abort can only touch the upload this account started.
+    const backup = await backupModel.createBackup(req.instance.id, multipartUpload.Key, fileSize, 'started');
 
     res.send({
       file_id: multipartUpload.UploadId,
@@ -144,13 +150,34 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
    *   "success": true
    * }
    */
+  // The S3 key is never taken from the request body: it is the one saved when this
+  // account initialized the upload, so an instance cannot complete or abort an
+  // upload belonging to another account, nor point its backup to another account's file.
+  async function getStartedBackupKey(instanceId, backupId, fileKeyFromBody) {
+    const backup = await backupModel.getStartedBackup(instanceId, backupId);
+    if (!backup.path) {
+      // upload started before the key was saved with the backup: it cannot be trusted
+      throw new BadRequestError('This upload cannot be resumed, please start a new backup');
+    }
+    if (fileKeyFromBody !== undefined && fileKeyFromBody !== backup.path) {
+      throw new BadRequestError('file_key does not match this backup');
+    }
+    return backup.path;
+  }
+
   async function finalizeMultipartUpload(req, res) {
+    if (!Array.isArray(req.body.parts)) {
+      throw new BadRequestError('parts must be an array');
+    }
+
+    const fileKey = await getStartedBackupKey(req.instance.id, req.body.backup_id, req.body.file_key);
+
     // ordering the parts to make sure they are in the right order
     const partsOrdered = req.body.parts.sort((a, b) => a.PartNumber - b.PartNumber);
 
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
-      Key: req.body.file_key,
+      Key: fileKey,
       UploadId: req.body.file_id,
       MultipartUpload: {
         Parts: partsOrdered,
@@ -162,7 +189,7 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
       s3Client,
       new GetObjectCommand({
         Bucket: process.env.STORAGE_BUCKET,
-        Key: req.body.file_key,
+        Key: fileKey,
       }),
     );
     const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
@@ -188,9 +215,11 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
    * }
    */
   async function abortMultiPartUpload(req, res) {
+    const fileKey = await getStartedBackupKey(req.instance.id, req.body.backup_id, req.body.file_key);
+
     const multipartParams = {
       Bucket: process.env.STORAGE_BUCKET,
-      Key: req.body.file_key,
+      Key: fileKey,
       UploadId: req.body.file_id,
     };
 
@@ -198,6 +227,7 @@ module.exports = function BackupController(backupModel, accountModel, logger) {
 
     const backup = await backupModel.updateBackup(req.instance.id, req.body.backup_id, {
       status: 'failed',
+      path: null,
     });
 
     res.send(backup);

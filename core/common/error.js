@@ -231,6 +231,65 @@ class PaymentRequiredError extends Error {
   }
 }
 
+/**
+ * The gateway relayed the request to an upstream service (AI provider, ...)
+ * that answered with an error or could not be reached. Not a gateway bug.
+ * `upstream` is a compact description of the upstream failure, used for logging only.
+ */
+class BadGatewayError extends Error {
+  constructor(errorMessage, upstream) {
+    super(errorMessage || 'Bad Gateway');
+    this.errorMessage = errorMessage || 'Bad Gateway';
+    this.upstream = upstream || null;
+    this.code = 502;
+
+    // the next line is important so that the constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, BadGatewayError);
+  }
+
+  jsonError() {
+    return {
+      status: this.code,
+      error_code: 'BAD_GATEWAY',
+      error_message: this.errorMessage,
+    };
+  }
+
+  getStatus() {
+    return this.code;
+  }
+}
+
+/**
+ * The upstream service did not answer in time (client-side timeout or 504 from
+ * the upstream itself). Not a gateway bug.
+ */
+class GatewayTimeoutError extends Error {
+  constructor(errorMessage, upstream) {
+    super(errorMessage || 'Gateway Timeout');
+    this.errorMessage = errorMessage || 'Gateway Timeout';
+    this.upstream = upstream || null;
+    this.code = 504;
+
+    // the next line is important so that the constructor is not part
+    // of the resulting stacktrace
+    Error.captureStackTrace(this, GatewayTimeoutError);
+  }
+
+  jsonError() {
+    return {
+      status: this.code,
+      error_code: 'GATEWAY_TIMEOUT',
+      error_message: this.errorMessage,
+    };
+  }
+
+  getStatus() {
+    return this.code;
+  }
+}
+
 module.exports.ValidationError = ValidationError;
 module.exports.BadRequestError = BadRequestError;
 module.exports.AlreadyExistError = AlreadyExistError;
@@ -240,3 +299,5 @@ module.exports.UnauthorizedError = UnauthorizedError;
 module.exports.ServerError = ServerError;
 module.exports.PaymentRequiredError = PaymentRequiredError;
 module.exports.TooManyRequestsError = TooManyRequestsError;
+module.exports.BadGatewayError = BadGatewayError;
+module.exports.GatewayTimeoutError = GatewayTimeoutError;

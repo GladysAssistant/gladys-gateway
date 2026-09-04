@@ -8,7 +8,10 @@ const {
   PaymentRequiredError,
   BadRequestError,
   TooManyRequestsError,
+  BadGatewayError,
+  GatewayTimeoutError,
 } = require('../common/error');
+const { isAxiosError, formatAxiosError } = require('../service/upstreamError');
 
 const EXPECTED_CLIENT_ERRORS = [
   ValidationError,
@@ -21,17 +24,26 @@ const EXPECTED_CLIENT_ERRORS = [
   PaymentRequiredError,
 ];
 
+// Upstream failures (AI provider down or slow) mapped to clean 502/504 by the
+// controllers: operational, counted as Sentry metrics, never reported as exceptions.
+const EXPECTED_UPSTREAM_ERRORS = [BadGatewayError, GatewayTimeoutError];
+
 function isExpectedClientError(error) {
   return EXPECTED_CLIENT_ERRORS.some((ErrorClass) => error instanceof ErrorClass);
+}
+
+function isExpectedUpstreamError(error) {
+  return EXPECTED_UPSTREAM_ERRORS.some((ErrorClass) => error instanceof ErrorClass);
 }
 
 /**
  * Sentry should only receive errors that are actual bugs.
  * Expected client errors (4xx we raise on purpose: 400, 401, 402, 403, 404, 409, 422, 429)
- * are handled by the error middleware and must not be reported.
+ * and expected upstream errors (502 / 504 when a third-party service fails, counted
+ * as metrics instead) are handled by the error middleware and must not be reported.
  */
 function shouldReportErrorToSentry(error) {
-  if (isExpectedClientError(error)) {
+  if (isExpectedClientError(error) || isExpectedUpstreamError(error)) {
     return false;
   }
   // generic 404 raised by third-party middlewares (e.g. express static / proxy)
@@ -41,48 +53,11 @@ function shouldReportErrorToSentry(error) {
   return true;
 }
 
-function isAxiosError(error) {
-  return Boolean(error && (error.isAxiosError === true || error.name === 'AxiosError'));
-}
-
 function formatRequestContext(req) {
   const method = req.method || '?';
   const path = (req.route && req.route.path) || req.originalUrl || req.url || '?';
   const userId = req.user && req.user.id ? req.user.id : '—';
   return `${method} ${path} user=${userId}`;
-}
-
-function summarizeResponseData(data) {
-  if (data == null) {
-    return '';
-  }
-  if (typeof data === 'string') {
-    return data.slice(0, 200);
-  }
-  if (typeof data.error === 'string') {
-    return data.error.slice(0, 200);
-  }
-  if (data.error && data.error.message) {
-    return String(data.error.message).slice(0, 200);
-  }
-  if (data.message) {
-    return String(data.message).slice(0, 200);
-  }
-  try {
-    return JSON.stringify(data).slice(0, 200);
-  } catch (e) {
-    return '';
-  }
-}
-
-function formatAxiosError(error) {
-  const method = ((error.config && error.config.method) || '?').toUpperCase();
-  const url = (error.config && error.config.url) || '?';
-  const status = (error.response && error.response.status) || error.code || '?';
-  const statusText = (error.response && error.response.statusText) || '';
-  const detail = summarizeResponseData(error.response && error.response.data);
-  const statusPart = statusText ? `${status} ${statusText}` : String(status);
-  return `Axios ${method} ${url} → ${statusPart}${detail ? ` — ${detail}` : ''}`;
 }
 
 function formatUnexpectedError(error) {
@@ -99,6 +74,10 @@ function getErrorMiddleware(logger) {
       const code = error.code || (error.getStatus && error.getStatus()) || 400;
       const message = error.errorMessage || error.message || error.constructor.name;
       logger.warn(`${code} ${message} ${context}`);
+    } else if (isExpectedUpstreamError(error)) {
+      // Upstream failure already mapped to a clean 502/504: one warn line with the upstream detail
+      const upstream = error.upstream ? ` (${error.upstream})` : '';
+      logger.warn(`${error.getStatus()} ${error.errorMessage}${upstream} ${context}`);
     } else if (error && error.type === 'StripeCardError') {
       logger.warn(`402 ${error.message} ${context}`);
     } else if (error && error.statusCode === 404) {
@@ -113,7 +92,7 @@ function getErrorMiddleware(logger) {
       }
     }
 
-    if (isExpectedClientError(error)) {
+    if (isExpectedClientError(error) || isExpectedUpstreamError(error)) {
       return res.status(error.getStatus()).json(error.jsonError());
     }
 
@@ -135,5 +114,7 @@ function getErrorMiddleware(logger) {
 
 module.exports = getErrorMiddleware;
 module.exports.EXPECTED_CLIENT_ERRORS = EXPECTED_CLIENT_ERRORS;
+module.exports.EXPECTED_UPSTREAM_ERRORS = EXPECTED_UPSTREAM_ERRORS;
 module.exports.isExpectedClientError = isExpectedClientError;
+module.exports.isExpectedUpstreamError = isExpectedUpstreamError;
 module.exports.shouldReportErrorToSentry = shouldReportErrorToSentry;

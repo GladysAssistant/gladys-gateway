@@ -9,6 +9,8 @@ const {
   BadRequestError,
   TooManyRequestsError,
   PaymentRequiredError,
+  BadGatewayError,
+  GatewayTimeoutError,
 } = require('../../../core/common/error');
 
 function createMockRes() {
@@ -129,6 +131,41 @@ describe('errorMiddleware', () => {
     expect(logger.calls.warn[0][0]).to.equal('402 card declined POST /accounts/subscribe user=u1');
     expect(res.statusCode).to.equal(402);
     expect(res.body.error_code).to.equal('PAYMENT_REQUIRED');
+  });
+
+  it('should warn once for upstream errors with the upstream detail and answer 502 / 504', () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const req = { method: 'POST', route: { path: '/openai/ask' } };
+
+    const res = createMockRes();
+    middleware(
+      new GatewayTimeoutError('AI service did not answer in time', 'Axios POST https://ai.example.com → 504'),
+      req,
+      res,
+      () => {},
+    );
+    expect(logger.calls.warn).to.have.length(1);
+    expect(logger.calls.warn[0][0]).to.equal(
+      '504 AI service did not answer in time (Axios POST https://ai.example.com → 504) POST /openai/ask user=—',
+    );
+    expect(logger.calls.error).to.have.length(0);
+    expect(res.statusCode).to.equal(504);
+    expect(res.body).to.deep.equal({
+      status: 504,
+      error_code: 'GATEWAY_TIMEOUT',
+      error_message: 'AI service did not answer in time',
+    });
+
+    const res2 = createMockRes();
+    middleware(new BadGatewayError('AI service is unreachable'), req, res2, () => {});
+    expect(logger.calls.warn[1][0]).to.equal('502 AI service is unreachable POST /openai/ask user=—');
+    expect(res2.statusCode).to.equal(502);
+    expect(res2.body).to.deep.equal({
+      status: 502,
+      error_code: 'BAD_GATEWAY',
+      error_message: 'AI service is unreachable',
+    });
   });
 
   it('should warn for generic statusCode 404 errors', () => {
@@ -323,6 +360,13 @@ describe('shouldReportErrorToSentry', () => {
     expect(shouldReportErrorToSentry(new UnauthorizedError())).to.equal(false);
     expect(shouldReportErrorToSentry(new BadRequestError('Bad'))).to.equal(false);
     expect(shouldReportErrorToSentry(new NotFoundError('Nope'))).to.equal(false);
+  });
+
+  it('should not report expected upstream errors (502 / 504), they are counted as metrics', () => {
+    expect(shouldReportErrorToSentry(new BadGatewayError('AI service returned an error'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new GatewayTimeoutError('AI service did not answer in time'))).to.equal(false);
+    expect(getErrorMiddleware.isExpectedUpstreamError(new GatewayTimeoutError())).to.equal(true);
+    expect(getErrorMiddleware.isExpectedUpstreamError(new Error('boom'))).to.equal(false);
   });
 
   it('should not report generic 404 errors coming from third-party middlewares', () => {

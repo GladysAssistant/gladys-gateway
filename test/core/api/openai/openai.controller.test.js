@@ -154,6 +154,95 @@ describe('POST /openai/ask', () => {
       api_response_id: null,
     });
   });
+  describe('when the AI service fails', () => {
+    beforeEach(async () => {
+      await TEST_DATABASE_INSTANCE.t_account.update(
+        {
+          id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+        },
+        {
+          status: 'active',
+        },
+      );
+    });
+    afterEach(() => {
+      delete process.env.OPEN_AI_ASK_TIMEOUT_MS;
+    });
+
+    async function ask() {
+      return request(TEST_BACKEND_APP)
+        .post('/openai/ask')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenInstance)
+        .send({
+          question: 'Allume la lumière de la cuisine',
+        })
+        .expect('Content-Type', /json/);
+    }
+
+    it('should return 504 when the AI service answers 504', async () => {
+      nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+        .post('/', (body) => true)
+        .reply(504, 'Scaleway request timed out');
+      const response = await ask();
+      expect(response.status).to.equal(504);
+      expect(response.body).to.deep.equal({
+        status: 504,
+        error_code: 'GATEWAY_TIMEOUT',
+        error_message: 'AI service did not answer in time',
+      });
+      const aiUsages = await TEST_DATABASE_INSTANCE.t_ai_usage.find({});
+      expect(aiUsages).to.have.lengthOf(0);
+    });
+
+    it('should return 504 when the AI service does not answer before the gateway timeout', async () => {
+      process.env.OPEN_AI_ASK_TIMEOUT_MS = '50';
+      nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+        .post('/', (body) => true)
+        .delay(500)
+        .reply(200, { type: 'TURN_ON' });
+      const response = await ask();
+      expect(response.status).to.equal(504);
+      expect(response.body.error_code).to.equal('GATEWAY_TIMEOUT');
+      nock.cleanAll();
+    });
+
+    it('should return 502 when the AI service answers 500', async () => {
+      nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+        .post('/', (body) => true)
+        .reply(500, { error: 'Internal Server Error' });
+      const response = await ask();
+      expect(response.status).to.equal(502);
+      expect(response.body).to.deep.equal({
+        status: 502,
+        error_code: 'BAD_GATEWAY',
+        error_message: 'AI service returned an error',
+      });
+    });
+
+    it('should return 502 when the AI service rejects the request (400)', async () => {
+      nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+        .post('/', (body) => true)
+        .reply(400, { error: { message: 'invalid request' } });
+      const response = await ask();
+      expect(response.status).to.equal(502);
+      expect(response.body.error_code).to.equal('BAD_GATEWAY');
+    });
+
+    it('should return 502 when the AI service is unreachable', async () => {
+      nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
+        .post('/', (body) => true)
+        .replyWithError({ code: 'ECONNREFUSED', message: 'connect ECONNREFUSED' });
+      const response = await ask();
+      expect(response.status).to.equal(502);
+      expect(response.body).to.deep.equal({
+        status: 502,
+        error_code: 'BAD_GATEWAY',
+        error_message: 'AI service is unreachable',
+      });
+    });
+  });
+
   it('should send question to AI when trialing', async () => {
     nock(process.env.OPEN_AI_ASK_API_URL, { encodedQueryParams: true })
       .post('/', (body) => true)

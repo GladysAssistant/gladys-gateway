@@ -640,6 +640,15 @@ module.exports = function AccountModel(
         break;
       }
       case 'charge.succeeded': {
+        // A charge without a customer (one-shot payment, Payment Link, guest checkout)
+        // is not linked to any Gladys Plus account: nothing to update here.
+        if (!account) {
+          logger.warn(
+            `Stripe Webhook : charge.succeeded "${event.data.object.id}" received without a known account, ignoring.`,
+          );
+          break;
+        }
+
         // get currentPeriodEnd threw the API
         const currentPeriodEnd = await stripeService.getSubscriptionCurrentPeriodEnd(account.stripe_subscription_id);
 

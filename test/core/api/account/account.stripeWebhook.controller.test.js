@@ -451,6 +451,40 @@ describe('stripeWebhook', () => {
     expect(accountUpdatedToPlus).to.have.property('status', 'active');
     expect(accountUpdatedToPlus).to.have.property('plan', 'plus');
   });
+  it('should ignore charge.succeeded without customer (one-shot payment, Payment Link, guest charge)', async () => {
+    // Stripe sends charge.succeeded for every charge on the Stripe account,
+    // including charges that have no customer and are not linked to any Gladys Plus account.
+    const event = {
+      id: 'evt_test_webhook_charge_without_customer',
+      object: 'event',
+      type: 'charge.succeeded',
+      data: {
+        object: {
+          id: 'ch_one_shot',
+          object: 'charge',
+          customer: null,
+          amount: 19900,
+          currency: 'eur',
+          status: 'succeeded',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    expect(response.body).to.deep.equal({ success: true });
+  });
+
   it('should delete subscription', async () => {
     // First create subscription
     const event = {

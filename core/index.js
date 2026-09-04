@@ -159,15 +159,16 @@ module.exports = async (port) => {
 
   const services = {
     fingerprint: Fingerprint(logger),
-    mailService: Mail(logger),
+    telegramService: Telegram(logger),
     jwtService: Jwt(),
     stripeService: Stripe(logger),
     slackService: Slack(logger),
-    telegramService: Telegram(logger),
     analyticsService: AnalyticsService(logger),
     openPanelService: OpenPanelService(logger),
     emailListService: EmailList(logger),
   };
+  // The mail service reports the metadata of the emails it sends on Telegram
+  services.mailService = Mail(logger, services.telegramService);
 
   const instanceModel = Instance(logger, db, redisClient, services.jwtService, services.fingerprint);
 

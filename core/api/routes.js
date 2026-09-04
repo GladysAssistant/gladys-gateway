@@ -1,13 +1,9 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
 const asyncMiddleware = require('../middleware/asyncMiddleware');
-const { shouldReportErrorToSentry } = require('../middleware/errorMiddleware');
 const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
-  // the gateway is behing a proxy
-  app.enable('trust proxy');
-
   // Sentry is initialized in index.js (before Express is loaded), see core/service/sentry.js
 
   app.use(middlewares.requestExecutionTime);
@@ -558,9 +554,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     }),
   );
 
-  // Only capture unexpected errors: expected client errors (4xx raised on purpose)
-  // are already handled by the error middleware and would only pollute Sentry.
-  Sentry.setupExpressErrorHandler(app, { shouldHandleError: shouldReportErrorToSentry });
+  // Captures unexpected errors to Sentry (the filter is configured on the Express
+  // integration in core/service/sentry.js) and forwards them to the error middleware.
+  Sentry.setupExpressErrorHandler(app);
 
   // error
   app.use(middlewares.errorMiddleware);

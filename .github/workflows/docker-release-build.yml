@@ -1,0 +1,64 @@
+name: Release Docker image
+run-name: Release Docker image ${{ github.ref_name }}
+
+# Step 3 of the release process. Builds the production image from a release
+# tag and pushes it to Docker Hub as `vX.Y.Z` and `latest`. Rolling back a
+# release is then a matter of deploying the previous `vX.Y.Z` tag.
+
+on:
+  # Dispatched on the new tag by the "Create release tag" workflow: a tag pushed
+  # with the default GITHUB_TOKEN does not trigger the `push` event below.
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  docker:
+    name: Docker build and push
+    # Production images are only published from a release tag, never from a
+    # branch a manual dispatch could have been started on.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    steps:
+      - name: ⬇️ Checkout code
+        uses: actions/checkout@v4
+      - name: 🐳 Docker meta
+        id: docker_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: gladysassistant/gladys-gateway-server
+          # `latest` is pushed on every stable release: the `auto` flavor adds
+          # it on semver tags but skips pre-releases (v1.2.0-rc.1).
+          flavor: |
+            latest=auto
+          tags: |
+            type=semver,pattern=v{{version}}
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: 🔑 Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USER }}
+          password: ${{ secrets.DOCKERHUB_PASSWORD }}
+      - name: 🐳 Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          pull: true
+          tags: ${{ steps.docker_meta.outputs.tags }}
+          labels: ${{ steps.docker_meta.outputs.labels }}
+          # The MaxMind key is passed as a BuildKit secret: it is only mounted
+          # during the build step and never persisted in the image.
+          secrets: |
+            maxmind_license_key=${{ secrets.MAX_MIND_LICENSE_KEY }}
+      - name: 📝 Job summary
+        env:
+          TAGS: ${{ steps.docker_meta.outputs.tags }}
+        run: |
+          {
+            echo "### 🐳 Docker images published"
+            echo ""
+            echo "${TAGS}" | sed 's/^/- `/; s/$/`/'
+          } >> "$GITHUB_STEP_SUMMARY"

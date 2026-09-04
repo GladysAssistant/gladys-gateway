@@ -3,7 +3,7 @@ const nodemailer = require('nodemailer');
 const emails = require('../common/email');
 const { normalizeLanguage } = require('../common/language');
 
-module.exports = function MailService(logger) {
+module.exports = function MailService(logger, telegramService) {
   let transporter;
 
   if (process.env.DISABLE_EMAIL !== 'true') {
@@ -40,7 +40,6 @@ module.exports = function MailService(logger) {
     const mailOptions = {
       from: process.env.EMAIL_FROM,
       to: user.email,
-      bcc: 'hello@gladysassistant.com',
       subject: emails[template][user.language].subject,
       html,
     };
@@ -57,6 +56,9 @@ module.exports = function MailService(logger) {
     }
 
     logger.info(`Sending ${template} email.`);
+    // Only notify metadata on Telegram: never forward the email body or the scope,
+    // as it may contain sensitive links (password reset, invitation token, email confirmation...)
+    telegramService.sendAlert(`Sending "${template}" email to ${user.email} (language = ${user.language})`);
     return transporter.sendMail(mailOptions);
   }
 

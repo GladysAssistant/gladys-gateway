@@ -89,7 +89,8 @@ module.exports = async (port) => {
   });
 
   const app = express();
-  app.enable('trust proxy');
+  // only trust the first hop (Caddy), see core/api/routes.js
+  app.set('trust proxy', 1);
   const server = createServer(app);
 
   const io = new Server(server, {

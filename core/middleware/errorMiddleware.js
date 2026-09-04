@@ -25,6 +25,22 @@ function isExpectedClientError(error) {
   return EXPECTED_CLIENT_ERRORS.some((ErrorClass) => error instanceof ErrorClass);
 }
 
+/**
+ * Sentry should only receive errors that are actual bugs.
+ * Expected client errors (4xx we raise on purpose: 400, 401, 402, 403, 404, 409, 422, 429)
+ * are handled by the error middleware and must not be reported.
+ */
+function shouldReportErrorToSentry(error) {
+  if (isExpectedClientError(error)) {
+    return false;
+  }
+  // generic 404 raised by third-party middlewares (e.g. express static / proxy)
+  if (error && (error.status === 404 || error.statusCode === 404)) {
+    return false;
+  }
+  return true;
+}
+
 function isAxiosError(error) {
   return Boolean(error && (error.isAxiosError === true || error.name === 'AxiosError'));
 }
@@ -73,7 +89,7 @@ function formatUnexpectedError(error) {
   return `${error.name || 'Error'}: ${error.message}`;
 }
 
-module.exports = function getErrorMiddleware(logger) {
+function getErrorMiddleware(logger) {
   return function ErrorMiddleware(error, req, res, next) {
     const context = formatRequestContext(req);
 
@@ -115,4 +131,9 @@ module.exports = function getErrorMiddleware(logger) {
     const serverError = new ServerError();
     return res.status(serverError.getStatus()).json(serverError.jsonError());
   };
-};
+}
+
+module.exports = getErrorMiddleware;
+module.exports.EXPECTED_CLIENT_ERRORS = EXPECTED_CLIENT_ERRORS;
+module.exports.isExpectedClientError = isExpectedClientError;
+module.exports.shouldReportErrorToSentry = shouldReportErrorToSentry;

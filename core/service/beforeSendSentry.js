@@ -4,6 +4,8 @@ const omitDeep = require('omit-deep');
 // stripped from the event before it leaves the server, wherever it appears
 // (request body, headers, extra context...)
 const PROPERTIES_TO_OMIT = [
+  // personal data
+  'email',
   // credentials & tokens
   'password',
   'authorization',
@@ -54,16 +56,29 @@ const PROPERTIES_TO_OMIT = [
 ];
 
 // Errors raised on these routes are never reported: they carry credentials
-// or location data and are noisy by nature.
-const DENIED_URLS = ['/instances/access-token', '/v1/api/owntracks/'];
+// or location data and are noisy by nature. Matched on the request pathname
+// (exact route or path prefix), never on the query string or the host.
+const DENIED_PATHS = ['/instances/access-token', '/v1/api/owntracks/'];
 
-function isDeniedUrl(event) {
+function getRequestPathname(event) {
   const url = event && event.request && event.request.url;
-  return typeof url === 'string' && DENIED_URLS.some((deniedUrl) => url.includes(deniedUrl));
+  if (typeof url !== 'string') {
+    return null;
+  }
+  try {
+    return new URL(url, 'http://localhost').pathname;
+  } catch (e) {
+    return null;
+  }
+}
+
+function isDeniedPath(event) {
+  const pathname = getRequestPathname(event);
+  return pathname !== null && DENIED_PATHS.some((deniedPath) => pathname.startsWith(deniedPath));
 }
 
 function beforeSend(event) {
-  if (isDeniedUrl(event)) {
+  if (isDeniedPath(event)) {
     return null;
   }
   return omitDeep(event, PROPERTIES_TO_OMIT);

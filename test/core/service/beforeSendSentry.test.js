@@ -11,7 +11,7 @@ describe('beforeSendSentry', () => {
       extra: { latitude: 48.8, longitude: 2.3, keep: 'me' },
     };
     const sent = beforeSendSentry(event);
-    expect(sent.request.data).to.deep.equal({ email: 'tony.stark@gladysassistant.com', nested: {} });
+    expect(sent.request.data).to.deep.equal({ nested: {} });
     expect(sent.extra).to.deep.equal({ keep: 'me' });
   });
 
@@ -20,6 +20,17 @@ describe('beforeSendSentry', () => {
       null,
     );
     expect(beforeSendSentry({ request: { url: 'https://api.gladysgateway.com/v1/api/owntracks/abc' } })).to.equal(null);
+  });
+
+  it('should match denied paths on the pathname only, not on the query string or host', () => {
+    expect(
+      beforeSendSentry({ request: { url: 'https://api.gladysgateway.com/users/login?next=/instances/access-token' } }),
+    ).to.not.equal(null);
+    expect(
+      beforeSendSentry({ request: { url: 'https://instances.access-token.example.com/users/login' } }),
+    ).to.not.equal(null);
+    expect(beforeSendSentry({ request: { url: '/instances/access-token' } })).to.equal(null);
+    expect(beforeSendSentry({ request: { url: 'not a url at all' } })).to.not.equal(null);
   });
 
   it('should keep events without a request', () => {

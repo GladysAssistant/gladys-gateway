@@ -55,6 +55,24 @@ describe('POST /users/signup', () => {
     expect(user.email).to.equal('tony.stark.mixed@gladysassistant.com');
   });
 
+  it('should return 422 for an unsupported language', () =>
+    request(TEST_BACKEND_APP)
+      .post('/users/signup')
+      .send({
+        name: 'Tony',
+        email: 'tony.stark@gladysassistant.com',
+        language: 'zz',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+      })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(422));
+
   it('should not signup user, missing attributes', async () => {
     await request(TEST_BACKEND_APP)
       .post('/users/signup')

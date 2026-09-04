@@ -165,7 +165,7 @@ describe('GET /accounts/plan', () => {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect(200);
-    expect(response.body).to.deep.equal({ plan: 'monthly' });
+    expect(response.body).to.deep.equal({ plan: 'monthly', product: 'plus' });
   });
   it('should return current yearly plan', async () => {
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
@@ -221,9 +221,111 @@ describe('GET /accounts/plan', () => {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect(200);
-    expect(response.body).to.deep.equal({ plan: 'yearly' });
+    expect(response.body).to.deep.equal({ plan: 'yearly', product: 'plus' });
   });
-  it('should return 400 unknown plan', async () => {
+  it('should return current lite monthly plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_lite_monthly',
+              object: 'subscription_item',
+              price: {
+                id: 'price_lite_monthly',
+                object: 'price',
+                product: process.env.STRIPE_LITE_PLAN_PRODUCT_ID,
+                recurring: {
+                  interval: 'month',
+                  interval_count: 1,
+                },
+                type: 'recurring',
+              },
+              quantity: 1,
+            },
+          ],
+          has_more: false,
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'monthly', product: 'lite' });
+  });
+  it('should return current lite yearly plan', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_lite_yearly',
+              object: 'subscription_item',
+              price: {
+                id: 'price_lite_yearly',
+                object: 'price',
+                product: process.env.STRIPE_LITE_PLAN_PRODUCT_ID,
+                recurring: {
+                  interval: 'year',
+                  interval_count: 1,
+                },
+                type: 'recurring',
+              },
+              quantity: 1,
+            },
+          ],
+          has_more: false,
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'yearly', product: 'lite' });
+  });
+  it('should return legacy plus yearly price based on interval', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub2')
+      .reply(200, {
+        current_period_end: 1289482682000, // in 2010
+        items: {
+          object: 'list',
+          data: [
+            {
+              id: 'si_legacy',
+              object: 'subscription_item',
+              price: {
+                id: 'price_legacy_plus_yearly',
+                object: 'price',
+                product: 'prod_De00NxBNNLv3Hg',
+                recurring: {
+                  interval: 'year',
+                  interval_count: 1,
+                },
+                type: 'recurring',
+              },
+              quantity: 1,
+            },
+          ],
+          has_more: false,
+        },
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'yearly', product: 'plus' });
+  });
+  it('should return unknown plan instead of an error when subscription has no item', async () => {
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
       .get('/v1/subscriptions/sub2')
       .reply(200, {
@@ -239,12 +341,8 @@ describe('GET /accounts/plan', () => {
       .get('/accounts/plan')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect(400);
-    expect(response.body).to.deep.equal({
-      error_code: 'BAD_REQUEST',
-      error_message: 'Unknown plan',
-      status: 400,
-    });
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'unknown', product: 'unknown' });
   });
 });
 

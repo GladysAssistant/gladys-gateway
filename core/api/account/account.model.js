@@ -1,13 +1,7 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const {
-  AlreadyExistError,
-  ForbiddenError,
-  NotFoundError,
-  ValidationError,
-  BadRequestError,
-} = require('../../common/error');
+const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
 
 const {
   buildPaymentFailedScope,
@@ -545,14 +539,28 @@ module.exports = function AccountModel(
     );
 
     const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
-    const firstPrice = subscription?.items?.data[0]?.price?.id;
-    if (firstPrice === process.env.STRIPE_MONTHLY_PLAN_ID) {
-      return { plan: 'monthly' };
+    const price = subscription?.items?.data[0]?.price;
+
+    // Billing interval: known Plus price IDs first, then fallback on the
+    // Stripe price interval so Lite prices and legacy prices are handled too.
+    let plan = 'unknown';
+    if (price?.id === process.env.STRIPE_MONTHLY_PLAN_ID) {
+      plan = 'monthly';
+    } else if (price?.id === process.env.STRIPE_YEARLY_PLAN_ID) {
+      plan = 'yearly';
+    } else if (price?.recurring?.interval === 'month') {
+      plan = 'monthly';
+    } else if (price?.recurring?.interval === 'year') {
+      plan = 'yearly';
     }
-    if (firstPrice === process.env.STRIPE_YEARLY_PLAN_ID) {
-      return { plan: 'yearly' };
+
+    // Product tier (lite / plus), same logic as the Stripe webhook handler
+    let product = 'unknown';
+    if (price?.product) {
+      product = price.product === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
     }
-    throw new BadRequestError('Unknown plan');
+
+    return { plan, product };
   }
 
   async function subscribeAgainToMonthlySubscription(user) {

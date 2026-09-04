@@ -436,7 +436,8 @@ describe('POST /google/report_state', () => {
   it('should report a new state, have a 404 (device not found google side) and request a sync once', async () => {
     nock('https://www.googleapis.com:443', { encodedQueryParams: true })
       .post('/oauth2/v4/token', () => true)
-      .times(4)
+      // 2 report states + 1 request sync
+      .times(3)
       .reply(200, {
         accessToken: 'toto',
       });
@@ -454,9 +455,9 @@ describe('POST /google/report_state', () => {
           status: 'NOT_FOUND',
         },
       });
-    // the first 404 triggers a request sync
+    // the first 404 triggers an async request sync
     const firstRequestSyncScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def' })
+      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def', async: true })
       .reply(200, {
         status: 200,
       });
@@ -480,11 +481,12 @@ describe('POST /google/report_state', () => {
     expect(response.body).to.deep.equal({ status: 200 });
     expect(firstRequestSyncScope.isDone()).to.equal(true);
     // a second 404 within the hour must not request another sync (Redis lock)
-    const secondRequestSyncScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def' })
-      .reply(200, {
-        status: 200,
-      });
+    const secondRequestSyncInterceptor = nock('https://homegraph.googleapis.com:443', {
+      encodedQueryParams: true,
+    }).post('/v1/devices:requestSync', () => true);
+    const secondRequestSyncScope = secondRequestSyncInterceptor.reply(200, {
+      status: 200,
+    });
     const response2 = await request(TEST_BACKEND_APP)
       .post('/google/report_state')
       .send(reportStatePayload)
@@ -495,7 +497,9 @@ describe('POST /google/report_state', () => {
     expect(response2.body).to.deep.equal({ status: 200 });
     expect(reportStateScope.isDone()).to.equal(true);
     expect(secondRequestSyncScope.isDone()).to.equal(false);
-    nock.cleanAll();
+    // only remove our own pending interceptor: nock.cleanAll() would also drop the
+    // persistent nocks from test/tasks/nock.js used by later tests
+    nock.removeInterceptor(secondRequestSyncInterceptor);
   });
   it('should report a new state, have a 404 and not crash if the request sync fails', async () => {
     nock('https://www.googleapis.com:443', { encodedQueryParams: true })
@@ -514,7 +518,7 @@ describe('POST /google/report_state', () => {
         },
       });
     const requestSyncScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def' })
+      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def', async: true })
       .reply(500, {
         error: {
           code: 500,

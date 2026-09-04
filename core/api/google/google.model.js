@@ -20,6 +20,11 @@ const getGoogleErrorMessage = (e) => {
   return typeof message === 'string' ? message : JSON.stringify(message);
 };
 
+// device ids come from the instance payload: strip control characters (CR, LF...)
+// so they cannot forge extra log lines
+// eslint-disable-next-line no-control-regex
+const sanitizeForLog = (str) => str.replace(/[\x00-\x1f\x7f]/g, ' ');
+
 const cleanNullProperties = (obj) =>
   Object.entries(obj)
     .map(([k, v]) => [k, v && typeof v === 'object' ? cleanNullProperties(v) : v])
@@ -151,10 +156,13 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
       AND t_device.client_id = $2;
     `;
 
-  async function sendRequestSync(agentUserId) {
+  // async: when true, Google queues the sync and answers immediately. It allows concurrent
+  // Request Sync for the same agentUserId (a synchronous one returns 429 in that case).
+  async function sendRequestSync(agentUserId, { async = false } = {}) {
     await homegraphClient.devices.requestSync({
       requestBody: {
         agentUserId,
+        ...(async ? { async: true } : {}),
       },
     });
   }
@@ -172,10 +180,18 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   // The lock is taken with SET NX EX so concurrent 404s only trigger a single sync.
   async function requestSyncAfterDeviceNotFound(agentUserId, userId, deviceIds) {
     const lockKey = `${GOOGLE_REQUEST_SYNC_LOCK_REDIS_PREFIX}:${agentUserId}`;
-    const lockAcquired = await redisClient.set(lockKey, '1', {
-      NX: true,
-      EX: GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS,
-    });
+    let lockAcquired;
+    try {
+      lockAcquired = await redisClient.set(lockKey, '1', {
+        NX: true,
+        EX: GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS,
+      });
+    } catch (e) {
+      // Redis unavailable: don't turn a handled 404 into a failed report state,
+      // and don't sync without the lock (it would spam Google)
+      logger.warn(`GOOGLE_HOME_REQUEST_SYNC_LOCK_ERROR user=${userId} message=${e.message}`);
+      return;
+    }
     if (lockAcquired === null) {
       logger.debug(
         `GOOGLE_HOME_REPORT_STATE_DEVICE_NOT_FOUND user=${userId} devices=${deviceIds} (sync already requested recently)`,
@@ -184,7 +200,9 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     }
     logger.info(`GOOGLE_HOME_REPORT_STATE_DEVICE_NOT_FOUND user=${userId} devices=${deviceIds}, requesting sync`);
     try {
-      await sendRequestSync(agentUserId);
+      // async so this recovery sync neither collides with an instance-initiated
+      // Request Sync (429) nor makes the report state wait for a full SYNC round-trip
+      await sendRequestSync(agentUserId, { async: true });
     } catch (e) {
       const status = get(e, 'response.status');
       const message = getGoogleErrorMessage(e);
@@ -221,7 +239,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
       } catch (e) {
         const status = get(e, 'response.status');
         const message = getGoogleErrorMessage(e);
-        const deviceIds = Object.keys(get(payloadCleaned, 'devices.states') || {}).join(',') || '—';
+        const deviceIds = sanitizeForLog(Object.keys(get(payloadCleaned, 'devices.states') || {}).join(',')) || '—';
         if (status === 404) {
           await requestSyncAfterDeviceNotFound(users[0].account_id, users[0].id, deviceIds);
           return;

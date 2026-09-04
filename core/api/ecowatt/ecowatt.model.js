@@ -86,6 +86,9 @@ module.exports = function EcowattModel(logger, redisClient) {
       retries: ECOWATT_RETRY_RETRIES,
       factor: ECOWATT_RETRY_FACTOR,
       minTimeout: retryMinTimeoutInMs,
+      // async-retry jitters the backoff by default (1x to 2x): keep it exact so the
+      // whole sequence stays within the lock lifetime (see the constants test)
+      randomize: false,
     };
     return retry(async () => getDataLive(), options);
   }
@@ -136,6 +139,7 @@ module.exports = function EcowattModel(logger, redisClient) {
       retries: Math.ceil((ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS * 1000) / waitForRefreshIntervalInMs),
       factor: 1,
       minTimeout: waitForRefreshIntervalInMs,
+      randomize: false,
     };
     return retry(async (bail) => {
       // Read the lock before the data: the holder writes the data before releasing the lock

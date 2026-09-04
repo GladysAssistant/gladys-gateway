@@ -160,6 +160,41 @@ describe('POST /v1/api/google/token', () => {
     expect(refreshTokenResponse.body).not.to.have.property('refresh_token');
     expect(refreshTokenResponse.body).to.have.property('expires_in');
   });
+  it('should exchange a code only once under concurrent requests', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/authorize')
+      .send({
+        redirect_uri: 'https://oauth-redirect-sandbox.googleusercontent.com/toto',
+        state: 'toto',
+        client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    const queryStringToSend = qs.encode({
+      client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+      client_secret: process.env.GOOGLE_HOME_OAUTH_CLIENT_SECRET,
+      code: new URL(response.body.redirectUrl).searchParams.get('code'),
+      grant_type: 'authorization_code',
+    });
+    const responses = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        request(TEST_BACKEND_APP)
+          .post('/v1/api/google/token')
+          .send(queryStringToSend)
+          .set('Accept', 'application/json')
+          .set('Content-Type', 'application/x-www-form-urlencoded'),
+      ),
+    );
+    const statuses = responses.map((tokenResponse) => tokenResponse.status);
+    expect(statuses.filter((status) => status === 200)).to.have.lengthOf(1);
+    expect(statuses.filter((status) => status === 400)).to.have.lengthOf(4);
+    const devices = await TEST_DATABASE_INSTANCE.t_device.find({
+      user_id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+      client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+    });
+    expect(devices).to.have.lengthOf(1);
+  });
   it('should return 400 bad request', async () => {
     const response = await request(TEST_BACKEND_APP)
       .post('/google/authorize')

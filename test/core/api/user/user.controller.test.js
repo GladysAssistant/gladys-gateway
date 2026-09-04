@@ -329,6 +329,27 @@ describe('POST /users/login-two-factor', () => {
     expect(response.body).to.have.property('error_code', 'TOO_MANY_REQUESTS');
   });
 
+  it('should hold the attempts limit under concurrent requests', async () => {
+    // 20 wrong codes sent in parallel: at most 5 reach the TOTP verification (403),
+    // the others are rejected by the counter (429)
+    const responses = await Promise.all(
+      Array.from({ length: 20 }, () =>
+        request(TEST_BACKEND_APP)
+          .post('/users/login-two-factor')
+          .set('Accept', 'application/json')
+          .set('Authorization', configTest.jwtTwoFactorToken)
+          .send({ two_factor_code: '000000' }),
+      ),
+    );
+    const statuses = responses.map((response) => response.status);
+    expect(statuses.filter((status) => status === 403)).to.have.lengthOf(5);
+    expect(statuses.filter((status) => status === 429)).to.have.lengthOf(15);
+    const ttl = await TEST_LEGACY_REDIS_CLIENT.v4.ttl(
+      'two_factor_failed_attempts:a139e4a6-ec6c-442d-9730-0499155d38d4',
+    );
+    expect(ttl).to.be.above(0);
+  });
+
   it('should reset the failed attempts counter after a successful login', async () => {
     const twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
     const validToken = speakeasy.totp({ secret: twoFactorSecret });

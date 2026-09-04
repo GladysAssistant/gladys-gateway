@@ -39,20 +39,17 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return `${TWO_FACTOR_FAILED_ATTEMPTS_REDIS_PREFIX}:${userId}`;
   }
 
-  async function assertTwoFactorAttemptsNotExceeded(userId) {
-    const failedAttempts = await redisClient.get(getTwoFactorAttemptsKey(userId));
-    if (failedAttempts !== null && parseInt(failedAttempts, 10) >= TWO_FACTOR_MAX_FAILED_ATTEMPTS) {
-      logger.warn(`Two factor: too many failed attempts for user ${userId}`);
-      throw new TooManyRequestsError('Too many failed two factor attempts, try again later.');
-    }
-  }
-
-  async function recordFailedTwoFactorAttempt(userId) {
+  // Counts the attempt BEFORE verifying the code, atomically (SET NX EX + INCR in one
+  // MULTI), so concurrent requests cannot all slip under the limit, and the key always
+  // carries a TTL even if the process dies between the two commands.
+  async function countTwoFactorAttempt(userId) {
     const key = getTwoFactorAttemptsKey(userId);
-    const failedAttempts = await redisClient.incr(key);
-    if (failedAttempts === 1) {
-      await redisClient.expire(key, TWO_FACTOR_FAILED_ATTEMPTS_WINDOW_IN_SECONDS);
-    }
+    const [, attempts] = await redisClient
+      .multi()
+      .set(key, 0, { NX: true, EX: TWO_FACTOR_FAILED_ATTEMPTS_WINDOW_IN_SECONDS })
+      .incr(key)
+      .exec();
+    return attempts;
   }
 
   async function resetFailedTwoFactorAttempts(userId) {
@@ -61,7 +58,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
   // Verifies a TOTP code with the per-user failed attempts limit applied
   async function verifyTwoFactorCode(userId, twoFactorSecret, twoFactorCode) {
-    await assertTwoFactorAttemptsNotExceeded(userId);
+    const attempts = await countTwoFactorAttempt(userId);
+    if (attempts > TWO_FACTOR_MAX_FAILED_ATTEMPTS) {
+      logger.warn(`Two factor: too many failed attempts for user ${userId}`);
+      throw new TooManyRequestsError('Too many failed two factor attempts, try again later.');
+    }
 
     const isCodeAStringOrANumber = typeof twoFactorCode === 'string' || typeof twoFactorCode === 'number';
     const tokenValidates = speakeasy.totp.verify({
@@ -71,12 +72,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     });
 
     if (!tokenValidates) {
-      await recordFailedTwoFactorAttempt(userId);
       throw new ForbiddenError();
     }
 
     await resetFailedTwoFactorAttempts(userId);
   }
+
   /**
    * Create a new user with his email and language
    */

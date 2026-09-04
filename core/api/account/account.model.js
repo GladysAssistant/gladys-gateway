@@ -517,13 +517,10 @@ module.exports = function AccountModel(
       { fields: ['id', 'stripe_customer_id', 'stripe_subscription_id'] },
     );
 
-    // An account without a Stripe subscription (never subscribed, or its subscription
-    // was never linked) has no plan to look up: calling Stripe with a null id throws
-    // and would turn the dashboard request into a 500.
+    // Internal / tester accounts have no Stripe subscription: there is no plan to
+    // look up, and calling Stripe with a null id throws (500 on the dashboard).
     if (!account.stripe_subscription_id) {
-      logger.warn(
-        `getUserCurrentPlan: account ${account.id} (user ${userWithAccount.id}) has no stripe_subscription_id, returning unknown plan`,
-      );
+      logger.info(`getUserCurrentPlan: account ${account.id} has no stripe_subscription_id, returning unknown plan`);
       return { plan: 'unknown', product: 'unknown' };
     }
 

@@ -12,6 +12,7 @@ const {
   ECOWATT_RETRY_RETRIES,
   ECOWATT_RETRY_FACTOR,
   ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS,
+  ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS,
 } = constants;
 
 const RTE_HOST = 'https://digital.iservices.rte-france.com';
@@ -46,12 +47,13 @@ const getEcowattSignals = (status = 200) =>
 
 describe('GET /ecowatt/v4/signals', () => {
   it('should keep the refresh lock longer than the whole RTE retry sequence', () => {
-    // Instances without data wait for the lock holder as long as the lock lives:
-    // the lock must outlive the backoff (2s + 4s + 8s) plus the RTE round trips
+    // Instances without data wait for the lock holder as long as the lock lives: the lock
+    // must outlive the backoff (2s + 4s + 8s) plus the 2 calls to RTE of each of the 4 attempts
     const totalBackoffInMs =
       ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS * (ECOWATT_RETRY_FACTOR ** ECOWATT_RETRY_RETRIES - 1);
+    const totalRequestsInMs = (ECOWATT_RETRY_RETRIES + 1) * 2 * ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS;
     expect(totalBackoffInMs).to.equal(14000);
-    expect(ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS * 1000).to.be.above(totalBackoffInMs + 4 * 5000);
+    expect(ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS * 1000).to.be.above(totalBackoffInMs + totalRequestsInMs);
   });
   it('should return ecowatt data without retry', async () => {
     const rteToken = nockRteToken();
@@ -163,6 +165,17 @@ describe('GET /ecowatt/v4/signals', () => {
     await getEcowattSignals(500);
     expect(Date.now() - startedAt).to.be.above(150);
     assertRteNotCalled();
+  });
+  it('should not release a lock taken by another instance after the refresh outlived its own lock', async () => {
+    nockRteToken();
+    nock(RTE_HOST).get('/open_api/ecowatt/v5/signals').delay(100).reply(200, { data: true });
+    // Simulate the lock expiring and being taken by another instance while RTE is still answering
+    setTimeout(() => {
+      TEST_LEGACY_REDIS_CLIENT.v4.set(ECOWATT_REFRESH_LOCK_KEY, 'other-instance-token', { EX: 60 });
+    }, 50);
+    const response = await getEcowattSignals();
+    expect(response.body).to.deep.equal({ data: true });
+    expect(await TEST_LEGACY_REDIS_CLIENT.v4.get(ECOWATT_REFRESH_LOCK_KEY)).to.equal('other-instance-token');
   });
   it('should only call RTE once for concurrent requests when the cache expired', async () => {
     const rteToken = nockRteToken();

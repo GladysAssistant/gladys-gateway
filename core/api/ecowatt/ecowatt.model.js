@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const axios = require('axios');
 const retry = require('async-retry');
 
@@ -12,13 +13,24 @@ const ECOWATT_STALE_CACHE_KEY = 'ecowatt:data:v4:stale';
 const ECOWATT_RETRY_RETRIES = 3;
 const ECOWATT_RETRY_FACTOR = 2;
 const ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS = 2000;
+// Bound each call to RTE so a refresh can't hang past the lock lifetime
+const ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS = 5000;
 // Lock taken with SET NX EX so only one gateway instance refreshes the data
 // from RTE when the cache expires, instead of every instance at the same time
 const ECOWATT_REFRESH_LOCK_KEY = 'ecowatt:refresh-lock:v4';
-// Must cover the whole retry sequence (14s of backoff + 4 round trips to RTE),
-// see the test asserting it. A failed refresh keeps the lock until it expires,
-// which acts as a cooldown before calling RTE again
+// Must cover the whole retry sequence (14s of backoff + 4 attempts of 2 calls
+// to RTE), see the test asserting it. A failed refresh keeps the lock until it
+// expires, which acts as a cooldown before calling RTE again
 const ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS = 60;
+// The lock holds a token unique to the instance that took it, and is only
+// released by its owner (compare-and-delete), so a refresh that outlived the
+// lock can't delete the lock taken since by another instance
+const ECOWATT_RELEASE_LOCK_SCRIPT = `
+  if redis.call('get', KEYS[1]) == ARGV[1] then
+    return redis.call('del', KEYS[1])
+  end
+  return 0
+`;
 // An instance without any data (fresh or stale) while another one is refreshing
 // polls the cache instead of calling RTE itself, for as long as the lock lives
 const ECOWATT_WAIT_FOR_REFRESH_DEFAULT_INTERVAL_IN_MS = 500;
@@ -46,12 +58,14 @@ module.exports = function EcowattModel(logger, redisClient) {
       headers: {
         authorization: `Basic ${ECOWATT_BASIC_HTTP}`,
       },
+      timeout: ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS,
     });
 
     const { data } = await axios.get('https://digital.iservices.rte-france.com/open_api/ecowatt/v5/signals', {
       headers: {
         authorization: `Bearer ${dataToken.access_token}`,
       },
+      timeout: ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS,
     });
 
     // Set cache: the fresh copy expires, the stale copy is kept until the next successful refresh
@@ -76,29 +90,34 @@ module.exports = function EcowattModel(logger, redisClient) {
     return retry(async () => getDataLive(), options);
   }
 
+  // Returns the lock token when the lock was acquired, null when another instance holds it
   async function acquireRefreshLock() {
-    const lockAcquired = await redisClient.set(ECOWATT_REFRESH_LOCK_KEY, '1', {
+    const lockToken = crypto.randomUUID();
+    const lockAcquired = await redisClient.set(ECOWATT_REFRESH_LOCK_KEY, lockToken, {
       NX: true,
       EX: ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS,
     });
-    return lockAcquired !== null;
+    return lockAcquired === null ? null : lockToken;
   }
 
-  async function releaseRefreshLock() {
-    await redisClient.del(ECOWATT_REFRESH_LOCK_KEY);
+  async function releaseRefreshLock(lockToken) {
+    await redisClient.eval(ECOWATT_RELEASE_LOCK_SCRIPT, {
+      keys: [ECOWATT_REFRESH_LOCK_KEY],
+      arguments: [lockToken],
+    });
   }
 
   // Refresh the data from RTE, then serve the stale copy if RTE fails
-  async function refreshData(staleData) {
+  async function refreshData(staleData, lockToken) {
     try {
       const data = await getDataLiveWithRetry();
-      await releaseRefreshLock();
+      await releaseRefreshLock(lockToken);
       return data;
     } catch (e) {
       if (!staleData) {
         // Nothing to serve: release the lock so the instances waiting on it
         // fail right away instead of polling until the lock expires
-        await releaseRefreshLock();
+        await releaseRefreshLock(lockToken);
         throw e;
       }
       // The lock is kept on purpose: it expires on its own and prevents
@@ -141,7 +160,8 @@ module.exports = function EcowattModel(logger, redisClient) {
       return dataFromCache;
     }
     const staleData = await getDataFromCache(ECOWATT_STALE_CACHE_KEY);
-    if (!(await acquireRefreshLock())) {
+    const lockToken = await acquireRefreshLock();
+    if (!lockToken) {
       // Another instance is already refreshing the data
       if (staleData) {
         logger.debug('Ecowatt: refresh in progress on another instance, returning stale data');
@@ -152,10 +172,10 @@ module.exports = function EcowattModel(logger, redisClient) {
     // The cache may have been refreshed between our first read and the lock
     const dataRefreshedMeanwhile = await getDataFromCache();
     if (dataRefreshedMeanwhile) {
-      await releaseRefreshLock();
+      await releaseRefreshLock(lockToken);
       return dataRefreshedMeanwhile;
     }
-    return refreshData(staleData);
+    return refreshData(staleData, lockToken);
   }
 
   return {
@@ -171,4 +191,5 @@ module.exports.constants = {
   ECOWATT_RETRY_RETRIES,
   ECOWATT_RETRY_FACTOR,
   ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS,
+  ECOWATT_RTE_REQUEST_TIMEOUT_IN_MS,
 };

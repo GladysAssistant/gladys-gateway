@@ -433,23 +433,97 @@ describe('POST /google/report_state', () => {
       .expect(200);
     expect(response2.body).to.deep.equal({ status: 200 });
   });
-  it('should report a new state and have a 404 (device not found google side)', async () => {
+  it('should report a new state, have a 404 (device not found google side) and request a sync once', async () => {
     nock('https://www.googleapis.com:443', { encodedQueryParams: true })
       .post('/oauth2/v4/token', () => true)
+      // 2 report states + 1 request sync
+      .times(3)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    const reportStateScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        return validAgentUserId && payloadValid;
+      })
+      .times(2)
+      .reply(404, {
+        error: {
+          code: 404,
+          message: 'Device ID cannot be found.',
+          status: 'NOT_FOUND',
+        },
+      });
+    // the first 404 triggers an async request sync
+    const firstRequestSyncScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def', async: true })
+      .reply(200, {
+        status: 200,
+      });
+    const reportStatePayload = {
+      devices: {
+        states: {
+          'light-123': {
+            on: true,
+            online: true,
+          },
+        },
+      },
+    };
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send(reportStatePayload)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    expect(firstRequestSyncScope.isDone()).to.equal(true);
+    // a second 404 within the hour must not request another sync (Redis lock)
+    const secondRequestSyncInterceptor = nock('https://homegraph.googleapis.com:443', {
+      encodedQueryParams: true,
+    }).post('/v1/devices:requestSync', () => true);
+    const secondRequestSyncScope = secondRequestSyncInterceptor.reply(200, {
+      status: 200,
+    });
+    const response2 = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send(reportStatePayload)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response2.body).to.deep.equal({ status: 200 });
+    expect(reportStateScope.isDone()).to.equal(true);
+    expect(secondRequestSyncScope.isDone()).to.equal(false);
+    // only remove our own pending interceptor: nock.cleanAll() would also drop the
+    // persistent nocks from test/tasks/nock.js used by later tests
+    nock.removeInterceptor(secondRequestSyncInterceptor);
+  });
+  it('should report a new state, have a 404 and not crash if the request sync fails', async () => {
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      .times(2)
       .reply(200, {
         accessToken: 'toto',
       });
     nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
-      .post('/v1/devices:reportStateAndNotification', (body) => {
-        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
-        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
-        const brightnessValid = get(body, 'payload.devices.states.light-123.brightness') === undefined;
-        const spectrumRgbValid = get(body, 'payload.devices.states.light-123.color.spectrumRgb') === undefined;
-        const temperatureKValid = get(body, 'payload.devices.states.light-123.color.temperatureK') === 2000;
-        return validAgentUserId && payloadValid && brightnessValid && spectrumRgbValid && temperatureKValid;
-      })
+      .post('/v1/devices:reportStateAndNotification', () => true)
       .reply(404, {
-        status: 404,
+        error: {
+          code: 404,
+          message: 'Device ID cannot be found.',
+          status: 'NOT_FOUND',
+        },
+      });
+    const requestSyncScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:requestSync', { agentUserId: 'b2d23f66-487d-493f-8acb-9c8adb400def', async: true })
+      .reply(500, {
+        error: {
+          code: 500,
+          message: 'Internal error',
+        },
       });
     const response = await request(TEST_BACKEND_APP)
       .post('/google/report_state')
@@ -459,11 +533,6 @@ describe('POST /google/report_state', () => {
             'light-123': {
               on: true,
               online: true,
-              brightness: null,
-              color: {
-                spectrumRgb: null,
-                temperatureK: 2000,
-              },
             },
           },
         },
@@ -473,6 +542,7 @@ describe('POST /google/report_state', () => {
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
+    expect(requestSyncScope.isDone()).to.equal(true);
   });
   it('should report a new state and have a 500 (error on google side)', async () => {
     nock('https://www.googleapis.com:443', { encodedQueryParams: true })

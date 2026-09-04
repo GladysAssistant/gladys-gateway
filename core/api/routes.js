@@ -2,6 +2,7 @@ const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
 const beforeSendSentry = require('../service/beforeSendSentry');
 const asyncMiddleware = require('../middleware/asyncMiddleware');
+const { shouldReportErrorToSentry } = require('../middleware/errorMiddleware');
 const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
@@ -573,16 +574,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   app.use(
     Sentry.Handlers.errorHandler({
-      shouldHandleError(error) {
-        // Stop capturing 404 erros
-        if (error instanceof NotFoundError) {
-          return false;
-        }
-        if (error && error.status === 404) {
-          return false;
-        }
-        return true;
-      },
+      // Only capture unexpected errors: expected client errors (4xx raised on purpose)
+      // are already handled by the error middleware and would only pollute Sentry.
+      shouldHandleError: shouldReportErrorToSentry,
     }),
   );
 

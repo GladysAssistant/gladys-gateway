@@ -307,3 +307,46 @@ describe('errorMiddleware', () => {
     expect(logger.calls.warn[0][0]).to.equal('403 Forbidden ? ? user=—');
   });
 });
+
+describe('shouldReportErrorToSentry', () => {
+  const { shouldReportErrorToSentry, EXPECTED_CLIENT_ERRORS } = getErrorMiddleware;
+
+  it('should not report any expected client error, even with a custom message', () => {
+    EXPECTED_CLIENT_ERRORS.forEach((ErrorClass) => {
+      expect(shouldReportErrorToSentry(new ErrorClass('custom message'))).to.equal(false);
+    });
+    expect(shouldReportErrorToSentry(new ForbiddenError('You are not allowed to do that'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new PaymentRequiredError('Subscription expired'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new TooManyRequestsError('Slow down'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new AlreadyExistError('Already there'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new ValidationError('Invalid'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new UnauthorizedError())).to.equal(false);
+    expect(shouldReportErrorToSentry(new BadRequestError('Bad'))).to.equal(false);
+    expect(shouldReportErrorToSentry(new NotFoundError('Nope'))).to.equal(false);
+  });
+
+  it('should not report generic 404 errors coming from third-party middlewares', () => {
+    const errorWithStatus = new Error('Not Found');
+    errorWithStatus.status = 404;
+    const errorWithStatusCode = new Error('Not Found');
+    errorWithStatusCode.statusCode = 404;
+    expect(shouldReportErrorToSentry(errorWithStatus)).to.equal(false);
+    expect(shouldReportErrorToSentry(errorWithStatusCode)).to.equal(false);
+  });
+
+  it('should report unexpected errors', () => {
+    expect(shouldReportErrorToSentry(new Error('boom'))).to.equal(true);
+    expect(shouldReportErrorToSentry(new TypeError("Cannot read property 'x' of undefined"))).to.equal(true);
+    const axiosError = new Error('Request failed with status code 500');
+    axiosError.isAxiosError = true;
+    expect(shouldReportErrorToSentry(axiosError)).to.equal(true);
+    const stripeError = new Error('Your card was declined');
+    stripeError.type = 'StripeCardError';
+    expect(shouldReportErrorToSentry(stripeError)).to.equal(true);
+  });
+
+  it('should report when error is null or undefined', () => {
+    expect(shouldReportErrorToSentry(null)).to.equal(true);
+    expect(shouldReportErrorToSentry(undefined)).to.equal(true);
+  });
+});

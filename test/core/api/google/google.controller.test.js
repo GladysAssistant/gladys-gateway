@@ -544,13 +544,200 @@ describe('POST /google/report_state', () => {
     expect(response.body).to.deep.equal({ status: 200 });
     expect(requestSyncScope.isDone()).to.equal(true);
   });
-  it('should report a new state and have a 500 (error on google side)', async () => {
+  it('should report a new state, have a 503 (transient error on google side) and retry until it succeeds', async function Test() {
+    // 2 retries with a jittered backoff (up to 1s then 2s)
+    this.timeout(5000);
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      // 1 attempt + 2 retries: the mocked token is not cached, so one token call per attempt
+      .times(3)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    const failingScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        return validAgentUserId && payloadValid;
+      })
+      .times(2)
+      .reply(503, {
+        error: {
+          code: 503,
+          message: 'The service is currently unavailable.',
+          status: 'UNAVAILABLE',
+        },
+      });
+    const successScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        return validAgentUserId && payloadValid;
+      })
+      .reply(200, {
+        status: 200,
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send({
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+              online: true,
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    expect(failingScope.isDone()).to.equal(true);
+    expect(successScope.isDone()).to.equal(true);
+  });
+  it('should report a new state, have a 503 on every attempt and give up after 2 retries', async function Test() {
+    // 2 retries with a jittered backoff (up to 1s then 2s)
+    this.timeout(5000);
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      // 1 attempt + 2 retries: the mocked token is not cached, so one token call per attempt
+      .times(3)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    // 1 attempt + 2 retries: a 4th call would fail on nock (no interceptor left)
+    const reportStateScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', () => true)
+      .times(3)
+      .reply(503, {
+        error: {
+          code: 503,
+          message: 'The service is currently unavailable.',
+          status: 'UNAVAILABLE',
+        },
+      });
+    const requestSyncInterceptor = nock('https://homegraph.googleapis.com:443', {
+      encodedQueryParams: true,
+    }).post('/v1/devices:requestSync', () => true);
+    const requestSyncScope = requestSyncInterceptor.reply(200, {
+      status: 200,
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send({
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+              online: true,
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    expect(reportStateScope.isDone()).to.equal(true);
+    // a 503 is not a "device not found": no sync must be requested
+    expect(requestSyncScope.isDone()).to.equal(false);
+    nock.removeInterceptor(requestSyncInterceptor);
+  });
+  it('should report a new state, have a connection error (no HTTP response) and retry', async function Test() {
+    this.timeout(5000);
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      .times(2)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    const failingScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', () => true)
+      .replyWithError({ code: 'ECONNRESET', message: 'socket hang up' });
+    const successScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', (body) => {
+        const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
+        const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
+        return validAgentUserId && payloadValid;
+      })
+      .reply(200, {
+        status: 200,
+      });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send({
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+              online: true,
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    expect(failingScope.isDone()).to.equal(true);
+    expect(successScope.isDone()).to.equal(true);
+  });
+  it('should report a new state, have a 400 (invalid payload) and not retry', async () => {
     nock('https://www.googleapis.com:443', { encodedQueryParams: true })
       .post('/oauth2/v4/token', () => true)
       .reply(200, {
         accessToken: 'toto',
       });
-    nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+    const reportStateScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
+      .post('/v1/devices:reportStateAndNotification', () => true)
+      .reply(400, {
+        error: {
+          code: 400,
+          message: 'Request contains an invalid argument.',
+          status: 'INVALID_ARGUMENT',
+        },
+      });
+    const retryInterceptor = nock('https://homegraph.googleapis.com:443', {
+      encodedQueryParams: true,
+    }).post('/v1/devices:reportStateAndNotification', () => true);
+    const retryScope = retryInterceptor.reply(200, {
+      status: 200,
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/report_state')
+      .send({
+        devices: {
+          states: {
+            'light-123': {
+              on: true,
+              online: true,
+            },
+          },
+        },
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ status: 200 });
+    expect(reportStateScope.isDone()).to.equal(true);
+    expect(retryScope.isDone()).to.equal(false);
+    nock.removeInterceptor(retryInterceptor);
+  });
+  it('should report a new state and have a 500 (error on google side)', async function Test() {
+    // a 500 is retried twice (jittered backoff, up to 1s then 2s)
+    this.timeout(5000);
+    nock('https://www.googleapis.com:443', { encodedQueryParams: true })
+      .post('/oauth2/v4/token', () => true)
+      .times(3)
+      .reply(200, {
+        accessToken: 'toto',
+      });
+    const reportStateScope = nock('https://homegraph.googleapis.com:443', { encodedQueryParams: true })
       .post('/v1/devices:reportStateAndNotification', (body) => {
         const validAgentUserId = body.agentUserId === 'b2d23f66-487d-493f-8acb-9c8adb400def';
         const payloadValid = get(body, 'payload.devices.states.light-123.on') === true;
@@ -559,6 +746,7 @@ describe('POST /google/report_state', () => {
         const temperatureKValid = get(body, 'payload.devices.states.light-123.color.temperatureK') === 2000;
         return validAgentUserId && payloadValid && brightnessValid && spectrumRgbValid && temperatureKValid;
       })
+      .times(3)
       .reply(500, {
         status: 500,
       });
@@ -584,5 +772,6 @@ describe('POST /google/report_state', () => {
       .expect('Content-Type', /json/)
       .expect(200);
     expect(response.body).to.deep.equal({ status: 200 });
+    expect(reportStateScope.isDone()).to.equal(true);
   });
 });

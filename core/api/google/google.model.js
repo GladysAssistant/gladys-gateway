@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const get = require('get-value');
+const retry = require('async-retry');
 const { homegraph, auth } = require('@googleapis/homegraph');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
@@ -13,10 +14,41 @@ const GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS = 60 * 60; // 1 hour
 const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
 const JWT_AUDIENCE = 'google-home-oauth';
 const SCOPE = ['google-home'];
+// HomeGraph regularly answers a report state with a transient error (503 "The service is
+// currently unavailable", 500, 429...). The instance never resends a state, so a lost report
+// leaves Google with a stale device: retry with an exponential backoff (500ms-1s, then 1s-2s,
+// jittered so every instance hit by the same Google blip does not retry in lockstep) before
+// giving up. Kept short because the instance is waiting for our HTTP answer.
+const GOOGLE_REPORT_STATE_RETRY_CONFIG = {
+  retries: 2,
+  minTimeout: 500,
+  factor: 2,
+};
+// connection-level failures reported by gaxios (no HTTP response, `code` copied from the
+// underlying socket error): as transient as a 503
+const NETWORK_ERROR_CODES = [
+  'ECONNRESET',
+  'ECONNREFUSED',
+  'ECONNABORTED',
+  'ETIMEDOUT',
+  'EPIPE',
+  'EAI_AGAIN',
+  'ENOTFOUND',
+];
 
 const getGoogleErrorMessage = (e) => {
   const message = get(e, 'response.data.error.message') || e.message;
   return typeof message === 'string' ? message : JSON.stringify(message);
+};
+
+// only server-side / rate-limit / network errors are worth retrying: a 4xx (404 device not
+// found, 400 invalid payload, 403...) or a programming error will fail the same way next time
+const isTransientGoogleError = (e) => {
+  const status = get(e, 'response.status');
+  if (status === undefined) {
+    return NETWORK_ERROR_CODES.includes(e.code);
+  }
+  return status === 429 || (status >= 500 && status <= 599);
 };
 
 // device ids come from the instance payload: strip control characters (CR, LF...)
@@ -232,20 +264,43 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
         agentUserId: users[0].account_id,
         payload: payloadCleaned,
       };
+      const deviceIds = sanitizeForLog(Object.keys(get(payloadCleaned, 'devices.states') || {}).join(',')) || '—';
       try {
-        await homegraphClient.devices.reportStateAndNotification({
-          requestBody,
-        });
+        await retry(
+          async (bail) => {
+            try {
+              await homegraphClient.devices.reportStateAndNotification({
+                requestBody,
+              });
+            } catch (e) {
+              if (!isTransientGoogleError(e)) {
+                bail(e);
+                return;
+              }
+              throw e;
+            }
+          },
+          {
+            ...GOOGLE_REPORT_STATE_RETRY_CONFIG,
+            onRetry: (e, attempt) => {
+              logger.debug(
+                `GOOGLE_HOME_REPORT_STATE_RETRY user=${users[0].id} status=${
+                  get(e, 'response.status') || e.code
+                } attempt=${attempt} devices=${deviceIds}`,
+              );
+            },
+          },
+        );
       } catch (e) {
-        const status = get(e, 'response.status');
+        const status = get(e, 'response.status') || e.code;
         const message = getGoogleErrorMessage(e);
-        const deviceIds = sanitizeForLog(Object.keys(get(payloadCleaned, 'devices.states') || {}).join(',')) || '—';
         if (status === 404) {
           await requestSyncAfterDeviceNotFound(users[0].account_id, users[0].id, deviceIds);
           return;
         }
+        const retried = isTransientGoogleError(e) ? ` (after ${GOOGLE_REPORT_STATE_RETRY_CONFIG.retries} retries)` : '';
         logger.warn(
-          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${deviceIds}`,
+          `GOOGLE_HOME_REPORT_STATE_ERROR user=${users[0].id} status=${status} message=${message} devices=${deviceIds}${retried}`,
         );
       }
     }

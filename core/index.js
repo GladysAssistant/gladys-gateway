@@ -89,14 +89,12 @@ module.exports = async (port) => {
   });
 
   const app = express();
-  // The gateway is behind a reverse proxy (Caddy) that reaches Node through
-  // localhost or a private Docker network. Only trust X-Forwarded-For when the
-  // TCP peer is on such an address: a client that reaches port 3000 directly
-  // (Docker publishes ports around UFW) must not be able to spoof req.ip,
-  // which is what the rate limiters and geoip lookups rely on.
-  // A hop count (trust proxy: 1) would not protect against that, since it
-  // trusts whoever the TCP peer is.
-  app.set('trust proxy', ['loopback', 'linklocal', 'uniquelocal']);
+  // The gateway runs on a VM that is not reachable from the internet: the only
+  // way in is through the Caddy reverse proxy on a separate VM. Trust exactly
+  // one hop (Caddy) so that req.ip, used by the rate limiters and geoip
+  // lookups, is the client address Caddy saw and not a client-supplied
+  // X-Forwarded-For value.
+  app.set('trust proxy', 1);
   const server = createServer(app);
 
   const io = new Server(server, {

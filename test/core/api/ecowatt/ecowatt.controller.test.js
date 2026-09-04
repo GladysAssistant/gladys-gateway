@@ -2,9 +2,17 @@ const request = require('supertest');
 const { expect } = require('chai');
 const nock = require('nock');
 
-const ECOWATT_CACHE_KEY = 'ecowatt:data:v4';
-const ECOWATT_STALE_CACHE_KEY = 'ecowatt:data:v4:stale';
-const ECOWATT_REFRESH_LOCK_KEY = 'ecowatt:refresh-lock:v4';
+const { constants } = require('../../../../core/api/ecowatt/ecowatt.model');
+
+const {
+  ECOWATT_CACHE_KEY,
+  ECOWATT_STALE_CACHE_KEY,
+  ECOWATT_REFRESH_LOCK_KEY,
+  ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS,
+  ECOWATT_RETRY_RETRIES,
+  ECOWATT_RETRY_FACTOR,
+  ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS,
+} = constants;
 
 const RTE_HOST = 'https://digital.iservices.rte-france.com';
 
@@ -37,6 +45,14 @@ const getEcowattSignals = (status = 200) =>
     .expect(status);
 
 describe('GET /ecowatt/v4/signals', () => {
+  it('should keep the refresh lock longer than the whole RTE retry sequence', () => {
+    // Instances without data wait for the lock holder as long as the lock lives:
+    // the lock must outlive the backoff (2s + 4s + 8s) plus the RTE round trips
+    const totalBackoffInMs =
+      ECOWATT_RETRY_DEFAULT_MIN_TIMEOUT_IN_MS * (ECOWATT_RETRY_FACTOR ** ECOWATT_RETRY_RETRIES - 1);
+    expect(totalBackoffInMs).to.equal(14000);
+    expect(ECOWATT_REFRESH_LOCK_EXPIRY_IN_SECONDS * 1000).to.be.above(totalBackoffInMs + 4 * 5000);
+  });
   it('should return ecowatt data without retry', async () => {
     const rteToken = nockRteToken();
     const rteSignals = nockRteSignals(200, { data: true });
@@ -117,6 +133,8 @@ describe('GET /ecowatt/v4/signals', () => {
     }
     await getEcowattSignals(500);
     rteScopes.forEach((scope) => expect(scope.isDone()).to.equal(true));
+    // No stale data to serve: the lock is released so waiting instances fail right away
+    expect(await TEST_LEGACY_REDIS_CLIENT.v4.get(ECOWATT_REFRESH_LOCK_KEY)).to.equal(null);
   });
   it('should return stale data without calling RTE when another instance is refreshing', async () => {
     await TEST_LEGACY_REDIS_CLIENT.v4.set(ECOWATT_STALE_CACHE_KEY, JSON.stringify({ data: 'stale' }));
@@ -137,10 +155,13 @@ describe('GET /ecowatt/v4/signals', () => {
     expect(response.body).to.deep.equal({ data: 'refreshed' });
     assertRteNotCalled();
   });
-  it('should fail when the other instance never refreshes the data and there is no stale data', async () => {
-    await TEST_LEGACY_REDIS_CLIENT.v4.set(ECOWATT_REFRESH_LOCK_KEY, '1', { EX: 60 });
+  it('should fail once the other instance released the lock without refreshing the data', async () => {
+    // The lock expires without data: the holder failed and had no stale data to serve
+    await TEST_LEGACY_REDIS_CLIENT.v4.set(ECOWATT_REFRESH_LOCK_KEY, '1', { PX: 200 });
     const assertRteNotCalled = expectRteNotCalled();
+    const startedAt = Date.now();
     await getEcowattSignals(500);
+    expect(Date.now() - startedAt).to.be.above(150);
     assertRteNotCalled();
   });
   it('should only call RTE once for concurrent requests when the cache expired', async () => {

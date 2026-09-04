@@ -328,6 +328,22 @@ describe('GET /accounts/plan', () => {
       .expect(200);
     expect(response.body).to.deep.equal({ plan: 'unknown', product: 'unknown' });
   });
+  it('should return unknown plan without calling Stripe when account has no subscription', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      {
+        id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      },
+      { stripe_subscription_id: null },
+    );
+    // No Stripe mock on purpose: the Stripe SDK throws on a null id, so a 200
+    // here proves Stripe was never called.
+    const response = await request(TEST_BACKEND_APP)
+      .get('/accounts/plan')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    expect(response.body).to.deep.equal({ plan: 'unknown', product: 'unknown' });
+  });
 });
 
 describe('POST /accounts/upgrade-to-yearly', () => {

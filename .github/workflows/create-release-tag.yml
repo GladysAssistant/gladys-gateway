@@ -32,12 +32,18 @@ jobs:
       - name: 🔍 Read the version to tag
         id: version
         run: |
-          TAG="v$(node -p "require('./package.json').version")"
-          # package.json also changes for plain dependency updates: only an
-          # unreleased version is worth tagging. An empty output skips the
-          # remaining steps.
+          VERSION=$(node -p "require('./package.json').version")
+          TAG="v${VERSION}"
+          # package.json also changes for plain dependency updates: only a
+          # version bump is worth tagging. Comparing with the parent commit
+          # (the previous tip of master) rather than relying on an existing
+          # tag also covers the very first release, when no tag exists yet.
+          # An empty output skips the remaining steps.
+          PREVIOUS_VERSION=$(git show "${GITHUB_SHA}^:package.json" | node -p "JSON.parse(require('fs').readFileSync(0, 'utf8')).version")
           TAGGED_COMMIT=$(git rev-parse -q --verify "refs/tags/${TAG}^{commit}" || true)
-          if [ -z "${TAGGED_COMMIT}" ]; then
+          if [ "${VERSION}" = "${PREVIOUS_VERSION}" ] && [ "${TAGGED_COMMIT}" != "${GITHUB_SHA}" ]; then
+            echo "Version ${VERSION} is unchanged since the previous commit, nothing to release."
+          elif [ -z "${TAGGED_COMMIT}" ]; then
             echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
             echo "create=true" >> "$GITHUB_OUTPUT"
           elif [ "${TAGGED_COMMIT}" = "${GITHUB_SHA}" ]; then

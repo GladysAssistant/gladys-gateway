@@ -13,6 +13,13 @@ on:
     tags:
       - 'v*.*.*'
 
+# Two close releases must not publish in parallel: with `latest` pushed on
+# every release, a faster build of a newer tag could be overtaken by an older
+# one. Publishes are serialized the same way tag creation is.
+concurrency:
+  group: docker-release
+  cancel-in-progress: false
+
 jobs:
   docker:
     name: Docker build and push

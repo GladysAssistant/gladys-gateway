@@ -3,7 +3,8 @@
  * the SDK must be initialized before Express is loaded, and the main mocha
  * process boots the whole gateway (and Express) without a Sentry client.
  *
- * Prints, as JSON on stdout, the exception messages that reached the transport.
+ * Prints, as JSON on stdout, the exception messages (and the user attached to them)
+ * that reached the transport.
  */
 process.env.SENTRY_DSN = 'https://public@example.ingest.sentry.io/1';
 
@@ -26,11 +27,12 @@ sentryService.init({
 const express = require('express');
 const { ValidationError, UnauthorizedError, NotFoundError } = require('../../../core/common/error');
 const ErrorMiddleware = require('../../../core/middleware/errorMiddleware');
+const asyncMiddleware = require('../../../core/middleware/asyncMiddleware');
 const { mapUpstreamError, UPSTREAM_ERROR_METRIC } = require('../../../core/service/upstreamError');
 
 const silentLogger = { debug() {}, info() {}, warn() {}, error() {} };
 
-function exceptionMessagesFromEnvelope(envelope) {
+function exceptionEventsFromEnvelope(envelope) {
   // an envelope is a list of JSON documents separated by newlines
   return envelope
     .split('\n')
@@ -41,8 +43,17 @@ function exceptionMessagesFromEnvelope(envelope) {
         return null;
       }
     })
-    .filter((item) => item && item.exception && item.exception.values)
-    .flatMap((item) => item.exception.values.map((exception) => exception.value));
+    .filter((item) => item && item.exception && item.exception.values);
+}
+
+function exceptionMessagesFromEnvelope(envelope) {
+  return exceptionEventsFromEnvelope(envelope).flatMap((item) =>
+    item.exception.values.map((exception) => exception.value),
+  );
+}
+
+function usersFromEnvelope(envelope) {
+  return exceptionEventsFromEnvelope(envelope).map((item) => item.user || null);
 }
 
 function metricsFromEnvelope(envelope) {
@@ -81,6 +92,14 @@ function metricsFromEnvelope(envelope) {
   app.get('/unexpected', () => {
     throw new Error('unexpected boom');
   });
+  // what the auth middlewares (and openApiApiKeyAuth, with the whole profile) set
+  const fakeAuth = asyncMiddleware(async (req, res, next) => {
+    req.user = { id: 'user-id', email: 'tony.stark@gladysassistant.com', name: 'Tony' };
+    next();
+  });
+  app.get('/unexpected-authenticated', fakeAuth, () => {
+    throw new Error('unexpected authenticated boom');
+  });
   app.get('/upstream-timeout', () => {
     // what axios throws when the AI service answers 504
     const axiosError = new Error('Request failed with status code 504');
@@ -90,6 +109,7 @@ function metricsFromEnvelope(envelope) {
     axiosError.response = { status: 504, statusText: 'Gateway Timeout', data: 'timed out' };
     throw mapUpstreamError('openai_ask', axiosError, 'AI service');
   });
+  app.use(sentryService.setUserErrorHandler);
   Sentry.setupExpressErrorHandler(app);
   app.use(ErrorMiddleware(silentLogger));
 
@@ -97,7 +117,14 @@ function metricsFromEnvelope(envelope) {
   const { port } = server.address();
   const statuses = {};
   // eslint-disable-next-line no-restricted-syntax
-  for (const route of ['/validation-error', '/unauthorized', '/not-found', '/unexpected', '/upstream-timeout']) {
+  for (const route of [
+    '/validation-error',
+    '/unauthorized',
+    '/not-found',
+    '/unexpected',
+    '/unexpected-authenticated',
+    '/upstream-timeout',
+  ]) {
     // eslint-disable-next-line no-await-in-loop
     const response = await fetch(`http://127.0.0.1:${port}${route}`);
     statuses[route] = response.status;
@@ -109,6 +136,7 @@ function metricsFromEnvelope(envelope) {
     JSON.stringify({
       statuses,
       captured: captured.flatMap(exceptionMessagesFromEnvelope),
+      users: captured.flatMap(usersFromEnvelope),
       metrics: captured.flatMap(metricsFromEnvelope),
     }),
   );

@@ -33,6 +33,9 @@ before(async function Before() {
   process.env.OPEN_AI_MAX_TEXT_REQUESTS_PER_MONTH_PER_ACCOUNT = 100;
   process.env.OPEN_AI_MAX_IMAGE_REQUESTS_PER_MONTH_PER_ACCOUNT = 100;
   process.env.STT_MAX_REQUESTS_PER_MONTH_PER_ACCOUNT = 100;
+  // Don't wait for the real RTE backoff / refresh polling in tests
+  process.env.ECOWATT_RETRY_MIN_TIMEOUT_IN_MS = 10;
+  process.env.ECOWATT_WAIT_FOR_REFRESH_INTERVAL_IN_MS = 20;
 
   // starting 2 backends to try multi-server socket exchange
   const { io, app, db, redisClient, legacyRedisClient } = await server(process.env.SERVER_PORT);

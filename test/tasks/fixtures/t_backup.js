@@ -18,6 +18,26 @@ module.exports = [
     updated_at: '2018-10-16T02:21:25.901Z',
   },
   {
+    // upload in progress: path holds the S3 key of the multipart upload
+    id: '5c2d0a3e-8f4b-4d3a-9d7e-2a6f1b9c0e11',
+    path: 'started-backup.enc',
+    size: 1000,
+    account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+    status: 'started',
+    created_at: '2018-10-16T02:21:25.901Z',
+    updated_at: '2018-10-16T02:21:25.901Z',
+  },
+  {
+    // upload in progress of another account
+    id: 'f0b2c4d6-1a3b-4c5d-8e9f-0a1b2c3d4e5f',
+    path: 'other-account-started-backup.enc',
+    size: 1000,
+    account_id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
+    status: 'started',
+    created_at: '2018-10-16T02:21:25.901Z',
+    updated_at: '2018-10-16T02:21:25.901Z',
+  },
+  {
     id: '72543b45-246b-49fc-be16-d728c46d7060',
     path: `https://${process.env.STORAGE_BUCKET}.${process.env.STORAGE_ENDPOINT}/un-backup.enc`,
     size: 1000,

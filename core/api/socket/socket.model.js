@@ -34,8 +34,21 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     return null;
   });
 
-  async function getInstanceSocketId(instanceId) {
-    const sockets = await io.in(`instance:${instanceId}`).fetchSockets();
+  // Rooms are scoped by account so a user can only reach the instances of his own
+  // account, and an instance can only reach the users of its own account.
+  function getInstanceRoom(accountId, instanceId) {
+    return `account:${accountId}:instance:${instanceId}`;
+  }
+
+  function getUserRoom(accountId, userId) {
+    return `account:${accountId}:user:${userId}`;
+  }
+
+  async function getInstanceSocketId(accountId, instanceId) {
+    if (typeof instanceId !== 'string') {
+      throw new Error('INSTANCE_NOT_FOUND');
+    }
+    const sockets = await io.in(getInstanceRoom(accountId, instanceId)).fetchSockets();
 
     if (sockets.length === 0) {
       throw new Error('INSTANCE_NOT_FOUND');
@@ -134,7 +147,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     message.local_user_id = user.gladys_4_user_id;
 
     try {
-      const socket = await getInstanceSocketId(message.instance_id);
+      const socket = await getInstanceSocketId(user.account_id, message.instance_id);
 
       // If the socket was found on a remote server
       if (socket.constructor.name === 'RemoteSocket') {
@@ -192,9 +205,13 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // adding sending instance_id
     message.instance_id = instance.id;
 
-    const roomName = `user:${message.user_id}`;
+    if (typeof message.user_id !== 'string') {
+      logger.warn(`Instance ${instance.id} sent a message without a valid user_id`);
+      return;
+    }
 
-    io.to(roomName).emit('message', message);
+    // the room is scoped by account: a user from another account is never in it
+    io.to(getUserRoom(instance.account_id, message.user_id)).emit('message', message);
   }
 
   async function hello(instance) {
@@ -239,6 +256,8 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   }
 
   return {
+    getInstanceRoom,
+    getUserRoom,
     authenticateUser,
     authenticateInstance,
     disconnectUser,

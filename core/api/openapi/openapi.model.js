@@ -1,7 +1,7 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const Joi = require('joi');
-const { ValidationError } = require('../../common/error');
+const { ValidationError, NotFoundError } = require('../../common/error');
 const schemas = require('../../common/schema');
 
 const randomBytes = Promise.promisify(crypto.randomBytes);
@@ -47,22 +47,49 @@ module.exports = function OpenApiModel(logger, db) {
     return keys;
   }
 
-  async function revokeApiKey(id) {
-    await db.t_open_api_key.update(
+  // Keys are always scoped to the authenticated user: without the user_id
+  // predicate, any user could revoke or rename another user's key by id
+  async function revokeApiKey(user, id) {
+    const updatedKeys = await db.t_open_api_key.update(
       {
         id,
+        user_id: user.id,
+        is_deleted: false,
+        revoked: false,
       },
       { revoked: true },
     );
+
+    if (updatedKeys.length === 0) {
+      throw new NotFoundError('Open API key not found');
+    }
   }
 
-  async function updateApiKeyName(id, name) {
-    await db.t_open_api_key.update(
+  async function updateApiKeyName(user, id, name) {
+    const { error } = Joi.validate({ name }, schemas.openApiSchema, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('open-api-key', error);
+    }
+
+    const updatedKeys = await db.t_open_api_key.update(
       {
         id,
+        user_id: user.id,
+        is_deleted: false,
+        revoked: false,
       },
       { name },
     );
+
+    if (updatedKeys.length === 0) {
+      throw new NotFoundError('Open API key not found');
+    }
 
     return { name };
   }

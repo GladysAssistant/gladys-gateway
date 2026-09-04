@@ -153,23 +153,6 @@ module.exports = function StripeService(logger) {
     return stripe.webhooks.constructEvent(body, signature, process.env.STRIPE_ENDPOINT_SECRET);
   }
 
-  function createSession(locale) {
-    return stripe.checkout.sessions.create({
-      payment_method_types: ['card'],
-      subscription_data: {
-        // default_tax_rates: [process.env.STRIPE_DEFAULT_TAX_RATE_ID],
-        items: [
-          {
-            plan: process.env.STRIPE_MONTHLY_PLAN_ID,
-          },
-        ],
-      },
-      locale,
-      success_url: `${process.env.GLADYS_WEBSITE_URL}/pricing/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${process.env.GLADYS_WEBSITE_URL}/pricing`,
-    });
-  }
-
   async function createBillingPortalSession(stripeCustomerId) {
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
@@ -213,7 +196,6 @@ module.exports = function StripeService(logger) {
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,
     getSubscription,
-    createSession,
     getCustomer,
     addTaxRate,
     createBillingPortalSession,

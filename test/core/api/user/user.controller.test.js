@@ -301,6 +301,61 @@ describe('POST /users/login-two-factor', () => {
       .expect('Content-Type', /json/)
       .expect(401)
       .then((response) => {}));
+
+  it('should block the two factor code after too many failed attempts', async () => {
+    const twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+    const validToken = speakeasy.totp({ secret: twoFactorSecret });
+
+    // 5 failed attempts are allowed
+    for (let i = 0; i < 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await request(TEST_BACKEND_APP)
+        .post('/users/login-two-factor')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtTwoFactorToken)
+        .send({ two_factor_code: '000000' })
+        .expect('Content-Type', /json/)
+        .expect(403);
+    }
+
+    // the 6th attempt is blocked, even with a valid code
+    const response = await request(TEST_BACKEND_APP)
+      .post('/users/login-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .send({ two_factor_code: validToken })
+      .expect('Content-Type', /json/)
+      .expect(429);
+    expect(response.body).to.have.property('error_code', 'TOO_MANY_REQUESTS');
+  });
+
+  it('should reset the failed attempts counter after a successful login', async () => {
+    const twoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+    const validToken = speakeasy.totp({ secret: twoFactorSecret });
+
+    for (let i = 0; i < 4; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await request(TEST_BACKEND_APP)
+        .post('/users/login-two-factor')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtTwoFactorToken)
+        .send({ two_factor_code: '000000' })
+        .expect(403);
+    }
+
+    await request(TEST_BACKEND_APP)
+      .post('/users/login-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', 'my-browser-is-awesome')
+      .send({ two_factor_code: validToken })
+      .expect(200);
+
+    const failedAttempts = await TEST_LEGACY_REDIS_CLIENT.v4.get(
+      'two_factor_failed_attempts:a139e4a6-ec6c-442d-9730-0499155d38d4',
+    );
+    expect(failedAttempts).to.equal(null);
+  });
 });
 
 describe('POST /users/two-factor/recovery-codes', () => {
@@ -541,6 +596,46 @@ describe('PATCH /users/me', () => {
         response.body.should.have.property('email', 'new-email@gladysassistant.com');
         response.body.should.have.property('email_confirmed', false);
       }));
+
+  it('should not change the password (SRP verifier) nor the keys with an access token', async () => {
+    const userBefore = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    await request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        name: 'still me',
+        srp_salt: 'attacker-salt',
+        srp_verifier: 'attacker-verifier',
+        rsa_public_key: 'attacker-key',
+        rsa_encrypted_private_key: 'attacker-key',
+        ecdsa_public_key: 'attacker-key',
+        ecdsa_encrypted_private_key: 'attacker-key',
+        encrypted_backup_key: 'attacker-key',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    const userAfter = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(userAfter.name).to.equal('still me');
+    expect(userAfter.srp_salt).to.equal(userBefore.srp_salt);
+    expect(userAfter.srp_verifier).to.equal(userBefore.srp_verifier);
+    expect(userAfter.rsa_public_key).to.equal(userBefore.rsa_public_key);
+    expect(userAfter.rsa_encrypted_private_key).to.equal(userBefore.rsa_encrypted_private_key);
+    expect(userAfter.ecdsa_public_key).to.equal(userBefore.ecdsa_public_key);
+    expect(userAfter.ecdsa_encrypted_private_key).to.equal(userBefore.ecdsa_encrypted_private_key);
+    expect(userAfter.encrypted_backup_key).to.equal(userBefore.encrypted_backup_key);
+  });
+
+  it('should return 422 for an unsupported language', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        language: 'zz',
+      })
+      .expect('Content-Type', /json/)
+      .expect(422));
 });
 
 describe('GET /users/me', () => {

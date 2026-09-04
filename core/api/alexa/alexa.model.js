@@ -23,10 +23,16 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
   const { ALEXA_OAUTH_CLIENT_ID } = process.env;
 
   async function getRefreshTokenAndAccessToken(code) {
-    const userId = await redisClient.get(`${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`);
+    if (typeof code !== 'string' || code.length === 0) {
+      throw new ForbiddenError('INVALID_CODE');
+    }
+    const codeKey = `${ALEXA_OAUTH_CODE_REDIS_PREFIX}:${code}`;
+    const userId = await redisClient.get(codeKey);
     if (userId === null) {
       throw new ForbiddenError('INVALID_CODE');
     }
+    // an authorization code is single use
+    await redisClient.del(codeKey);
     const user = await db.t_user.findOne(
       {
         id: userId,

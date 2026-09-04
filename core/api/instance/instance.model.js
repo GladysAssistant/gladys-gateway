@@ -21,13 +21,24 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       throw new ValidationError('instance', error);
     }
 
-    // get the account id of the user
+    // get the account id and role of the user
     const userWithAccount = await db.t_user.findOne(
       {
         id: user.id,
+        is_deleted: false,
       },
-      { fields: ['id', 'account_id'] },
+      { fields: ['id', 'account_id', 'role'] },
     );
+
+    if (userWithAccount === null) {
+      throw new NotFoundError('User not found');
+    }
+
+    // A new instance becomes the primary instance of the account and receives
+    // all the Open API / Google Home / Alexa traffic: only an admin can do that
+    if (userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to create an instance');
+    }
 
     value.id = uuid.v4();
     value.account_id = userWithAccount.account_id;

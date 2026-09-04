@@ -4,8 +4,9 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
       // we first authenticate the user thanks to his access token
       const user = await socketModel.authenticateUser(accessToken, socket.id);
 
-      // then he can join two new rooms
+      // then he can join his rooms
       socket.join(`user:${user.id}`);
+      socket.join(socketModel.getUserRoom(user.account_id, user.id));
       socket.join(`account:users:${user.account_id}`);
 
       // on message (request to one instance)
@@ -40,8 +41,9 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
       // This instance is the primary instance
       await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
 
-      // then he can join two new rooms
+      // then he can join its rooms
       socket.join(`instance:${instance.id}`);
+      socket.join(socketModel.getInstanceRoom(instance.account_id, instance.id));
       socket.join(`account:instances:${instance.account_id}`);
 
       // on message (message to user)
@@ -75,12 +77,24 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
     );
 
     let isClientAuthenticated = false;
+    // A socket is authenticated at most once: each successful authentication registers
+    // "message" listeners, so re-authenticating would relay every message several times
+    let authenticationInProgress = false;
+
+    const startAuthentication = () => {
+      if (isClientAuthenticated || authenticationInProgress) {
+        return false;
+      }
+      authenticationInProgress = true;
+      return true;
+    };
 
     // if the client has an user token, we authenticate him
-    if (socket.handshake.auth.auth_type === 'user') {
+    if (socket.handshake.auth.auth_type === 'user' && startAuthentication()) {
       const { isAuthenticated, reason } = await authenticateUser(socket, socket.handshake.auth.access_token);
 
       isClientAuthenticated = isAuthenticated;
+      authenticationInProgress = false;
 
       if (isAuthenticated === true) {
         socket.emit('user-authenticated');
@@ -92,10 +106,11 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
     }
 
     // if the client has an instance token, we authenticate him
-    if (socket.handshake.auth.auth_type === 'instance') {
+    if (socket.handshake.auth.auth_type === 'instance' && startAuthentication()) {
       const { isAuthenticated, reason } = await authenticateInstance(socket, socket.handshake.auth.access_token);
 
       isClientAuthenticated = isAuthenticated;
+      authenticationInProgress = false;
 
       if (isAuthenticated === true) {
         socket.emit('instance-authenticated');
@@ -114,12 +129,25 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
       }
     }, 90 * 1000);
 
+    const answer = (fn, response) => {
+      if (typeof fn === 'function') {
+        fn(response);
+      }
+    };
+
     socket.on('user-authentication', async (data, fn) => {
-      const { isAuthenticated } = await authenticateUser(socket, data.access_token);
+      // already authenticated (or being authenticated): nothing to redo
+      if (!startAuthentication()) {
+        answer(fn, { authenticated: isClientAuthenticated });
+        return;
+      }
+
+      const { isAuthenticated } = await authenticateUser(socket, data && data.access_token);
 
       isClientAuthenticated = isAuthenticated;
+      authenticationInProgress = false;
       // we answer the client that he is authenticated
-      fn({ authenticated: isAuthenticated });
+      answer(fn, { authenticated: isAuthenticated });
 
       if (isAuthenticated === false) {
         socket.disconnect();
@@ -127,12 +155,19 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
     });
 
     socket.on('instance-authentication', async (data, fn) => {
-      const { isAuthenticated } = await authenticateInstance(socket, data.access_token);
+      // already authenticated (or being authenticated): nothing to redo
+      if (!startAuthentication()) {
+        answer(fn, { authenticated: isClientAuthenticated });
+        return;
+      }
+
+      const { isAuthenticated } = await authenticateInstance(socket, data && data.access_token);
 
       isClientAuthenticated = isAuthenticated;
+      authenticationInProgress = false;
 
       // we answer the client that he is authenticated
-      fn({ authenticated: isAuthenticated });
+      answer(fn, { authenticated: isAuthenticated });
 
       if (isAuthenticated === false) {
         socket.disconnect();

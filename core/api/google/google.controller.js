@@ -3,6 +3,7 @@
 /* eslint-disable arrow-parens */
 const get = require('get-value');
 const { BadRequestError } = require('../../common/error');
+const { isAllowedRedirectUri, buildRedirectUrl } = require('../../common/oauth-redirect-uri');
 
 const VALID_REDIRECT_URIS = [
   'https://oauth-redirect.googleusercontent.com',
@@ -73,10 +74,10 @@ module.exports = function GoogleController(
         },
       };
 
-      logger.error(`GOOGLE_HOME_SMART_HOME_ERROR, user = ${user.id}`);
-      logger.error(req.body);
-      logger.error(e);
-      logger.error(errorResponse);
+      // the body is not logged: it can contain tokens and device identifiers
+      logger.error(
+        `GOOGLE_HOME_SMART_HOME_ERROR, user = ${user.id}, intent = ${firstOrderIntent}, requestId = ${req.body.requestId}, message = ${e.message}`,
+      );
 
       return res.status(404).json(errorResponse);
     }
@@ -92,14 +93,11 @@ module.exports = function GoogleController(
     if (req.body.client_id !== GOOGLE_HOME_OAUTH_CLIENT_ID) {
       throw new BadRequestError('client_id is not matching');
     }
-    const baseUrlFound = VALID_REDIRECT_URIS.find(
-      (redirectUriBaseUrl) => req.body.redirect_uri && req.body.redirect_uri.startsWith(redirectUriBaseUrl),
-    );
-    if (!baseUrlFound) {
+    if (!isAllowedRedirectUri(req.body.redirect_uri, VALID_REDIRECT_URIS)) {
       throw new BadRequestError('invalid redirect_uri');
     }
     const code = await googleModel.getCode(req.user.id);
-    const redirectUrl = `${req.body.redirect_uri}?state=${req.body.state}&code=${code}`;
+    const redirectUrl = buildRedirectUrl(req.body.redirect_uri, req.body.state, code);
     res.json({
       redirectUrl,
     });

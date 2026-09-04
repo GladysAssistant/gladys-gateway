@@ -52,7 +52,7 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
    * }
    */
   async function revokeApiKey(req, res, next) {
-    await openApiModel.revokeApiKey(req.params.id);
+    await openApiModel.revokeApiKey(req.user, req.params.id);
     return res.json({ success: true });
   }
 
@@ -69,7 +69,7 @@ module.exports = function OpenApiController(openApiModel, socketModel) {
    * }
    */
   async function updateApiKeyName(req, res, next) {
-    const newApiKey = await openApiModel.updateApiKeyName(req.params.id, req.body.name);
+    const newApiKey = await openApiModel.updateApiKeyName(req.user, req.params.id, req.body.name);
     return res.json(newApiKey);
   }
 

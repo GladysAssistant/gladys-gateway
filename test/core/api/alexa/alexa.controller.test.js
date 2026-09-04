@@ -68,6 +68,32 @@ describe('POST /alexa/authorize', () => {
       .expect('Content-Type', /json/)
       .expect(400);
   });
+  it('should return bad request, redirect_uri host only starts with the allowed host', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/alexa/authorize')
+      .send({
+        redirect_uri: 'https://pitangui.amazon.com.attacker.com/api/skill/link/M1CD0NOTQVDMUV',
+        state: 'toto',
+        client_id: process.env.ALEXA_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
+  it('should return bad request, redirect_uri path only starts with the allowed path', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/alexa/authorize')
+      .send({
+        redirect_uri: 'https://pitangui.amazon.com/api/skill/link/M1CD0NOTQVDMUVX',
+        state: 'toto',
+        client_id: process.env.ALEXA_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
 });
 
 describe('POST /v1/api/alexa/token', () => {

@@ -30,8 +30,8 @@ module.exports = function AccessTokenAuthMiddleware(logger) {
 
         next();
       } catch (e) {
-        logger.debug(req.headers.authorization);
-        logger.debug(e);
+        // never log the token itself, only why it was rejected
+        logger.debug(`AccessTokenAuth: ${e.message}`);
         throw new UnauthorizedError();
       }
     };

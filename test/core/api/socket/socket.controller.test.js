@@ -364,6 +364,153 @@ describe('socket', function Describe() {
     });
   });
 
+  it('should not relay a user message to an instance of another account', async () => {
+    const jwt = Jwt();
+    // instance of another account
+    const otherInstanceId = '7f3c9d2a-5b1e-4c8f-9a6d-2e4b8c1f0a3d';
+    await TEST_DATABASE_INSTANCE.t_instance.insert({
+      id: otherInstanceId,
+      name: 'Other account instance',
+      account_id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
+      rsa_public_key: 'public-key',
+      ecdsa_public_key: 'public-key',
+    });
+
+    const socketInstance = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: { auth_type: 'instance', access_token: jwt.generateAccessTokenInstance({ id: otherInstanceId }) },
+    });
+    const socketUser = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, [
+          'dashboard:read',
+          'dashboard:write',
+        ]),
+      },
+    });
+
+    let messagesReceivedByInstance = 0;
+    socketInstance.on('message', (data, cb) => {
+      messagesReceivedByInstance += 1;
+      cb({ response: 'should-not-happen' });
+    });
+
+    await Promise.all([
+      new Promise((resolve) => {
+        socketInstance.on('instance-authenticated', resolve);
+      }),
+      new Promise((resolve) => {
+        socketUser.on('user-authenticated', resolve);
+      }),
+    ]);
+
+    const response = await new Promise((resolve) => {
+      socketUser.emit('message', { data: 'test-data', instance_id: otherInstanceId }, resolve);
+    });
+    expect(response).to.deep.equal({ status: 404, error_code: 'NOT_FOUND', error_message: 'NO_INSTANCE_FOUND' });
+    expect(messagesReceivedByInstance).to.equal(0);
+    socketInstance.disconnect();
+    socketUser.disconnect();
+  });
+
+  it('should not relay an instance message to a user of another account', async () => {
+    const jwt = Jwt();
+    const otherInstanceId = '7f3c9d2a-5b1e-4c8f-9a6d-2e4b8c1f0a3d';
+    await TEST_DATABASE_INSTANCE.t_instance.insert({
+      id: otherInstanceId,
+      name: 'Other account instance',
+      account_id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
+      rsa_public_key: 'public-key',
+      ecdsa_public_key: 'public-key',
+    });
+
+    const socketInstance = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: { auth_type: 'instance', access_token: jwt.generateAccessTokenInstance({ id: otherInstanceId }) },
+    });
+    const socketUser = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, [
+          'dashboard:read',
+          'dashboard:write',
+        ]),
+      },
+    });
+
+    let messagesReceivedByUser = 0;
+    socketUser.on('message', () => {
+      messagesReceivedByUser += 1;
+    });
+
+    await Promise.all([
+      new Promise((resolve) => {
+        socketInstance.on('instance-authenticated', resolve);
+      }),
+      new Promise((resolve) => {
+        socketUser.on('user-authenticated', resolve);
+      }),
+    ]);
+
+    socketInstance.emit('message', { data: 'test-data', user_id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    // give the server time to relay the message if it were to do it
+    await new Promise((resolve) => {
+      setTimeout(resolve, 300);
+    });
+    expect(messagesReceivedByUser).to.equal(0);
+    socketInstance.disconnect();
+    socketUser.disconnect();
+  });
+
+  it('should authenticate a socket only once and relay each message only once', async () => {
+    const jwt = Jwt();
+    const jwtAccessTokenUser = jwt.generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, [
+      'dashboard:read',
+      'dashboard:write',
+    ]);
+    const socketInstance = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'instance',
+        access_token: jwt.generateAccessTokenInstance({ id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' }),
+      },
+    });
+    const socketUser = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: { auth_type: 'user', access_token: jwtAccessTokenUser },
+    });
+
+    let messagesReceivedByInstance = 0;
+    socketInstance.on('message', (data, cb) => {
+      messagesReceivedByInstance += 1;
+      cb({ response: 'response' });
+    });
+
+    await Promise.all([
+      new Promise((resolve) => {
+        socketInstance.on('instance-authenticated', resolve);
+      }),
+      new Promise((resolve) => {
+        socketUser.on('user-authenticated', resolve);
+      }),
+    ]);
+
+    // authenticating again on an already authenticated socket is a no-op
+    const secondAuth = await new Promise((resolve) => {
+      socketUser.emit('user-authentication', { access_token: jwtAccessTokenUser }, resolve);
+    });
+    expect(secondAuth).to.deep.equal({ authenticated: true });
+
+    const response = await new Promise((resolve) => {
+      socketUser.emit('message', { data: 'test-data', instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' }, resolve);
+    });
+    expect(response).to.deep.equal({ response: 'response' });
+    // let any duplicated relay arrive before counting
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
+    expect(messagesReceivedByInstance).to.equal(1);
+    socketInstance.disconnect();
+    socketUser.disconnect();
+  });
+
   it('should not connect to socket.io server, wrong scope', (done) => {
     const jwt = Jwt();
 

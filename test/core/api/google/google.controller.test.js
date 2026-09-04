@@ -59,6 +59,49 @@ describe('POST /google/authorize', () => {
       .expect('Content-Type', /json/)
       .expect(400);
   });
+  it('should return bad request, redirect_uri host only starts with the allowed host', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/google/authorize')
+      .send({
+        redirect_uri: 'https://oauth-redirect-sandbox.googleusercontent.com.attacker.com/toto',
+        state: 'toto',
+        client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
+  it('should return bad request, redirect_uri is not https', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/google/authorize')
+      .send({
+        redirect_uri: 'http://oauth-redirect-sandbox.googleusercontent.com/toto',
+        state: 'toto',
+        client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(400);
+  });
+  it('should encode the state in the redirect url', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/google/authorize')
+      .send({
+        redirect_uri: 'https://oauth-redirect-sandbox.googleusercontent.com/toto',
+        state: 'a b&c=d',
+        client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    const url = new URL(response.body.redirectUrl);
+    expect(url.origin + url.pathname).to.equal('https://oauth-redirect-sandbox.googleusercontent.com/toto');
+    expect(url.searchParams.get('state')).to.equal('a b&c=d');
+    expect(url.searchParams.get('code')).to.have.lengthOf(128);
+  });
 });
 
 describe('POST /v1/api/google/token', () => {
@@ -92,6 +135,14 @@ describe('POST /v1/api/google/token', () => {
     expect(tokenResponse.body).to.have.property('access_token');
     expect(tokenResponse.body).to.have.property('refresh_token');
     expect(tokenResponse.body).to.have.property('expires_in');
+
+    // an authorization code is single use
+    await request(TEST_BACKEND_APP)
+      .post('/v1/api/google/token')
+      .send(queryStringToSend)
+      .set('Accept', 'application/json')
+      .set('Content-Type', 'application/x-www-form-urlencoded')
+      .expect(400);
 
     const queryStringRefreshTokenToSend = qs.encode({
       client_id: process.env.GOOGLE_HOME_OAUTH_CLIENT_ID,

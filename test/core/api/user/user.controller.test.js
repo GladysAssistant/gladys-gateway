@@ -5,6 +5,25 @@ const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 const srpFixture = require('../../../tasks/srp-fixture.json');
 
+// secret of the user "email-confirmed-two-factor-enabled@gladysprojet.com" (configTest.jwtAccessTokenDashboard)
+const twoFactorEnabledUserSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+
+function generateDashboardAccessToken(userId) {
+  return jwt.sign(
+    { user_id: userId, scope: ['dashboard:read', 'dashboard:write'] },
+    process.env.JWT_ACCESS_TOKEN_SECRET,
+    { algorithm: 'HS256', audience: 'user', issuer: 'gladys-gateway', expiresIn: 60 * 60 },
+  );
+}
+
+// The JWT secret is only set by the test bootstrap, so tokens are signed lazily.
+// user "email-confirmed@gladysprojet.com", two factor not enabled
+const jwtAccessTokenDashboardTwoFactorDisabled = () =>
+  generateDashboardAccessToken('bdb1a902-a65e-46f9-8c2a-5c09840e2e10');
+// user "email-confirmed-two-factor-configured@gladysprojet.com", secret configured but two factor not enabled
+const jwtAccessTokenDashboardTwoFactorConfigured = () =>
+  generateDashboardAccessToken('3b69f1c5-d36c-419d-884c-50b9dd6e33e4');
+
 describe('POST /users/signup', () => {
   it('should signup one user', async () => {
     const response = await request(TEST_BACKEND_APP)
@@ -403,6 +422,7 @@ describe('POST /users/two-factor/recovery-codes', () => {
       .post('/users/two-factor/recovery-codes')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: twoFactorEnabledUserSecret }) })
       .expect('Content-Type', /json/)
       .expect(200);
 
@@ -425,17 +445,40 @@ describe('POST /users/two-factor/recovery-codes', () => {
     });
   });
 
-  it('should return 403 when two factor is not enabled', async () => {
-    const accessToken = jwt.sign(
-      { user_id: 'bdb1a902-a65e-46f9-8c2a-5c09840e2e10', scope: ['dashboard:read', 'dashboard:write'] },
-      process.env.JWT_ACCESS_TOKEN_SECRET,
-      { algorithm: 'HS256', audience: 'user', issuer: 'gladys-gateway', expiresIn: 60 * 60 },
-    );
+  it('should return 403 and keep the existing recovery codes without the current two factor code', async () => {
+    const userBefore = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
 
     await request(TEST_BACKEND_APP)
       .post('/users/two-factor/recovery-codes')
       .set('Accept', 'application/json')
-      .set('Authorization', accessToken)
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const userAfter = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(userAfter.two_factor_recovery_codes).to.deep.equal(userBefore.two_factor_recovery_codes);
+  });
+
+  it('should return 403 and keep the existing recovery codes with a wrong two factor code', async () => {
+    const userBefore = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+
+    await request(TEST_BACKEND_APP)
+      .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: '000000' })
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const userAfter = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(userAfter.two_factor_recovery_codes).to.deep.equal(userBefore.two_factor_recovery_codes);
+  });
+
+  it('should return 403 when two factor is not enabled', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', jwtAccessTokenDashboardTwoFactorDisabled())
       .expect('Content-Type', /json/)
       .expect(403);
   });
@@ -621,19 +664,97 @@ describe('PATCH /users/me', () => {
         response.body.should.have.property('name', 'my new name');
       }));
 
-  it('should update user email and send email', () =>
+  it('should update user email with the current two factor code and send email', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'new-email@gladysassistant.com',
+        two_factor_code: speakeasy.totp({ secret: twoFactorEnabledUserSecret }),
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).to.have.property('email', 'new-email@gladysassistant.com');
+    expect(response.body).to.have.property('email_confirmed', false);
+    // the confirmation token is only sent to the new address: an attacker with a stolen
+    // access token must not be able to confirm an address he doesn't own
+    expect(response.body).to.not.have.property('email_confirmation_token');
+    expect(response.body).to.not.have.property('previous_email');
+    expect(response.body).to.not.have.property('email_confirmation_token_hash');
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(user.email).to.equal('new-email@gladysassistant.com');
+    expect(user.email_confirmed).to.equal(false);
+  });
+
+  it('should return 403 and not change the email without the current two factor code', async () => {
+    await request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        name: 'attacker',
+        email: 'attacker@gladysassistant.com',
+      })
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(user.email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+    expect(user.email_confirmed).to.equal(true);
+    expect(user.name).to.equal('Tony');
+  });
+
+  it('should return 403 and not change the email with a wrong two factor code', async () => {
+    await request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'attacker@gladysassistant.com',
+        two_factor_code: '000000',
+      })
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(user.email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+    expect(user.email_confirmed).to.equal(true);
+  });
+
+  it('should not require a two factor code when the email is unchanged', () =>
     request(TEST_BACKEND_APP)
       .patch('/users/me')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'Email-Confirmed-Two-Factor-Enabled@GladysProjet.com',
+        name: 'still me',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200)
+      .then((response) => {
+        expect(response.body).to.have.property('email', 'email-confirmed-two-factor-enabled@gladysprojet.com');
+        expect(response.body).to.have.property('email_confirmed', true);
+        expect(response.body).to.have.property('name', 'still me');
+      }));
+
+  it('should update the email without two factor code when two factor is not enabled', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', jwtAccessTokenDashboardTwoFactorDisabled())
       .send({
         email: 'new-email@gladysassistant.com',
       })
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('email', 'new-email@gladysassistant.com');
-        response.body.should.have.property('email_confirmed', false);
+        expect(response.body).to.have.property('email', 'new-email@gladysassistant.com');
+        expect(response.body).to.have.property('email_confirmed', false);
+        expect(response.body).to.not.have.property('email_confirmation_token');
       }));
 
   it('should not change the password (SRP verifier) nor the keys with an access token', async () => {
@@ -966,25 +1087,128 @@ describe('GET /users/two-factor/new', () => {
 });
 
 describe('PATCH /users/two-factor', () => {
-  it('should update two factor', () => {
+  const userId = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
+
+  it('should update two factor with the current two factor code', async () => {
     const secret = speakeasy.generateSecret();
 
-    const twoFactorCode = speakeasy.totp({
-      secret: secret.base32,
-    });
-
-    return request(TEST_BACKEND_APP)
+    const response = await request(TEST_BACKEND_APP)
       .patch('/users/two-factor')
       .send({
         two_factor_secret: secret.base32,
-        two_factor_code: twoFactorCode,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+        current_two_factor_code: speakeasy.totp({ secret: twoFactorEnabledUserSecret }),
       })
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
-      .expect(200)
-      .then((response) => {
-        response.body.should.have.property('two_factor_enabled', true);
-      });
+      .expect(200);
+
+    expect(response.body).to.have.property('two_factor_enabled', true);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(secret.base32);
+    expect(user.two_factor_enabled).to.equal(true);
+  });
+
+  it('should return 403 and keep the current secret without the current two factor code', async () => {
+    const secret = speakeasy.generateSecret();
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+  });
+
+  it('should return 403 and keep the current secret with a wrong current two factor code', async () => {
+    const secret = speakeasy.generateSecret();
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+        // a code valid for the NEW secret must not be accepted as the current code
+        current_two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+  });
+
+  it('should return 403 and keep the current secret with a wrong code for the new secret', async () => {
+    const secret = speakeasy.generateSecret();
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: '000000',
+        current_two_factor_code: speakeasy.totp({ secret: twoFactorEnabledUserSecret }),
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+  });
+
+  it('should block the current two factor code after too many failed attempts', async () => {
+    const secret = speakeasy.generateSecret();
+    const attempt = (currentTwoFactorCode) =>
+      request(TEST_BACKEND_APP)
+        .patch('/users/two-factor')
+        .send({
+          two_factor_secret: secret.base32,
+          two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+          current_two_factor_code: currentTwoFactorCode,
+        })
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard);
+
+    for (let i = 0; i < 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await attempt('000000').expect(403);
+    }
+
+    // even the right code is refused once the limit is reached
+    await attempt(speakeasy.totp({ secret: twoFactorEnabledUserSecret })).expect(429);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+  });
+
+  it('should set the two factor secret without current code when two factor is not enabled yet', async () => {
+    const secret = speakeasy.generateSecret();
+
+    const response = await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', jwtAccessTokenDashboardTwoFactorConfigured())
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).to.have.property('two_factor_enabled', true);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: '3b69f1c5-d36c-419d-884c-50b9dd6e33e4' });
+    expect(user.two_factor_secret).to.equal(secret.base32);
+    expect(user.two_factor_enabled).to.equal(true);
   });
 });

@@ -143,24 +143,3 @@ jobs:
           DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
       - name: Docker build
         run: docker build -t gladysassistant/gladys-gateway-server:latest .
-  docker-build-and-push:
-    if: github.ref == 'refs/heads/master'
-    needs: test
-    name: Docker build and push
-    runs-on: ubuntu-latest
-    steps:
-      - name: ⬇️ Checkout code
-        uses: actions/checkout@v2
-      - name: Docker login
-        run: docker login -u="$DOCKERHUB_USER" -p="$DOCKERHUB_PASSWORD"
-        env:
-          DOCKERHUB_USER: ${{ secrets.DOCKERHUB_USER }}
-          DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
-      - name: Docker build
-        # The MaxMind key is passed as a BuildKit secret: it is only mounted
-        # during the build step and never persisted in the image.
-        run: docker build --secret id=maxmind_license_key,env=MAX_MIND_LICENSE_KEY -t gladysassistant/gladys-gateway-server:latest .
-        env:
-          MAX_MIND_LICENSE_KEY: ${{ secrets.MAX_MIND_LICENSE_KEY }}
-      - name: Docker push
-        run: docker push gladysassistant/gladys-gateway-server:latest

@@ -1,5 +1,6 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
+const { setUserErrorHandler } = require('../service/sentry');
 const asyncMiddleware = require('../middleware/asyncMiddleware');
 const { NotFoundError } = require('../common/error');
 
@@ -556,6 +557,8 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
 
   // Captures unexpected errors to Sentry (the filter is configured on the Express
   // integration in core/service/sentry.js) and forwards them to the error middleware.
+  // Only the authenticated user id is attached to the event, never the email.
+  app.use(setUserErrorHandler);
   Sentry.setupExpressErrorHandler(app);
 
   // error

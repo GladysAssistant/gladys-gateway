@@ -4,7 +4,7 @@ const omitDeep = require('omit-deep');
 // stripped from the event before it leaves the server, wherever it appears
 // (request body, headers, extra context...)
 const PROPERTIES_TO_OMIT = [
-  // personal data
+  // personal data (the user id alone is kept so an issue can be linked to an account)
   'email',
   // credentials & tokens
   'password',

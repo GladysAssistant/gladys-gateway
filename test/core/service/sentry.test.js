@@ -20,17 +20,20 @@ describe('sentry service', function sentryService() {
   this.timeout(30000);
 
   it('should only report unexpected errors to Sentry, not expected client errors', async () => {
-    const { statuses, captured, metrics } = await runSmokeScript();
+    const { statuses, captured, users, metrics } = await runSmokeScript();
     // the error middleware still answers every request
     expect(statuses).to.deep.equal({
       '/validation-error': 422,
       '/unauthorized': 401,
       '/not-found': 404,
       '/unexpected': 500,
+      '/unexpected-authenticated': 500,
       '/upstream-timeout': 504,
     });
-    // only the unexpected error reached Sentry as an exception
-    expect(captured).to.deep.equal(['unexpected boom']);
+    // only the unexpected errors reached Sentry as exceptions
+    expect(captured).to.deep.equal(['unexpected boom', 'unexpected authenticated boom']);
+    // the authenticated user is identified by its id only (no email, no IP address)
+    expect(users).to.deep.equal([null, { id: 'user-id' }]);
     // the upstream failure was counted as a metric instead
     expect(metrics).to.deep.equal([
       { type: 'counter', value: 1, service: 'openai_ask', reason: 'timeout', upstream_status: 504 },

@@ -33,6 +33,11 @@ describe('beforeSendSentry', () => {
     expect(beforeSendSentry({ request: { url: 'not a url at all' } })).to.not.equal(null);
   });
 
+  it('should keep the user id but never the email', () => {
+    const event = { user: { id: 'user-id', email: 'tony.stark@gladysassistant.com' }, message: 'boom' };
+    expect(beforeSendSentry(event)).to.deep.equal({ user: { id: 'user-id' }, message: 'boom' });
+  });
+
   it('should keep events without a request', () => {
     expect(beforeSendSentry({ message: 'boom' })).to.deep.equal({ message: 'boom' });
   });

@@ -1,7 +1,6 @@
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const uuid = require('uuid');
 const get = require('get-value');
 const { homegraph, auth } = require('@googleapis/homegraph');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
@@ -57,7 +56,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     );
 
     const newDevice = {
-      id: uuid.v4(),
+      id: crypto.randomUUID(),
       name: 'Google Home',
       client_id: GOOGLE_HOME_OAUTH_CLIENT_ID,
       user_id: user.id,
@@ -78,6 +77,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     let userId;
     try {
       const decoded = jwt.verify(refreshToken, process.env.JWT_REFRESH_TOKEN_SECRET, {
+        algorithms: ['HS256'],
         audience: JWT_AUDIENCE,
         issuer: 'gladys-gateway',
       });
@@ -173,7 +173,7 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     if (users.length > 0) {
       const payloadCleaned = cleanNullProperties(payload);
       const requestBody = {
-        requestId: uuid.v4(),
+        requestId: crypto.randomUUID(),
         agentUserId: users[0].account_id,
         payload: payloadCleaned,
       };

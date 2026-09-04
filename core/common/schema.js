@@ -3,7 +3,7 @@ const Joi = require('joi');
 const signupSchema = Joi.object().keys({
   name: Joi.string().min(2).max(30),
   email: Joi.string().email(),
-  language: Joi.string().allow(['fr', 'en']),
+  language: Joi.string().valid('fr', 'en'),
   gladys_user_id: Joi.number().optional().allow(null),
   gladys_4_user_id: Joi.string().optional().allow(null),
   srp_salt: Joi.string(),
@@ -21,7 +21,7 @@ const signupSchema = Joi.object().keys({
 const updateUserSchema = Joi.object().keys({
   name: Joi.string().min(2).max(30),
   email: Joi.string().email(),
-  language: Joi.string().valid(['fr', 'en']),
+  language: Joi.string().valid('fr', 'en'),
   gladys_user_id: Joi.number().optional().allow(null),
   gladys_4_user_id: Joi.string().optional().allow(null),
 });

@@ -1,22 +1,10 @@
 const bodyParser = require('body-parser');
 const Sentry = require('@sentry/node');
-const beforeSendSentry = require('../service/beforeSendSentry');
 const asyncMiddleware = require('../middleware/asyncMiddleware');
-const { shouldReportErrorToSentry } = require('../middleware/errorMiddleware');
 const { NotFoundError } = require('../common/error');
 
 module.exports.load = function Routes(app, io, controllers, middlewares) {
-  // Sentry
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    beforeSend: beforeSendSentry,
-    ignoreErrors: ['Unauthorized', 'Forbidden', 'NO_INSTANCE_FOUND'],
-    denyUrls: ['/instances/access-token', '/v1/api/owntracks/'],
-  });
-
-  // headers (Authorization, Stripe signature) and cookies are never sent to Sentry,
-  // the body is kept for debugging but scrubbed by beforeSendSentry
-  app.use(Sentry.Handlers.requestHandler({ request: ['data', 'method', 'query_string', 'url'], ip: false }));
+  // Sentry is initialized in index.js (before Express is loaded), see core/service/sentry.js
 
   app.use(middlewares.requestExecutionTime);
 
@@ -566,13 +554,9 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     }),
   );
 
-  app.use(
-    Sentry.Handlers.errorHandler({
-      // Only capture unexpected errors: expected client errors (4xx raised on purpose)
-      // are already handled by the error middleware and would only pollute Sentry.
-      shouldHandleError: shouldReportErrorToSentry,
-    }),
-  );
+  // Captures unexpected errors to Sentry (the filter is configured on the Express
+  // integration in core/service/sentry.js) and forwards them to the error middleware.
+  Sentry.setupExpressErrorHandler(app);
 
   // error
   app.use(middlewares.errorMiddleware);

@@ -1,5 +1,4 @@
 const Joi = require('joi');
-const uuid = require('uuid');
 const crypto = require('crypto');
 const Promise = require('bluebird');
 const { ValidationError, ForbiddenError, NotFoundError } = require('../../common/error');
@@ -14,7 +13,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
   });
 
   async function createInstance(user, newInstance) {
-    const { error, value } = Joi.validate(newInstance, instanceSchema, { stripUnknown: true, abortEarly: false });
+    const { error, value } = instanceSchema.validate(newInstance, { stripUnknown: true, abortEarly: false });
 
     if (error) {
       logger.debug(error);
@@ -40,7 +39,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       throw new ForbiddenError('You must be admin to create an instance');
     }
 
-    value.id = uuid.v4();
+    value.id = crypto.randomUUID();
     value.account_id = userWithAccount.account_id;
 
     // we generate access token and refresh token

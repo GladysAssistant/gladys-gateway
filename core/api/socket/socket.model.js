@@ -81,6 +81,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function authenticateUser(accessToken, socketId) {
     // we decode the jwt and see if the access token is right
     const decoded = jwt.verify(accessToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
+      algorithms: ['HS256'],
       issuer: 'gladys-gateway',
       audience: 'user',
     });
@@ -109,6 +110,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   async function authenticateInstance(accessToken, socketId) {
     // we decode the jwt and see if the access token is right
     const decoded = jwt.verify(accessToken, process.env.JWT_ACCESS_TOKEN_SECRET, {
+      algorithms: ['HS256'],
       issuer: 'gladys-gateway',
       audience: 'instance',
     });

@@ -1,5 +1,5 @@
+const crypto = require('crypto');
 const axios = require('axios');
-const uuid = require('uuid');
 
 const { UnauthorizedError } = require('../../common/error');
 
@@ -52,7 +52,7 @@ module.exports = function TTSController(redisClient) {
    * }
    */
   async function getTemporaryToken(req, res, next) {
-    const token = uuid.v4();
+    const token = crypto.randomUUID();
     await redisClient.set(`${TTS_TOKEN_PREFIX}:${token}`, req.body.text, {
       EX: 5 * 60, // 5 minutes in seconds
     });

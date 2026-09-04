@@ -1,4 +1,4 @@
-const uuid = require('uuid');
+const crypto = require('crypto');
 const { Queue } = require('bullmq');
 const Promise = require('bluebird');
 
@@ -28,7 +28,7 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
       client_id: ENEDIS_GRANT_CLIENT_ID,
       response_type: 'code',
       duration: 'P2Y',
-      state: `${uuid.v4()}7`, // add a 7 for the sandbox
+      state: `${crypto.randomUUID()}7`, // add a 7 for the sandbox
       //  Remove redirect_uri for Enedis PROD. Keeping the comment in case it's needed for test env
       //  redirect_uri: ENEDIS_GLADYS_PLUS_REDIRECT_URI,
     });
@@ -97,7 +97,7 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
 
     // Create a new Enedis device
     const newDevice = {
-      id: uuid.v4(),
+      id: crypto.randomUUID(),
       name: 'Enedis',
       client_id: ENEDIS_GRANT_CLIENT_ID,
       user_id: user.id,
@@ -154,7 +154,7 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
     // A device is needed before the exchange: it is what allows an access token
     // to be minted for this account.
     const newDevice = {
-      id: uuid.v4(),
+      id: crypto.randomUUID(),
       name: 'Enedis',
       client_id: ENEDIS_GRANT_CLIENT_ID,
       user_id: user.id,

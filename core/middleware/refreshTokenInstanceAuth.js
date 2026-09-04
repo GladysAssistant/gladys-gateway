@@ -5,6 +5,7 @@ module.exports = function RefreshTokenInstanceMiddleware(logger) {
   return async function RefreshTokenInstance(req, res, next) {
     try {
       const decoded = jwt.verify(req.headers.authorization, process.env.JWT_REFRESH_TOKEN_SECRET, {
+        algorithms: ['HS256'],
         audience: 'instance',
         issuer: 'gladys-gateway',
       });

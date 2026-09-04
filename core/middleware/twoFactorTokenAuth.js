@@ -5,6 +5,7 @@ module.exports = function TwoFactorTokenAuthMiddleware(db, redisClient) {
   return async function TwoFactorTokenAuth(req, res, next) {
     try {
       const decoded = jwt.verify(req.headers.authorization, process.env.JWT_TWO_FACTOR_SECRET, {
+        algorithms: ['HS256'],
         issuer: 'gladys-gateway',
       });
       req.user = {

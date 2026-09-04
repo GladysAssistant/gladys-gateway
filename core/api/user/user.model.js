@@ -76,6 +76,23 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     await resetFailedTwoFactorAttempts(userId);
   }
 
+  // Sensitive operations on a logged-in account (changing the email address, replacing the
+  // TOTP secret, regenerating the recovery codes) require the CURRENT second factor, not only
+  // an access token. Otherwise a stolen 1-hour access token would be enough to redirect the
+  // account recovery flow (email + 2FA) to an attacker and take over the account for good.
+  // A user without two factor enabled has nothing to prove.
+  async function verifyCurrentTwoFactor(userWithSecret, twoFactorCode, actionDescription) {
+    if (userWithSecret.two_factor_enabled !== true) {
+      return;
+    }
+
+    if (twoFactorCode === undefined || twoFactorCode === null) {
+      throw new ForbiddenError(`A valid two factor code is required to ${actionDescription}`);
+    }
+
+    await verifyTwoFactorCode(userWithSecret.id, userWithSecret.two_factor_secret, twoFactorCode);
+  }
+
   /**
    * Create a new user with his email and language
    */
@@ -193,15 +210,23 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       {
         id: user.id,
       },
-      { fields: ['id', 'email'] },
+      { fields: ['id', 'email', 'two_factor_enabled', 'two_factor_secret'] },
     );
 
     let emailConfirmationToken;
+    let previousEmail;
 
     if (value.email) {
       value.email = normalizeEmail(value.email);
 
       if (value.email !== currentUser.email) {
+        // The email address is the recovery channel of the account (forgot password).
+        // An access token alone is not enough to move it: a token stolen from a browser
+        // (XSS) or a log must not be able to take over the account, so the user has to
+        // prove he still has his second factor.
+        await verifyCurrentTwoFactor(currentUser, data.two_factor_code, 'change the email address');
+
+        previousEmail = currentUser.email;
         value.email_confirmed = false;
 
         // generate email confirmation token
@@ -216,7 +241,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     const updatedUser = await db.t_user.update(user.id, value, {
       fields: ['id', 'name', 'email', 'profile_url', 'email_confirmed', 'language'],
     });
+    // The confirmation token and the previous email are for the controller (emails to send),
+    // they must never be sent back in the API response: the caller of this route could
+    // otherwise confirm an email address he doesn't control.
     updatedUser.email_confirmation_token = emailConfirmationToken;
+    updatedUser.previous_email = previousEmail;
     return updatedUser;
   }
 
@@ -424,10 +453,25 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
   }
 
-  async function updateTwoFactor(user, twoFactorSecret, twoFactorCode) {
+  async function updateTwoFactor(user, twoFactorSecret, twoFactorCode, currentTwoFactorCode) {
+    const userWithSecret = await db.t_user.findOne(
+      {
+        id: user.id,
+      },
+      { fields: ['id', 'two_factor_enabled', 'two_factor_secret'] },
+    );
+
+    // the current secret can only be replaced by someone who holds it
+    await verifyCurrentTwoFactor(userWithSecret, currentTwoFactorCode, 'replace the two factor secret');
+
+    if (typeof twoFactorSecret !== 'string' || twoFactorSecret.length === 0) {
+      throw new ForbiddenError('A new two factor secret is required');
+    }
+
+    const isCodeAStringOrANumber = typeof twoFactorCode === 'string' || typeof twoFactorCode === 'number';
     const tokenValidates = speakeasy.totp.verify({
       secret: twoFactorSecret,
-      token: twoFactorCode,
+      token: isCodeAStringOrANumber ? String(twoFactorCode) : '',
     });
 
     if (!tokenValidates) {
@@ -537,17 +581,21 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return db.withTransaction((tx) => createDeviceSession(tx, userWithSecret, deviceName, userAgent));
   }
 
-  async function generateTwoFactorRecoveryCodes(user) {
+  async function generateTwoFactorRecoveryCodes(user, twoFactorCode) {
     const fullUser = await db.t_user.findOne(
       {
         id: user.id,
       },
-      { fields: ['id', 'two_factor_enabled'] },
+      { fields: ['id', 'two_factor_enabled', 'two_factor_secret'] },
     );
 
     if (fullUser.two_factor_enabled !== true) {
       throw new ForbiddenError('Two Factor Authentication is not enabled');
     }
+
+    // a recovery code is a full substitute of the TOTP code (login, password reset):
+    // generating new ones requires the current second factor
+    await verifyCurrentTwoFactor(fullUser, twoFactorCode, 'generate new recovery codes');
 
     const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
 

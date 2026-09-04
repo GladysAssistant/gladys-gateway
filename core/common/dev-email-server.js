@@ -22,6 +22,7 @@ app.get('/:template_name/:language', (req, res) => {
       nameOfAdminInviting: 'Tony',
       invitationUrlGladys4: 'http://gladysassistant.com',
       resetPasswordUrlGladys4: 'http://gladysassistant.com',
+      newEmail: 'new-email@gladysassistant.com',
       updateCardLink: 'http://gladysassistant.com',
       loginUrl: 'http://gladysassistant.com',
       firstname: 'Tony',

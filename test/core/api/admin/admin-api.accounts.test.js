@@ -125,6 +125,7 @@ describe('GET /admin/api/accounts/:id', () => {
     expect(response.body.instances[0]).to.include({
       id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
       name: 'Raspberry Pi 1',
+      is_deleted: false,
     });
     expect(response.body.instances[0]).to.not.have.property('refresh_token_hash');
     expect(response.body.backups.length).to.be.at.least(2);

@@ -33,7 +33,10 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,PATCH,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Content-Length, X-Requested-With, X-Admin-Api-Key',
+    );
     next();
   });
 
@@ -305,6 +308,33 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     middlewares.isSuperAdmin,
     asyncMiddleware(controllers.adminController.deleteAccount),
   );
+
+  // Admin API (accounts, users, Enedis, Gladys versions)
+  // Auth: X-Admin-Api-Key header (ADMIN_API_AUTHORIZATION_TOKEN) or super admin access token
+  const adminAuth = middlewares.adminAuth();
+  app.get('/admin/api/accounts', adminAuth, asyncMiddleware(controllers.adminApiController.listAccounts));
+  app.get('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.getAccount));
+  app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
+  app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));
+  app.post(
+    '/admin/api/accounts/:id/enedis/refresh',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.refreshEnedisData),
+  );
+  app.post(
+    '/admin/api/users/:id/reset_two_factor',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.resetTwoFactor),
+  );
+  app.delete('/admin/api/users/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteUser));
+  app.get('/admin/api/gladys/versions', adminAuth, asyncMiddleware(controllers.adminApiController.listVersions));
+  // The release GitHub Action only holds the restricted GLADYS_VERSION_API_KEY
+  app.post(
+    '/admin/api/gladys/versions',
+    middlewares.adminAuth({ apiKeys: ['ADMIN_API_AUTHORIZATION_TOKEN', 'GLADYS_VERSION_API_KEY'] }),
+    asyncMiddleware(controllers.adminApiController.createVersion),
+  );
+  app.patch('/admin/api/gladys/versions/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateVersion));
 
   // stripe webhook
   app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));

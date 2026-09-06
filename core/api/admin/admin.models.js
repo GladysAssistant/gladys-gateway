@@ -72,15 +72,22 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
 
   async function deleteAccount(accountId) {
     const account = await db.t_account.findOne({ id: accountId });
-    // we get subscription from stripe side
-    const [subscription, customer] = await Promise.all([
-      stripeService.getSubscription(account.stripe_subscription_id),
-      stripeService.getCustomer(account.stripe_customer_id),
-    ]);
-    logger.info(`Trying to delete customer ${customer.id}, ${customer.email}`);
-    const now = new Date().getTime();
-    if (subscription.current_period_end > now) {
-      throw new ForbiddenError('Cannot delete an active customer');
+    if (account === null) {
+      throw new NotFoundError('Account not found');
+    }
+    // An account that never subscribed has no Stripe data and can be deleted right away
+    if (account.stripe_subscription_id) {
+      // we get subscription from stripe side
+      const [subscription, customer] = await Promise.all([
+        stripeService.getSubscription(account.stripe_subscription_id),
+        stripeService.getCustomer(account.stripe_customer_id),
+      ]);
+      logger.info(`Trying to delete customer ${customer.id}`);
+      // Stripe timestamps are in seconds
+      const now = new Date().getTime();
+      if (subscription.current_period_end * 1000 > now) {
+        throw new ForbiddenError('Cannot delete an active customer');
+      }
     }
     const backups = await db.t_backup.find({ account_id: accountId });
     // deleting backups
@@ -117,6 +124,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     });
     // Delete rest
     await db.t_backup.destroy({ account_id: accountId });
+    // AI usage references both the account and its instances (no cascade)
+    await db.t_ai_usage.destroy({ account_id: accountId });
     await db.t_account_payment_activity.destroy({ account_id: accountId });
     await db.t_instance.destroy({ account_id: accountId });
     await db.t_invitation.destroy({ account_id: accountId });

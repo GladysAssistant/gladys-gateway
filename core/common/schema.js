@@ -56,3 +56,46 @@ module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;
+
+// Admin API (see core/api/admin/admin-api.controller.js)
+const adminListAccountsQuerySchema = Joi.object().keys({
+  search: Joi.string().trim().max(255).allow('').optional(),
+  limit: Joi.number().integer().min(1).max(200).default(50),
+  offset: Joi.number().integer().min(0).default(0),
+});
+
+// Gladys versions are named like the git tags of the Gladys repository: v4.57.0, v4.0.0-alpha
+const gladysVersionNamePattern = /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
+
+const adminCreateGladysVersionSchema = Joi.object().keys({
+  name: Joi.string().trim().pattern(gladysVersionNamePattern).max(255).required(),
+  default_release_note_link: Joi.string()
+    .uri({ scheme: ['https'] })
+    .max(2048)
+    .allow(null)
+    .optional(),
+  fr_release_note_link: Joi.string()
+    .uri({ scheme: ['https'] })
+    .max(2048)
+    .allow(null)
+    .optional(),
+  active: Joi.boolean().default(true),
+});
+
+const adminUpdateGladysVersionSchema = Joi.object()
+  .keys({
+    default_release_note_link: Joi.string()
+      .uri({ scheme: ['https'] })
+      .max(2048)
+      .allow(null),
+    fr_release_note_link: Joi.string()
+      .uri({ scheme: ['https'] })
+      .max(2048)
+      .allow(null),
+    active: Joi.boolean(),
+  })
+  .min(1);
+
+module.exports.adminListAccountsQuerySchema = adminListAccountsQuerySchema;
+module.exports.adminCreateGladysVersionSchema = adminCreateGladysVersionSchema;
+module.exports.adminUpdateGladysVersionSchema = adminUpdateGladysVersionSchema;

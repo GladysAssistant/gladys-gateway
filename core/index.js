@@ -16,6 +16,7 @@ const Telegram = require('./service/telegram');
 const AnalyticsService = require('./service/analytics');
 const OpenPanelService = require('./service/openpanel');
 const EmailList = require('./service/email-list');
+const MondialRelay = require('./service/mondial-relay');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -36,6 +37,7 @@ const EnedisModel = require('./api/enedis/enedis.model');
 const EnedisCoreModel = require('./enedis/enedis');
 const EcowattModel = require('./api/ecowatt/ecowatt.model');
 const TempoModel = require('./api/tempo/tempo.model');
+const StarterKitModel = require('./api/starter-kit/starter-kit.model');
 
 // Controllers
 const PingController = require('./api/ping/ping.controller');
@@ -57,6 +59,7 @@ const AlexaController = require('./api/alexa/alexa.controller');
 const EnedisController = require('./api/enedis/enedis.controller');
 const EcowattController = require('./api/ecowatt/ecowatt.controller');
 const TempoController = require('./api/tempo/tempo.controller');
+const StarterKitController = require('./api/starter-kit/starter-kit.controller');
 const CameraController = require('./api/camera/camera.controller');
 const TTSController = require('./api/tts/tts.controller');
 const STTController = require('./api/stt/stt.controller');
@@ -166,11 +169,20 @@ module.exports = async (port) => {
     analyticsService: AnalyticsService(logger),
     openPanelService: OpenPanelService(logger),
     emailListService: EmailList(logger),
+    mondialRelayService: MondialRelay(logger),
   };
   // The mail service reports the metadata of the emails it sends on Telegram
   services.mailService = Mail(logger, services.telegramService);
 
   const instanceModel = Instance(logger, db, redisClient, services.jwtService, services.fingerprint);
+  const starterKitModel = StarterKitModel(
+    logger,
+    db,
+    services.stripeService,
+    services.mailService,
+    services.telegramService,
+    services.mondialRelayService,
+  );
 
   const models = {
     pingModel: Ping(logger, db, redisClient),
@@ -187,7 +199,9 @@ module.exports = async (port) => {
       services.telegramService,
       services.emailListService,
       services.openPanelService,
+      starterKitModel,
     ),
+    starterKitModel,
     deviceModel: Device(logger, db, redisClient),
     adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService, services.stripeService),
     openApiModel: OpenApi(logger, db),
@@ -237,6 +251,7 @@ module.exports = async (port) => {
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
     tempoController: TempoController(logger, models.tempoModel),
+    starterKitController: StarterKitController(models.starterKitModel),
     cameraController: CameraController(
       logger,
       models.userModel,

@@ -32,6 +32,7 @@ module.exports = function AccountModel(
   telegramService,
   emailListService,
   openPanelService,
+  starterKitModel,
 ) {
   async function getUsers(user) {
     // get the account_id of the currently connected user
@@ -609,7 +610,21 @@ module.exports = function AccountModel(
       case 'checkout.session.completed': {
         const session = event.data.object;
         await openPanelService.trackRevenueFromCheckoutSession(session);
-        await createAccountFromStripeSession(session);
+        // The starter kit is a one-shot product sold with a Gladys Plus subscription
+        // (6 months trial): the Plus account is created as usual, then the kit order
+        // is created and followed in t_starter_kit_order.
+        const isStarterKit = starterKitModel ? await starterKitModel.isStarterKitCheckoutSession(session) : false;
+        let createdAccount = null;
+        if (isStarterKit && (!session.customer || !session.subscription)) {
+          logger.warn(
+            `Stripe Webhook : starter kit session ${session.id} has no customer or subscription, creating the order without account`,
+          );
+        } else {
+          createdAccount = await createAccountFromStripeSession(session);
+        }
+        if (isStarterKit) {
+          await starterKitModel.createOrderFromStripeSession(session, createdAccount);
+        }
         break;
       }
       case 'charge.succeeded': {

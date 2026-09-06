@@ -123,6 +123,17 @@ module.exports = function StripeService(logger) {
     return stripe.subscriptions.retrieve(stripeSubscriptionId);
   }
 
+  // Line items of a Checkout session (products bought). Used to detect one-shot
+  // products such as the starter kit in a checkout.session.completed event.
+  async function getCheckoutSessionLineItems(stripeCheckoutSessionId) {
+    if (stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve([]);
+    }
+    const lineItems = await stripe.checkout.sessions.listLineItems(stripeCheckoutSessionId, { limit: 100 });
+    return lineItems.data || [];
+  }
+
   async function cancelMonthlySubscription(stripeSubscriptionId) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');
@@ -196,6 +207,7 @@ module.exports = function StripeService(logger) {
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,
     getSubscription,
+    getCheckoutSessionLineItems,
     getCustomer,
     addTaxRate,
     createBillingPortalSession,

@@ -92,4 +92,54 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/trial_will_end.ejs`, 'utf8')),
     },
   },
+  starter_kit_order_confirmed: {
+    en: {
+      subject: 'Your Gladys starter kit: thank you for your order!',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/starter_kit_order_confirmed.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton kit de démarrage Gladys : merci pour ta commande !',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/starter_kit_order_confirmed.ejs`, 'utf8')),
+    },
+  },
+  starter_kit_pickup_point_reminder: {
+    en: {
+      subject: 'Your Gladys starter kit: choose your pickup point',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/starter_kit_pickup_point_reminder.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton kit de démarrage Gladys : choisis ton point relais',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/starter_kit_pickup_point_reminder.ejs`, 'utf8')),
+    },
+  },
+  starter_kit_status_update: {
+    en: {
+      subject: 'Your Gladys starter kit: order update',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/starter_kit_status_update.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton kit de démarrage Gladys : ta commande avance',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/starter_kit_status_update.ejs`, 'utf8')),
+    },
+  },
+  starter_kit_shipped: {
+    en: {
+      subject: 'Your Gladys starter kit is on its way',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/starter_kit_shipped.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton kit de démarrage Gladys est en route',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/starter_kit_shipped.ejs`, 'utf8')),
+    },
+  },
+  starter_kit_delivered: {
+    en: {
+      subject: 'Your Gladys starter kit has arrived',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/starter_kit_delivered.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton kit de démarrage Gladys est arrivé',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/starter_kit_delivered.ejs`, 'utf8')),
+    },
+  },
 };

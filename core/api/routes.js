@@ -306,6 +306,69 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.adminController.deleteAccount),
   );
 
+  // starter kit: customer tracking page (token sent by email)
+  app.get(
+    '/starter-kit/orders/:token',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.starterKitController.getPublicOrder),
+  );
+  app.post(
+    '/starter-kit/orders/:token/pickup-point',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.starterKitController.selectPickupPoint),
+  );
+
+  // starter kit: admin
+  app.get(
+    '/admin/starter-kit/orders',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.getOrders),
+  );
+  app.post(
+    '/admin/starter-kit/orders',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.createOrder),
+  );
+  app.get(
+    '/admin/starter-kit/orders/:id',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.getOrder),
+  );
+  app.patch(
+    '/admin/starter-kit/orders/:id',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.updateOrder),
+  );
+  app.post(
+    '/admin/starter-kit/orders/:id/status',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.changeStatus),
+  );
+  app.post(
+    '/admin/starter-kit/orders/:id/label',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.createLabel),
+  );
+  app.post(
+    '/admin/starter-kit/orders/:id/resend-email',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    middlewares.isSuperAdmin,
+    asyncMiddleware(controllers.starterKitController.resendEmail),
+  );
+
+  // starter kit: daily cron (reminders, Mondial Relay tracking, Telegram digest)
+  app.post(
+    '/admin/api/starter-kit/daily',
+    middlewares.adminApiAuth,
+    asyncMiddleware(controllers.starterKitController.runDailyTasks),
+  );
+
   // stripe webhook
   app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));
 

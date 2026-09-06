@@ -214,19 +214,24 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
    */
   async function deleteUser(userId) {
     const user = await getUserOrFail(userId);
-    const otherActiveUsers = await db.t_user.count({
-      account_id: user.account_id,
-      'id <>': userId,
-      is_deleted: false,
+    await db.withTransaction(async (tx) => {
+      // Lock the account row so two concurrent deletions cannot both see "one other user"
+      // and leave the account without any active user.
+      await tx.query('SELECT id FROM t_account WHERE id = $1 FOR UPDATE', [user.account_id]);
+      const otherActiveUsers = await tx.t_user.count({
+        account_id: user.account_id,
+        'id <>': userId,
+        is_deleted: false,
+      });
+      if (Number(otherActiveUsers) === 0) {
+        throw new ForbiddenError('Cannot delete the last user of an account, delete the account instead');
+      }
+      await tx.t_device.destroy({ user_id: userId });
+      await tx.t_history.destroy({ user_id: userId });
+      await tx.t_open_api_key.destroy({ user_id: userId });
+      await tx.t_reset_password.destroy({ user_id: userId });
+      await tx.t_user.destroy({ id: userId });
     });
-    if (Number(otherActiveUsers) === 0) {
-      throw new ForbiddenError('Cannot delete the last user of an account, delete the account instead');
-    }
-    await db.t_device.destroy({ user_id: userId });
-    await db.t_history.destroy({ user_id: userId });
-    await db.t_open_api_key.destroy({ user_id: userId });
-    await db.t_reset_password.destroy({ user_id: userId });
-    await db.t_user.destroy({ id: userId });
     logger.warn(`Admin API: user ${userId} of account ${user.account_id} deleted`);
   }
 

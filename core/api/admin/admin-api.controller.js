@@ -1,7 +1,8 @@
 /**
  * Admin API: management of Gladys Plus accounts, users, Enedis syncs and Gladys versions.
  * Every route is protected by the adminAuth middleware (see core/middleware/adminAuth.js),
- * every mutation is logged with who did it (audit trail, ids only, never emails).
+ * every successful mutation is logged with who did it (audit trail, ids only, never emails).
+ * Refused or failed calls are logged by the error middleware, not as audit lines.
  */
 module.exports = function AdminApiController(logger, adminAccountModel, adminVersionModel, adminModel) {
   function describeCaller(req) {
@@ -94,8 +95,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function deleteAccount(req, res) {
-    audit(req, `delete account ${req.params.id}`);
     await adminModel.deleteAccount(req.params.id);
+    audit(req, `delete account ${req.params.id}`);
     res.json({ status: 200 });
   }
 
@@ -117,8 +118,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function resetTwoFactor(req, res) {
-    audit(req, `reset two factor of user ${req.params.id}`);
     const user = await adminAccountModel.resetTwoFactor(req.params.id);
+    audit(req, `reset two factor of user ${user.id}`);
     res.json(user);
   }
 
@@ -137,8 +138,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function deleteUser(req, res) {
-    audit(req, `delete user ${req.params.id}`);
     await adminAccountModel.deleteUser(req.params.id);
+    audit(req, `delete user ${req.params.id}`);
     res.json({ status: 200 });
   }
 
@@ -183,8 +184,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function refreshEnedisData(req, res) {
-    audit(req, `refresh Enedis data of account ${req.params.id}`);
     await adminAccountModel.refreshEnedisData(req.params.id);
+    audit(req, `refresh Enedis data of account ${req.params.id}`);
     res.json({ success: true });
   }
 
@@ -240,8 +241,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function createVersion(req, res) {
-    audit(req, 'create Gladys version');
     const version = await adminVersionModel.createVersion(req.body);
+    audit(req, `create Gladys version ${version.name} (${version.id})`);
     res.status(201).json(version);
   }
 
@@ -266,8 +267,8 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
    * }
    */
   async function updateVersion(req, res) {
-    audit(req, `update Gladys version ${req.params.id}`);
     const version = await adminVersionModel.updateVersion(req.params.id, req.body);
+    audit(req, `update Gladys version ${version.name} (${version.id})`);
     res.json(version);
   }
 

@@ -94,6 +94,31 @@ describe('DELETE /admin/api/users/:id', () => {
     expect(user).to.not.equal(null);
   });
 
+  it('should not count revoked users as remaining users', async () => {
+    const activeUser = await TEST_DATABASE_INSTANCE.t_user.insert({
+      email: 'active-user@gladysassistant.com',
+      email_confirmation_token_hash: 'hash',
+      language: 'fr',
+      role: 'admin',
+      account_id: ACCOUNT_WITHOUT_USER,
+    });
+    const revokedUser = await TEST_DATABASE_INSTANCE.t_user.insert({
+      email: 'revoked-user@gladysassistant.com',
+      email_confirmation_token_hash: 'hash',
+      language: 'fr',
+      role: 'user',
+      account_id: ACCOUNT_WITHOUT_USER,
+      is_deleted: true,
+    });
+    // the active user is the last one, the revoked user does not count
+    await adminRequest('delete', `/admin/api/users/${activeUser.id}`).expect(403);
+    // the revoked user can be hard deleted since an active user remains
+    await adminRequest('delete', `/admin/api/users/${revokedUser.id}`).expect(200);
+    const remainingUsers = await TEST_DATABASE_INSTANCE.t_user.find({ account_id: ACCOUNT_WITHOUT_USER });
+    expect(remainingUsers).to.have.lengthOf(1);
+    expect(remainingUsers[0].id).to.equal(activeUser.id);
+  });
+
   it('should return 404 for an unknown user', async () => {
     await adminRequest('delete', '/admin/api/users/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1').expect(404);
     await adminRequest('delete', '/admin/api/users/not-an-uuid').expect(404);

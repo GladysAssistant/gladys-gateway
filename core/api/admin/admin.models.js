@@ -124,6 +124,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     });
     // Delete rest
     await db.t_backup.destroy({ account_id: accountId });
+    // AI usage references both the account and its instances (no cascade)
+    await db.t_ai_usage.destroy({ account_id: accountId });
     await db.t_account_payment_activity.destroy({ account_id: accountId });
     await db.t_instance.destroy({ account_id: accountId });
     await db.t_invitation.destroy({ account_id: accountId });

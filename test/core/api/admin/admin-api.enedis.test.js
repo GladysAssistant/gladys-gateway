@@ -80,6 +80,18 @@ describe('POST /admin/api/accounts/:id/enedis/refresh', () => {
     expect(response.body).to.deep.equal({ success: true });
   });
 
+  it('should ignore revoked users when picking the user of the job', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.insert({
+      email: 'revoked-user@gladysassistant.com',
+      email_confirmation_token_hash: 'hash',
+      language: 'fr',
+      role: 'admin',
+      account_id: ACCOUNT_WITHOUT_USER,
+      is_deleted: true,
+    });
+    await adminRequest('post', `/admin/api/accounts/${ACCOUNT_WITHOUT_USER}/enedis/refresh`).expect(404);
+  });
+
   it('should return 404 when the account has no user', async () => {
     await adminRequest('post', `/admin/api/accounts/${ACCOUNT_WITHOUT_USER}/enedis/refresh`).expect(404);
   });

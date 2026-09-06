@@ -29,6 +29,13 @@ describe('GET /admin/api/accounts', () => {
     expect(account).to.not.have.property('stripe_portal_key');
   });
 
+  it('should not count revoked users', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: '29770e0d-26a9-444e-91a1-f175c99a5218' }, { is_deleted: true });
+    const response = await adminRequest('get', '/admin/api/accounts').expect(200);
+    const account = response.body.accounts.find((a) => a.id === ACCOUNT_WITH_USERS);
+    expect(account).to.have.property('user_count', 3);
+  });
+
   it('should search by user email (partial, case insensitive)', async () => {
     const response = await adminRequest('get', '/admin/api/accounts?search=TONY.STARK').expect(200);
     expect(response.body.total).to.equal(1);
@@ -131,6 +138,15 @@ describe('GET /admin/api/accounts/:id', () => {
     expect(response.body.stripe).to.equal(null);
   });
 
+  it('should return revoked users flagged as deleted', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: '29770e0d-26a9-444e-91a1-f175c99a5218' }, { is_deleted: true });
+    const response = await adminRequest('get', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).expect(200);
+    expect(response.body.users).to.have.lengthOf(4);
+    const revokedUser = response.body.users.find((u) => u.id === '29770e0d-26a9-444e-91a1-f175c99a5218');
+    expect(revokedUser).to.have.property('is_deleted', true);
+    expect(response.body.users.filter((u) => u.is_deleted === false)).to.have.lengthOf(3);
+  });
+
   it('should return the stripe subscription summary', async () => {
     const response = await adminRequest('get', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(200);
     expect(response.body.stripe).to.deep.equal({
@@ -173,9 +189,17 @@ describe('DELETE /admin/api/accounts/:id', () => {
     expect(account).to.equal(null);
   });
 
-  it('should delete an account that never subscribed', async function Test() {
+  it('should delete an account that never subscribed, with its AI usage', async function Test() {
     this.timeout(5000);
+    await TEST_DATABASE_INSTANCE.t_ai_usage.insert({
+      account_id: ACCOUNT_WITH_USERS,
+      instance_id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
+      request_type: 'text',
+      total_tokens: 42,
+    });
     await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).expect(200);
+    const aiUsage = await TEST_DATABASE_INSTANCE.t_ai_usage.find({ account_id: ACCOUNT_WITH_USERS });
+    expect(aiUsage).to.have.lengthOf(0);
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_USERS });
     expect(account).to.equal(null);
     const users = await TEST_DATABASE_INSTANCE.t_user.find({ account_id: ACCOUNT_WITH_USERS });

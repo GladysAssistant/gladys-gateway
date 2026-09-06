@@ -4,6 +4,9 @@ const { adminCreateGladysVersionSchema, adminUpdateGladysVersionSchema } = requi
 
 const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
+// PostgreSQL error code for unique_violation
+const UNIQUE_VIOLATION_ERROR_CODE = '23505';
+
 const VERSION_FIELDS = [
   'id',
   'name',
@@ -36,7 +39,16 @@ module.exports = function AdminVersionModel(logger, db) {
     if (existingVersion !== null) {
       throw new AlreadyExistError('gladys_version', value.name);
     }
-    const version = await db.t_gladys_version.insert(value, { fields: VERSION_FIELDS });
+    let version;
+    try {
+      version = await db.t_gladys_version.insert(value, { fields: VERSION_FIELDS });
+    } catch (e) {
+      // two concurrent calls with the same name: the unique index catches the race
+      if (e && e.code === UNIQUE_VIOLATION_ERROR_CODE) {
+        throw new AlreadyExistError('gladys_version', value.name);
+      }
+      throw e;
+    }
     logger.warn(`Admin API: Gladys version ${version.name} created (active: ${version.active})`);
     return version;
   }

@@ -18,6 +18,7 @@ const USER_PUBLIC_FIELDS = [
   'gladys_user_id',
   'gladys_4_user_id',
   'account_id',
+  'is_deleted',
   'created_at',
   'updated_at',
 ];
@@ -71,7 +72,8 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
 
   /**
    * Paginated list of accounts. "search" matches the account email, the email of one of its
-   * users (case insensitive, partial) or an exact account/user id.
+   * users (case insensitive, partial) or an exact account/user id. user_count only counts
+   * active users (a revoked user is soft deleted: is_deleted = true).
    */
   async function listAccounts(query) {
     const { error, value } = adminListAccountsQuerySchema.validate(query, { stripUnknown: true, abortEarly: false });
@@ -86,7 +88,7 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
         COUNT(u.id)::int AS user_count,
         COUNT(*) OVER()::int AS total_count
       FROM t_account a
-      LEFT JOIN t_user u ON u.account_id = a.id
+      LEFT JOIN t_user u ON u.account_id = a.id AND u.is_deleted = false
       WHERE $1::text IS NULL
         OR a.name ILIKE $2
         OR a.id::text = $1
@@ -130,6 +132,10 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
     }
   }
 
+  /**
+   * Full view of an account. Revoked users are returned too, flagged with is_deleted = true,
+   * so the admin sees the whole history of the account.
+   */
   async function getAccount(accountId) {
     const account = await getAccountOrFail(accountId);
     const [users, instances, backups, usagePoints, stripe] = await Promise.all([
@@ -202,13 +208,18 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
 
   /**
    * Delete one user of an account (an invited user for example) and everything attached to
-   * him. The last user of an account cannot be deleted this way: the whole account must be
-   * deleted instead, so that backups, Stripe data and Enedis data are cleaned as well.
+   * him. The last active user of an account cannot be deleted this way (revoked users do not
+   * count): the whole account must be deleted instead, so that backups, Stripe data and
+   * Enedis data are cleaned as well.
    */
   async function deleteUser(userId) {
     const user = await getUserOrFail(userId);
-    const otherUsers = await db.t_user.count({ account_id: user.account_id, 'id <>': userId });
-    if (Number(otherUsers) === 0) {
+    const otherActiveUsers = await db.t_user.count({
+      account_id: user.account_id,
+      'id <>': userId,
+      is_deleted: false,
+    });
+    if (Number(otherActiveUsers) === 0) {
       throw new ForbiddenError('Cannot delete the last user of an account, delete the account instead');
     }
     await db.t_device.destroy({ user_id: userId });
@@ -267,7 +278,7 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
   async function refreshEnedisData(accountId) {
     await getAccountOrFail(accountId);
     const users = await db.t_user.find(
-      { account_id: accountId },
+      { account_id: accountId, is_deleted: false },
       { fields: ['id', 'role'], order: [{ field: 'created_at' }] },
     );
     if (users.length === 0) {

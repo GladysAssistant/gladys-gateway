@@ -59,7 +59,12 @@ function hashToken(token) {
 // stable across emails (the tracking link never changes) and only its hash is stored, so a
 // read-only database leak does not give access to the tracking pages.
 function computeTrackingToken(orderId) {
-  const secret = process.env.STARTER_KIT_TRACKING_SECRET || process.env.JWT_ACCESS_TOKEN_SECRET;
+  const secret = process.env.STARTER_KIT_TRACKING_SECRET;
+  if (!secret) {
+    // Fail closed: silently using another secret would change every tracking link
+    // sent by email as soon as that other secret is rotated.
+    throw new Error('STARTER_KIT_TRACKING_SECRET is not defined');
+  }
   return crypto.createHmac('sha256', secret).update(orderId).digest('hex');
 }
 
@@ -539,7 +544,18 @@ module.exports = function StarterKitModel(
     const template = STATUS_EMAIL_TEMPLATE[value.status];
     const shouldNotify = value.notify === undefined ? Boolean(template) : value.notify && Boolean(template);
     if (shouldNotify) {
-      await sendEmail(updatedOrder, template);
+      // The status is already saved: an email failure must not look like a failed
+      // transition (retrying it would be refused). Warn, alert, and let the admin
+      // use resend-email.
+      try {
+        await sendEmail(updatedOrder, template);
+      } catch (e) {
+        logger.warn(`Starter kit: unable to send ${template} email for order ${id}`);
+        logger.warn(e);
+        await notifyAdmin(
+          `⚠️ Starter kit: order ${id} moved to ${value.status} but the "${template}" email could not be sent to ${updatedOrder.email}`,
+        );
+      }
     }
     return getOrderById(id);
   }

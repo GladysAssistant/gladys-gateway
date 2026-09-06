@@ -611,19 +611,26 @@ module.exports = function AccountModel(
         const session = event.data.object;
         await openPanelService.trackRevenueFromCheckoutSession(session);
         // The starter kit is a one-shot product sold with a Gladys Plus subscription
-        // (6 months trial): the Plus account is created as usual, then the kit order
-        // is created and followed in t_starter_kit_order.
-        const isStarterKit = starterKitModel ? await starterKitModel.isStarterKitCheckoutSession(session) : false;
+        // (6 months trial). The Plus account is created first, as usual, so that the
+        // starter kit detection (an extra Stripe call) can never block a regular signup.
+        // The kit order is then created and followed in t_starter_kit_order; if that
+        // part fails, Stripe retries the event and the account creation is idempotent.
         let createdAccount = null;
-        if (isStarterKit && (!session.customer || !session.subscription)) {
-          logger.warn(
-            `Stripe Webhook : starter kit session ${session.id} has no customer or subscription, creating the order without account`,
-          );
-        } else {
+        const hasSubscription = Boolean(session.customer && session.subscription);
+        if (hasSubscription) {
           createdAccount = await createAccountFromStripeSession(session);
         }
+        const isStarterKit = starterKitModel ? await starterKitModel.isStarterKitCheckoutSession(session) : false;
         if (isStarterKit) {
+          if (!hasSubscription) {
+            logger.warn(
+              `Stripe Webhook : starter kit session ${session.id} has no customer or subscription, creating the order without account`,
+            );
+          }
           await starterKitModel.createOrderFromStripeSession(session, createdAccount);
+        } else if (!hasSubscription) {
+          // Not a starter kit and not a subscription: keep the historical behavior (422)
+          await createAccountFromStripeSession(session);
         }
         break;
       }

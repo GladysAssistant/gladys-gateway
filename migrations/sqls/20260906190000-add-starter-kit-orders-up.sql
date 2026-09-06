@@ -37,7 +37,7 @@ ALTER TABLE ONLY t_starter_kit_order
     ADD CONSTRAINT t_starter_kit_order_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY t_starter_kit_order
-    ADD CONSTRAINT fk_t_starter_kit_order__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id);
+    ADD CONSTRAINT fk_t_starter_kit_order__account_id_t_account FOREIGN KEY (account_id) REFERENCES t_account (id) ON DELETE SET NULL;
 
 CREATE UNIQUE INDEX ux_t_starter_kit_order_stripe_checkout_session_id ON t_starter_kit_order USING btree (stripe_checkout_session_id);
 

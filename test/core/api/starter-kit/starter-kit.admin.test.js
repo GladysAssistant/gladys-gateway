@@ -361,6 +361,16 @@ describe('Starter kit admin API', () => {
     });
   });
 
+  describe('DELETE /admin/accounts/:id with a starter kit order', () => {
+    it('should keep the order and unlink the deleted account', async () => {
+      const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+      await TEST_DATABASE_INSTANCE.t_starter_kit_order.update(ORDER_PAID, { account_id: accountId });
+      await admin(request(TEST_BACKEND_APP).delete(`/admin/accounts/${accountId}`)).expect(200);
+      const order = await TEST_DATABASE_INSTANCE.t_starter_kit_order.findOne({ id: ORDER_PAID });
+      expect(order).to.include({ account_id: null, status: 'paid', ssh_password: 'ssh-password-paid' });
+    });
+  });
+
   describe('POST /admin/api/starter-kit/daily', () => {
     it('should send pickup point reminders and mark delivered parcels', async () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';

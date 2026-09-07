@@ -347,6 +347,45 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   );
   app.patch('/admin/api/gladys/versions/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateVersion));
 
+  // starter kit: customer tracking page (token sent by email)
+  app.get(
+    '/starter-kit/orders/:token',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.starterKitController.getPublicOrder),
+  );
+  app.post(
+    '/starter-kit/orders/:token/pickup-point',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.starterKitController.selectPickupPoint),
+  );
+
+  // Admin API: starter kit orders (same auth as the other /admin/api routes)
+  app.get('/admin/api/starter-kit/orders', adminAuth, asyncMiddleware(controllers.starterKitController.getOrders));
+  app.post('/admin/api/starter-kit/orders', adminAuth, asyncMiddleware(controllers.starterKitController.createOrder));
+  app.get('/admin/api/starter-kit/orders/:id', adminAuth, asyncMiddleware(controllers.starterKitController.getOrder));
+  app.patch(
+    '/admin/api/starter-kit/orders/:id',
+    adminAuth,
+    asyncMiddleware(controllers.starterKitController.updateOrder),
+  );
+  app.post(
+    '/admin/api/starter-kit/orders/:id/status',
+    adminAuth,
+    asyncMiddleware(controllers.starterKitController.changeStatus),
+  );
+  app.post(
+    '/admin/api/starter-kit/orders/:id/label',
+    adminAuth,
+    asyncMiddleware(controllers.starterKitController.createLabel),
+  );
+  app.post(
+    '/admin/api/starter-kit/orders/:id/resend-email',
+    adminAuth,
+    asyncMiddleware(controllers.starterKitController.resendEmail),
+  );
+  // daily cron (reminders, Mondial Relay tracking, Telegram digest)
+  app.post('/admin/api/starter-kit/daily', adminAuth, asyncMiddleware(controllers.starterKitController.runDailyTasks));
+
   // stripe webhook
   app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));
 

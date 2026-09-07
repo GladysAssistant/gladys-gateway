@@ -73,3 +73,98 @@ Two jobs keep the accounts table consistent with Stripe and clean up the account
 - `POST /admin/api/accounts/retention` applies the retention policy to the accounts whose subscription is over. `ACCOUNT_RETENTION_GRACE_PERIOD_IN_DAYS` (180 by default) after the end of access, the users of the account receive an email announcing the deletion; `ACCOUNT_RETENTION_WARNING_PERIOD_IN_DAYS` (30 by default) later, the account is deleted with its backups, users, instances and Enedis data. The status stored in database is not trusted: Stripe is asked, before warning and before deleting, whether the customer still has a running subscription, in which case the account is reported as an error and left alone. Meant to be called daily by a cron. Before the first execution, review the list it returns without `execute` and flag the accounts to keep as internal.
 
 Internal accounts (team, tests, demos) are flagged with `PATCH /admin/api/accounts/:id` and `{ "is_internal": true }`: they are excluded from the paying users stats and are never touched by the retention policy.
+
+## Starter kit orders
+
+The [starter kit](https://gladysassistant.com/fr/starter-kit/) (a mini-PC with Gladys pre-installed, a training and 6 months of Gladys Plus) is sold through Stripe Checkout. Orders are followed in this repository so that the manual work is reduced to: buying the mini-PC, installing Gladys on it, printing the label and dropping the parcel.
+
+### Life cycle
+
+```
+paid → mini_pc_ordered → mini_pc_received → installed → shipped → delivered
+                                                          ↘ cancelled
+```
+
+1. **Stripe webhook** (`checkout.session.completed`): when the session contains the starter kit product (`STRIPE_STARTER_KIT_PRODUCT_ID`, or `metadata.starter_kit=true` on the session), an order is created in `t_starter_kit_order` next to the Gladys Plus account, with a generated SSH password and a tracking token. The customer receives the confirmation email (training link and code, tracking page, pickup point choice) and a Telegram alert is sent.
+2. **Customer tracking page** (`STARTER_KIT_TRACKING_URL`, on the website): calls `GET /starter-kit/orders/:token` to display the status, and posts the pickup point selected in the Mondial Relay widget to `POST /starter-kit/orders/:token/pickup-point`.
+3. **Admin API** (`/admin/api/starter-kit/orders`, same authentication as the other Admin API routes: `X-Admin-Api-Key` header or super admin session): `POST /admin/api/starter-kit/orders/:id/status` moves the order forward and emails the customer at each step. Marking an order `shipped` creates the Mondial Relay shipment (tracking number and label PDF) when the customer has selected a pickup point, or accepts a `shipment_number` typed by hand. `POST /admin/api/starter-kit/orders/:id/label` creates the label ahead of time, without emailing the customer.
+4. **Daily cron** (`POST /admin/api/starter-kit/daily`, `X-Admin-Api-Key` header): reminds customers who have not selected a pickup point after `STARTER_KIT_PICKUP_POINT_REMINDER_DAYS` days (3 by default), polls Mondial Relay tracking to mark shipped orders as `delivered` (and email the customer), and posts a digest of the orders in progress on Telegram.
+
+Skipping steps is allowed (a mini-PC already in stock can go from `paid` to `installed`). `notify: false` in the status change body silences the customer email, `note` appends an internal note.
+
+### Environment variables
+
+| Variable                                                                                                                                                                                                                                                   | Description                                                                                                                               |
+| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `STRIPE_STARTER_KIT_PRODUCT_ID`                                                                                                                                                                                                                            | Stripe product id of the starter kit (`prod_...`), used to detect the orders in the webhook                                               |
+| `STARTER_KIT_TRACKING_SECRET`                                                                                                                                                                                                                              | Secret used to derive the customer tracking tokens (HMAC of the order id). Required: rotating it changes every tracking link already sent |
+| `STARTER_KIT_TRACKING_URL`                                                                                                                                                                                                                                 | Public tracking page. `{language}` and `{token}` placeholders are replaced, otherwise `?token=` is appended                               |
+| `STARTER_KIT_TRAINING_URL` / `STARTER_KIT_TRAINING_CODE`                                                                                                                                                                                                   | Link and code sent to the customer to access the training                                                                                 |
+| `STARTER_KIT_INSTALL_GUIDE_URL`                                                                                                                                                                                                                            | Link to the installation guide, sent when the parcel is shipped                                                                           |
+| `STARTER_KIT_SSH_USERNAME`                                                                                                                                                                                                                                 | SSH user of the mini-PC (default `gladys`), the password is generated per order                                                           |
+| `STARTER_KIT_MINI_PC_SHOP_URL`                                                                                                                                                                                                                             | Optional link to the mini-PC product page, added to the Telegram alert                                                                    |
+| `STARTER_KIT_PICKUP_POINT_REMINDER_DAYS`                                                                                                                                                                                                                   | Days before the pickup point reminder email (default 3)                                                                                   |
+| `MONDIAL_RELAY_ENSEIGNE` / `MONDIAL_RELAY_PRIVATE_KEY`                                                                                                                                                                                                     | Mondial Relay Web Service credentials (see below). Without them, labels are created by hand and the tracking number is typed in the API   |
+| `MONDIAL_RELAY_BRAND_CODE`                                                                                                                                                                                                                                 | `Brand` parameter of the pickup point widget. Optional: defaults to the code enseigne, which is what the widget expects                   |
+| `MONDIAL_RELAY_COLLECT_MODE`                                                                                                                                                                                                                               | `REL` (default, parcel dropped in a pickup point) or `CCC` (collected at your place)                                                      |
+| `MONDIAL_RELAY_PARCEL_WEIGHT_IN_GRAMS`                                                                                                                                                                                                                     | Declared weight of the parcel (default 1500)                                                                                              |
+| `MONDIAL_RELAY_SENDER_NAME`, `MONDIAL_RELAY_SENDER_ADDRESS`, `MONDIAL_RELAY_SENDER_ADDRESS_2`, `MONDIAL_RELAY_SENDER_POSTAL_CODE`, `MONDIAL_RELAY_SENDER_CITY`, `MONDIAL_RELAY_SENDER_COUNTRY`, `MONDIAL_RELAY_SENDER_PHONE`, `MONDIAL_RELAY_SENDER_EMAIL` | Sender printed on the label                                                                                                               |
+
+### Mondial Relay credentials
+
+The integration uses the Mondial Relay Web Service (SOAP, `https://api.mondialrelay.com/WebService.asmx`, overridable with `MONDIAL_RELAY_API_URL`): `WSI2_CreationEtiquette` to create the shipment and get the label PDF, `WSI2_TracingColisDetaille` to follow the parcel.
+
+With a Mondial Relay **Connect Pro** account, the credentials are in **Mon profil → Mes paramètres de connexion**: the API URL, the _code enseigne_ (`MONDIAL_RELAY_ENSEIGNE`, 8 characters, also the `Brand` of the widget) and the _clé privée_ (`MONDIAL_RELAY_PRIVATE_KEY`). The _code marque_ and _code marque numérique_ shown next to them are not needed. If they are not displayed, or if the check below answers `STAT=95` (account not enabled), ask Mondial Relay support (servicesupport@mondialrelay.fr) to enable the Web Service on the account. The historical test credentials `BDTEST13` / `PrivateK` are no longer accepted by the API.
+
+Once the variables are in `.env`, check the credentials with:
+
+```sh
+npm run check-mondial-relay
+```
+
+It calls the tracking method with a dummy parcel number and tells whether the credentials are accepted, or which variable is wrong (`STAT=97`: private key, `STAT=1/2/3/69`: enseigne, `STAT=95`: Web Service not enabled on the account).
+
+### Pickup point widget on the tracking page
+
+The website only needs the tracking token from the email. The `mondial_relay` object returned by `GET /starter-kit/orders/:token` gives the brand code, country and postal code to initialize the [Mondial Relay widget](https://widget.mondialrelay.com/parcelshop-picker/) (jQuery + Leaflet). The token gives access to the order (and to the SSH password once the parcel is shipped), and the widget is a third-party script running in the same page: pin the script versions, and isolate the widget in an iframe that only receives the country and postal code if you prefer to keep the token out of its reach.
+
+```html
+<div id="pickup-point-widget"></div>
+<input id="pickup-point-id" type="hidden" />
+<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js"></script>
+<script>
+  const token = new URLSearchParams(location.search).get('token');
+  // The token is the only credential of the page: remove it from the URL once read
+  history.replaceState(null, '', location.pathname);
+  const api = 'https://api.gladysgateway.com';
+  fetch(`${api}/starter-kit/orders/${token}`)
+    .then((res) => res.json())
+    .then((order) => {
+      $('#pickup-point-widget').MR_ParcelShopPicker({
+        Target: '#pickup-point-id',
+        Brand: order.mondial_relay.widget_brand_code,
+        Country: order.mondial_relay.country,
+        PostCode: order.mondial_relay.postal_code,
+        ColLivMod: '24R',
+        NbResults: 7,
+        Responsive: true,
+        OnParcelShopSelected: (point) =>
+          fetch(`${api}/starter-kit/orders/${token}/pickup-point`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              id: point.ID,
+              name: point.Nom,
+              address_1: point.Adresse1,
+              address_2: point.Adresse2,
+              postal_code: point.CP,
+              city: point.Ville,
+              country: point.Pays,
+            }),
+          }),
+      });
+    });
+</script>
+```

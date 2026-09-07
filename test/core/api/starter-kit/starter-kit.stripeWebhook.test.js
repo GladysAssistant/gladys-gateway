@@ -170,6 +170,8 @@ describe('stripeWebhook - starter kit', () => {
       .expect(200);
     const orders = await TEST_DATABASE_INSTANCE.t_starter_kit_order.find({ stripe_checkout_session_id: 'cs_regular' });
     expect(orders).to.have.lengthOf(0);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cus_regular' });
+    expect(account).to.have.property('name', 'regular@test.fr');
   });
 
   it('should create an order without account for a starter kit session flagged in metadata without subscription', async () => {

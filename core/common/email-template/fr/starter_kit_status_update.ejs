@@ -35,16 +35,17 @@
 <% if (pickupPointSelected) { %>                <p style="margin: 0 0 20px;">
                   Il sera livré au point relais <strong><%= pickupPoint.name %></strong>, je t'enverrai le numéro de suivi dès qu'il sera expédié.
                 </p>
-<% } else { %>                <p style="margin: 0 0 20px;">
+<% } else if (trackingUrl) { %>                <p style="margin: 0 0 20px;">
                   Il ne manque plus que ton point relais Mondial Relay pour l'expédier :
                 </p>
-<% if (trackingUrl) { %>
                 <p style="margin: 0 0 24px;">
                   <a href="<%= trackingUrl %>" style="font-size: 14px; color: #fff; text-decoration: none; line-height: 2em; font-weight: bold; text-align: center; cursor: pointer; display: inline-block; border-radius: 5px; background-color: #348eda; border-color: #348eda; border-style: solid; border-width: 10px 20px;">
                     Choisir mon point relais
                   </a>
                 </p>
-<% } %>
+<% } else { %>                <p style="margin: 0 0 20px;">
+                  Il ne manque plus que ton point relais Mondial Relay pour l'expédier : réponds simplement à cet email avec le point relais de ton choix (nom et adresse).
+                </p>
 <% } %>
 <% } %>
 <% if (trackingUrl) { %>                <p style="margin: 0 0 20px;">

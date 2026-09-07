@@ -182,12 +182,34 @@ function sanitizePhone(value) {
   return '';
 }
 
-function sanitizePostalCode(value) {
+// Postal code formats accepted by Mondial Relay per country (technical documentation):
+// characters kept and maximum length. Unknown countries keep letters, digits, spaces and
+// dashes, which covers the remaining european formats.
+const POSTAL_CODE_FORMATS = {
+  FR: { allowed: /[^0-9]/g, maxLength: 5 },
+  ES: { allowed: /[^0-9]/g, maxLength: 5 },
+  IT: { allowed: /[^0-9]/g, maxLength: 5 },
+  DE: { allowed: /[^0-9]/g, maxLength: 5 },
+  BE: { allowed: /[^0-9]/g, maxLength: 4 },
+  LU: { allowed: /[^0-9]/g, maxLength: 4 },
+  AT: { allowed: /[^0-9]/g, maxLength: 4 },
+  CH: { allowed: /[^0-9]/g, maxLength: 4 },
+  NL: { allowed: /[^0-9A-Z ]/g, maxLength: 7 },
+  PT: { allowed: /[^0-9-]/g, maxLength: 8 },
+};
+const DEFAULT_POSTAL_CODE_FORMAT = { allowed: /[^0-9A-Z -]/g, maxLength: 10 };
+
+function sanitizePostalCode(value, country = 'FR') {
+  const format = POSTAL_CODE_FORMATS[String(country || 'FR').toUpperCase()] || DEFAULT_POSTAL_CODE_FORMAT;
   return String(value || '')
-    .replace(/[^0-9A-Z]/gi, '')
     .toUpperCase()
-    .slice(0, 5);
+    .replace(format.allowed, '')
+    .trim()
+    .slice(0, format.maxLength);
 }
+
+// Language codes of the Web Service are not ISO 639-1: English is "GB"
+const TRACKING_LANGUAGES = { fr: 'FR', en: 'GB' };
 
 function escapeXml(value) {
   return String(value)
@@ -339,7 +361,7 @@ module.exports = function MondialRelayService(logger) {
       Expe_Ad3: sanitizeText(sender.address_1),
       Expe_Ad4: sanitizeText(sender.address_2),
       Expe_Ville: sanitizeText(sender.city, 26),
-      Expe_CP: sanitizePostalCode(sender.postal_code),
+      Expe_CP: sanitizePostalCode(sender.postal_code, sender.country),
       Expe_Pays: sender.country,
       Expe_Tel1: sanitizePhone(sender.phone),
       Expe_Tel2: '',
@@ -350,7 +372,7 @@ module.exports = function MondialRelayService(logger) {
       Dest_Ad3: sanitizeText(recipient.address_1),
       Dest_Ad4: sanitizeText(recipient.address_2),
       Dest_Ville: sanitizeText(recipient.city, 26),
-      Dest_CP: sanitizePostalCode(recipient.postal_code),
+      Dest_CP: sanitizePostalCode(recipient.postal_code, recipient.country || 'FR'),
       Dest_Pays: (recipient.country || 'FR').toUpperCase(),
       Dest_Tel1: sanitizePhone(recipient.phone),
       Dest_Tel2: '',
@@ -404,7 +426,7 @@ module.exports = function MondialRelayService(logger) {
     const values = {
       Enseigne: getConfig().enseigne,
       Expedition: shipmentNumber,
-      Langue: language.toUpperCase(),
+      Langue: TRACKING_LANGUAGES[String(language || 'fr').toLowerCase()] || 'FR',
     };
     const { stat, xml } = await call('WSI2_TracingColisDetaille', TRACKING_PARAMS, values);
     if (!Object.values(TRACING_STAT).includes(stat)) {
@@ -438,6 +460,7 @@ module.exports = function MondialRelayService(logger) {
     computeSecurity,
     sanitizeText,
     sanitizePhone,
+    sanitizePostalCode,
   };
 };
 

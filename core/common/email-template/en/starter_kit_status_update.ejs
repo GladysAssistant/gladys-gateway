@@ -35,16 +35,17 @@
 <% if (pickupPointSelected) { %>                <p style="margin: 0 0 20px;">
                   It will be delivered to the pickup point <strong><%= pickupPoint.name %></strong>, I will send you the tracking number as soon as it ships.
                 </p>
-<% } else { %>                <p style="margin: 0 0 20px;">
+<% } else if (trackingUrl) { %>                <p style="margin: 0 0 20px;">
                   Only your Mondial Relay pickup point is missing to ship it:
                 </p>
-<% if (trackingUrl) { %>
                 <p style="margin: 0 0 24px;">
                   <a href="<%= trackingUrl %>" style="font-size: 14px; color: #fff; text-decoration: none; line-height: 2em; font-weight: bold; text-align: center; cursor: pointer; display: inline-block; border-radius: 5px; background-color: #348eda; border-color: #348eda; border-style: solid; border-width: 10px 20px;">
                     Choose my pickup point
                   </a>
                 </p>
-<% } %>
+<% } else { %>                <p style="margin: 0 0 20px;">
+                  Only your Mondial Relay pickup point is missing to ship it: simply reply to this email with the pickup point of your choice (name and address).
+                </p>
 <% } %>
 <% } %>
 <% if (trackingUrl) { %>                <p style="margin: 0 0 20px;">

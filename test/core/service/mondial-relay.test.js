@@ -44,6 +44,16 @@ describe('MondialRelayService', () => {
     expect(service.sanitizePhone('not a phone')).to.equal('');
   });
 
+  it('should sanitize postal codes according to the destination country', () => {
+    expect(service.sanitizePostalCode('75011', 'FR')).to.equal('75011');
+    expect(service.sanitizePostalCode(' 75 011 ', 'fr')).to.equal('75011');
+    expect(service.sanitizePostalCode('1000', 'BE')).to.equal('1000');
+    expect(service.sanitizePostalCode('1234 ab', 'NL')).to.equal('1234 AB');
+    expect(service.sanitizePostalCode('1000-001', 'PT')).to.equal('1000-001');
+    expect(service.sanitizePostalCode('SW1A 1AA', 'GB')).to.equal('SW1A 1AA');
+    expect(service.sanitizePostalCode('75011')).to.equal('75011');
+  });
+
   it('should not be configured without credentials', () => {
     delete process.env.MONDIAL_RELAY_ENSEIGNE;
     expect(service.isConfigured()).to.equal(false);
@@ -128,11 +138,11 @@ describe('MondialRelayService', () => {
     ]);
   });
 
-  it('should not report an in-transit shipment as delivered', async () => {
+  it('should not report an in-transit shipment as delivered and ask English tracking with GB', async () => {
     nock('https://api.mondialrelay.com')
-      .post('/Web_Services.asmx')
-      .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>81</STAT><Libelle01>En cours</Libelle01>'));
-    const tracking = await service.getTracking('31234567');
+      .post('/Web_Services.asmx', (body) => body.includes('<Langue>GB</Langue>'))
+      .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>81</STAT><Libelle01>In progress</Libelle01>'));
+    const tracking = await service.getTracking('31234567', 'en');
     expect(tracking.delivered).to.equal(false);
     expect(tracking.stat).to.equal('81');
   });

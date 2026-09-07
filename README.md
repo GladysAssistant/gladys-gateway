@@ -109,15 +109,18 @@ With a Mondial Relay **Connect Pro** account, the credentials are in **Mon profi
 
 ### Pickup point widget on the tracking page
 
-The website only needs the tracking token from the email. The `mondial_relay` object returned by `GET /starter-kit/orders/:token` gives the brand code, country and postal code to initialize the [Mondial Relay widget](https://widget.mondialrelay.com/parcelshop-picker/) (jQuery + Leaflet):
+The website only needs the tracking token from the email. The `mondial_relay` object returned by `GET /starter-kit/orders/:token` gives the brand code, country and postal code to initialize the [Mondial Relay widget](https://widget.mondialrelay.com/parcelshop-picker/) (jQuery + Leaflet). The token gives access to the order (and to the SSH password once the parcel is shipped), and the widget is a third-party script running in the same page: pin the script versions, and isolate the widget in an iframe that only receives the country and postal code if you prefer to keep the token out of its reach.
 
 ```html
 <div id="pickup-point-widget"></div>
+<input id="pickup-point-id" type="hidden" />
 <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <script src="https://widget.mondialrelay.com/parcelshop-picker/jquery.plugin.mondialrelay.parcelshoppicker.min.js"></script>
 <script>
   const token = new URLSearchParams(location.search).get('token');
+  // The token is the only credential of the page: remove it from the URL once read
+  history.replaceState(null, '', location.pathname);
   const api = 'https://api.gladysgateway.com';
   fetch(`${api}/starter-kit/orders/${token}`)
     .then((res) => res.json())

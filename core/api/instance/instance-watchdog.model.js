@@ -53,31 +53,77 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
     }
   }
 
+  /**
+   * The emails are claimed in database before leaving, with a conditional update: two
+   * runs overlapping (a cron firing while a manual call is still running) read the same
+   * state, and only the one whose claim succeeds sends. A claim released when the email
+   * fails, so the next run retries.
+   */
   async function sendOfflineAlert(instance, user, now) {
-    await mailService.send(
-      { email: user.email, language: user.language },
-      'instance_offline',
-      buildInstanceOfflineScope({
-        instance,
-        user,
-        lastSeenAt: instance.last_seen_at,
-        delayInMinutes: user.delay_in_minutes,
-        now,
-        language: user.language,
-      }),
+    const claimed = await db.t_user.update(
+      { id: user.id, instance_offline_alert_sent_at: null },
+      { instance_offline_alert_sent_at: now },
+      { fields: ['id'] },
     );
-    await db.t_user.update({ id: user.id }, { instance_offline_alert_sent_at: now }, { fields: ['id'] });
+    if (claimed.length === 0) {
+      return false;
+    }
+    try {
+      await mailService.send(
+        { email: user.email, language: user.language },
+        'instance_offline',
+        buildInstanceOfflineScope({
+          instance,
+          user,
+          lastSeenAt: instance.last_seen_at,
+          delayInMinutes: user.delay_in_minutes,
+          now,
+          language: user.language,
+        }),
+      );
+    } catch (e) {
+      await db.t_user.update(
+        { id: user.id, instance_offline_alert_sent_at: now },
+        { instance_offline_alert_sent_at: null },
+        { fields: ['id'] },
+      );
+      throw e;
+    }
     logger.warn(`instance watchdog: offline alert sent to user ${user.id} for instance ${instance.id}`);
+    return true;
   }
 
   async function sendBackOnlineAlert(instance, user, now) {
-    await mailService.send(
-      { email: user.email, language: user.language },
-      'instance_back_online',
-      buildInstanceBackOnlineScope({ instance, user, lastSeenAt: instance.last_seen_at, now, language: user.language }),
+    const claimed = await db.t_user.update(
+      { id: user.id, 'instance_offline_alert_sent_at is not': null },
+      { instance_offline_alert_sent_at: null },
+      { fields: ['id'] },
     );
-    await db.t_user.update({ id: user.id }, { instance_offline_alert_sent_at: null }, { fields: ['id'] });
+    if (claimed.length === 0) {
+      return false;
+    }
+    try {
+      await mailService.send(
+        { email: user.email, language: user.language },
+        'instance_back_online',
+        buildInstanceBackOnlineScope({
+          instance,
+          user,
+          lastSeenAt: instance.last_seen_at,
+          now,
+          language: user.language,
+        }),
+      );
+    } catch (e) {
+      await db.t_user.update(
+        { id: user.id, instance_offline_alert_sent_at: null },
+        { instance_offline_alert_sent_at: user.alert_sent_at },
+        { fields: ['id'] },
+      );
+      throw e;
+    }
     logger.info(`instance watchdog: back online email sent to user ${user.id} for instance ${instance.id}`);
+    return true;
   }
 
   /**
@@ -111,10 +157,12 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
       return result;
     }
     try {
-      if (action === 'alert') {
-        await sendOfflineAlert(instance, user, now);
-      } else if (action === 'back_online') {
-        await sendBackOnlineAlert(instance, user, now);
+      if (action === 'alert' && !(await sendOfflineAlert(instance, user, now))) {
+        // claimed by a concurrent run in the meantime
+        return { ...result, action: 'already_alerted' };
+      }
+      if (action === 'back_online' && !(await sendBackOnlineAlert(instance, user, now))) {
+        return { ...result, action: 'ok' };
       }
       return result;
     } catch (e) {

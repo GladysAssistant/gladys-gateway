@@ -23,7 +23,7 @@ describe('instance watchdog model', () => {
   });
 
   // Fake database: the instances the watchdog query returns, and the writes it performs
-  function fakeDb(instances) {
+  function fakeDb(instances, { claimRefused = false } = {}) {
     const userUpdates = [];
     const instanceUpdates = [];
     return {
@@ -37,9 +37,10 @@ describe('instance watchdog model', () => {
         return instances;
       },
       t_user: {
+        // the claim of an email is a conditional update: claimed unless told otherwise
         update: async (where, values) => {
           userUpdates.push({ where, values });
-          return [{ id: where.id }];
+          return claimRefused ? [] : [{ id: where.id }];
         },
       },
     };
@@ -95,8 +96,9 @@ describe('instance watchdog model', () => {
     expect(email.scope).to.include({ firstname: 'Tony', instanceName: 'Raspberry Pi', alertDelay: '1 h 30 min' });
     expect(email.scope.offlineFor).to.equal('2 h');
     expect(email.scope.lastSeenDate).to.match(/UTC$/);
+    // the alert is claimed before the email leaves, only when no alert is open
     expect(db.userUpdates).to.have.lengthOf(1);
-    expect(db.userUpdates[0].where).to.deep.equal({ id: USER_ID });
+    expect(db.userUpdates[0].where).to.deep.equal({ id: USER_ID, instance_offline_alert_sent_at: null });
     expect(db.userUpdates[0].values.instance_offline_alert_sent_at).to.be.a('date');
   });
 
@@ -117,16 +119,52 @@ describe('instance watchdog model', () => {
     expect(report.instances[0].users).to.deep.equal([
       { id: USER_ID, delay_in_minutes: 60, action: 'error', error: 'SMTP unreachable' },
     ]);
-    // the email did not leave: the alert is not recorded, it will be retried on the next run
-    expect(db.userUpdates).to.deep.equal([]);
+    // the email did not leave: the claim is released, the alert will be retried on the next run
+    expect(db.userUpdates).to.have.lengthOf(2);
+    expect(db.userUpdates[0].where).to.deep.equal({ id: USER_ID, instance_offline_alert_sent_at: null });
+    expect(db.userUpdates[0].values.instance_offline_alert_sent_at).to.be.a('date');
+    expect(db.userUpdates[1].where).to.deep.equal({
+      id: USER_ID,
+      instance_offline_alert_sent_at: db.userUpdates[0].values.instance_offline_alert_sent_at,
+    });
+    expect(db.userUpdates[1].values).to.deep.equal({ instance_offline_alert_sent_at: null });
     expect(db.instanceUpdates).to.deep.equal([]);
+  });
+
+  it('should not email when a concurrent run claimed the alert first', async () => {
+    const db = fakeDb([fakeInstance()], { claimRefused: true });
+    const socketModel = { getConnectedInstanceIds: async () => new Set() };
+    const mailService = recordingMailService();
+    const watchdog = InstanceWatchdogModel(silentLogger, db, socketModel, mailService);
+
+    const report = await watchdog.run({ execute: true });
+
+    expect(report).to.deep.include({ alerts: 0, errors: 0 });
+    expect(report.instances[0].users).to.deep.equal([{ id: USER_ID, delay_in_minutes: 60, action: 'already_alerted' }]);
+    expect(mailService.sentEmails).to.deep.equal([]);
+  });
+
+  it('should not email when a concurrent run closed the outage first', async () => {
+    const db = fakeDb([fakeInstance({ users: [fakeUser({ alert_sent_at: new Date() })] })], { claimRefused: true });
+    const socketModel = { getConnectedInstanceIds: async () => new Set([INSTANCE_ID]) };
+    const mailService = recordingMailService();
+    const watchdog = InstanceWatchdogModel(silentLogger, db, socketModel, mailService);
+
+    const report = await watchdog.run({ execute: true });
+
+    expect(report).to.deep.include({ connected: 1, back_online: 0, errors: 0 });
+    expect(report.instances).to.deep.equal([]);
+    expect(mailService.sentEmails).to.deep.equal([]);
+    // the outage is closed: the heartbeat of the connected instance is written
+    expect(db.instanceUpdates).to.have.lengthOf(1);
   });
 
   it('should keep the outage start of a connected instance whose back online email failed', async () => {
     const outageStart = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const alertSentAt = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const otherInstanceId = 'd28a4e3e-ac60-44f7-bdfe-8c9deafa51d3';
     const db = fakeDb([
-      fakeInstance({ last_seen_at: outageStart, users: [fakeUser({ alert_sent_at: new Date() })] }),
+      fakeInstance({ last_seen_at: outageStart, users: [fakeUser({ alert_sent_at: alertSentAt })] }),
       // another connected instance, with nothing to report: its heartbeat is written
       fakeInstance({ id: otherInstanceId, name: 'Other', users: [] }),
     ]);
@@ -145,7 +183,11 @@ describe('instance watchdog model', () => {
       { id: USER_ID, delay_in_minutes: 60, action: 'error', error: 'SMTP unreachable' },
     ]);
     // the outage stays open with its real start, so the retry can tell the right downtime
-    expect(db.userUpdates).to.deep.equal([]);
+    expect(db.userUpdates).to.have.lengthOf(2);
+    expect(db.userUpdates[0].where).to.deep.equal({ id: USER_ID, 'instance_offline_alert_sent_at is not': null });
+    expect(db.userUpdates[0].values).to.deep.equal({ instance_offline_alert_sent_at: null });
+    expect(db.userUpdates[1].where).to.deep.equal({ id: USER_ID, instance_offline_alert_sent_at: null });
+    expect(db.userUpdates[1].values).to.deep.equal({ instance_offline_alert_sent_at: alertSentAt });
     expect(db.instanceUpdates).to.have.lengthOf(1);
     expect(db.instanceUpdates[0][1]).to.deep.equal([otherInstanceId]);
   });

@@ -39,6 +39,10 @@ app.get('/:template_name/:language', (req, res) => {
       attemptDate: '22 juin 2026',
       nextRetryDate: '25 juin 2026',
       hostedInvoiceUrl: 'https://invoice.stripe.com/example',
+      deletionDate: '7 octobre 2026',
+      accessEndedDate: '2 juin 2025',
+      planProductName: 'Gladys Plus',
+      subscribeUrl: 'https://gladysassistant.com/fr/plus',
       ...welcomeScope,
     }),
   );

@@ -37,6 +37,22 @@ function setupPersistentNocks() {
     .persist();
 
   nock('https://api.stripe.com:443', { encodedQueryParams: true })
+    .get('/v1/subscriptions')
+    .query({ customer: 'cus', status: 'all', limit: '100' })
+    .reply(200, {
+      object: 'list',
+      data: [
+        {
+          id: 'sub',
+          status: 'canceled',
+          cancel_at_period_end: false,
+          current_period_end: 1289482682,
+        },
+      ],
+    })
+    .persist();
+
+  nock('https://api.stripe.com:443', { encodedQueryParams: true })
     .post('/v1/billing_portal/sessions')
     .reply(200, {
       id: 'pts_1G8ZkbClCIKljWvsk5O2fhg6',

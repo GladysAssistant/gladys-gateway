@@ -2,6 +2,16 @@ const ejs = require('ejs');
 const fs = require('fs');
 
 module.exports = {
+  account_deletion_warning: {
+    en: {
+      subject: 'Your Gladys Plus account and backups will be deleted soon',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/account_deletion_warning.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ton compte Gladys Plus et tes sauvegardes seront bientôt supprimés',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/account_deletion_warning.ejs`, 'utf8')),
+    },
+  },
   confirmation: {
     en: {
       subject: 'Confirm your Gladys Plus email address',

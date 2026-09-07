@@ -65,6 +65,15 @@ Two ways to authenticate:
 
 The call answers `201` with the created version, `409` if the version already exists (so a re-run of the workflow is harmless, as shown above) and `422` if the body is invalid. A published version can be rolled back with `PATCH /admin/api/gladys/versions/:id` and `{ "active": false }`.
 
+### Account lifecycle
+
+Two jobs keep the accounts table consistent with Stripe and clean up the accounts that left. Both are read-only by default: they answer with the report of what they would do, and only act when called with `{ "execute": true }`.
+
+- `POST /admin/api/accounts/sync-stripe` reconciles every account having a Stripe subscription with Stripe (status, plan, end of access). It repairs the accounts left behind by a missed webhook, typically an account stuck in `past_due` whose subscription Stripe has since canceled. Run it once after a deploy, or whenever the numbers of the admin UI and of Stripe disagree.
+- `POST /admin/api/accounts/retention` applies the retention policy to the accounts whose subscription is over. `ACCOUNT_RETENTION_GRACE_PERIOD_IN_DAYS` (180 by default) after the end of access, the users of the account receive an email announcing the deletion; `ACCOUNT_RETENTION_WARNING_PERIOD_IN_DAYS` (30 by default) later, the account is deleted with its backups, users, instances and Enedis data. The status stored in database is not trusted: Stripe is asked, before warning and before deleting, whether the customer still has a running subscription, in which case the account is reported as an error and left alone. Meant to be called daily by a cron. Before the first execution, review the list it returns without `execute` and flag the accounts to keep as internal.
+
+Internal accounts (team, tests, demos) are flagged with `PATCH /admin/api/accounts/:id` and `{ "is_internal": true }`: they are excluded from the paying users stats and are never touched by the retention policy.
+
 ## Starter kit orders
 
 The [starter kit](https://gladysassistant.com/fr/starter-kit/) (a mini-PC with Gladys pre-installed, a training and 6 months of Gladys Plus) is sold through Stripe Checkout. Orders are followed in this repository so that the manual work is reduced to: buying the mini-PC, installing Gladys on it, printing the label and dropping the parcel.

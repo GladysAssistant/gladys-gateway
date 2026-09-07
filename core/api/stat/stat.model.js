@@ -40,6 +40,7 @@ module.exports = function StatModel(logger, db, redisClient) {
       FROM t_account
       WHERE current_period_end > NOW()
       AND status = 'active'
+      AND is_internal = false
       AND stripe_customer_id IS NOT NULL
       AND stripe_subscription_id IS NOT NULL;
     `;

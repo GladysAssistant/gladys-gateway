@@ -530,6 +530,9 @@ describe('stripeWebhook', () => {
       .send(stringEvent)
       .expect(200);
 
+    const accountBeforeDeletion = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+    expect(accountBeforeDeletion).to.have.property('status', 'active');
+    expect(new Date(accountBeforeDeletion.current_period_end).getTime()).to.be.greaterThan(Date.now());
     const deleteEVent = {
       id: 'evt_test_webhook',
       object: 'event',
@@ -538,6 +541,10 @@ describe('stripeWebhook', () => {
         object: {
           id: 'subnew',
           customer: 'cusnew',
+          status: 'canceled',
+          // Stripe canceled the subscription at the end of the dunning: the period the customer
+          // never paid for is still in the future on Stripe side
+          current_period_end: Math.floor(Date.now() / 1000) + 20 * 24 * 3600,
         },
       },
     };
@@ -553,6 +560,122 @@ describe('stripeWebhook', () => {
       .set('Content-type', 'application/json')
       .send(stringDeleteEvent)
       .expect(200);
+    // the account is canceled and its access stops now, not at the end of the unpaid period
+    const accountAfterDeletion = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+    expect(accountAfterDeletion).to.have.property('status', 'canceled');
+    expect(new Date(accountAfterDeletion.current_period_end).getTime()).to.be.closeTo(Date.now(), 10000);
+  });
+
+  it('should not re-link an account claimed by a deletion, but create a new one', async () => {
+    // the account of this email is being deleted (claimed by adminModel.deleteAccount)
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: 'be2b9666-5c72-451e-98f4-efca76ffef54' },
+      { name: 'claimed@test.fr', status: 'canceled', is_deleted: true },
+    );
+    const event = {
+      id: 'evt_test_webhook_claimed',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cusclaimed',
+          subscription: 'subclaimed',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/subclaimed')
+      .reply(200, {
+        id: 'subclaimed',
+        status: 'active',
+        current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cusclaimed')
+      .reply(200, { id: 'cusclaimed', email: 'claimed@test.fr' });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+    const claimedAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({
+      id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
+    });
+    expect(claimedAccount).to.include({ status: 'canceled', is_deleted: true, stripe_customer_id: 'cus' });
+    const newAccount = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusclaimed' });
+    expect(newAccount).to.include({ name: 'claimed@test.fr', status: 'active', is_deleted: false });
+  });
+
+  it('should ignore the deletion of a subscription the account is no longer linked to', async () => {
+    const deleteEvent = {
+      id: 'evt_test_webhook_deleted_old_subscription',
+      object: 'event',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub_old',
+          customer: 'cus',
+          status: 'canceled',
+        },
+      },
+    };
+    const stringDeleteEvent = JSON.stringify(deleteEvent);
+    const signatureDeleteHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringDeleteEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureDeleteHeader)
+      .set('Content-type', 'application/json')
+      .send(stringDeleteEvent)
+      .expect(200);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: 'be2b9666-5c72-451e-98f4-efca76ffef54' });
+    expect(account).to.have.property('status', 'active');
+  });
+
+  it('should keep the end of access of a past_due account when the subscription is deleted', async () => {
+    const accessEndedAt = new Date('2025-06-02T08:10:00.000Z');
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: 'be2b9666-5c72-451e-98f4-efca76ffef54' },
+      { status: 'past_due', current_period_end: accessEndedAt },
+    );
+    const deleteEvent = {
+      id: 'evt_test_webhook_deleted_past_due',
+      object: 'event',
+      type: 'customer.subscription.deleted',
+      data: {
+        object: {
+          id: 'sub',
+          customer: 'cus',
+          status: 'canceled',
+        },
+      },
+    };
+    const stringDeleteEvent = JSON.stringify(deleteEvent);
+    const signatureDeleteHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringDeleteEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureDeleteHeader)
+      .set('Content-type', 'application/json')
+      .send(stringDeleteEvent)
+      .expect(200);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: 'be2b9666-5c72-451e-98f4-efca76ffef54' });
+    expect(account).to.have.property('status', 'canceled');
+    expect(new Date(account.current_period_end).getTime()).to.equal(accessEndedAt.getTime());
   });
 
   describe('email list trial subscription', () => {

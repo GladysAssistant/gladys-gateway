@@ -1,7 +1,7 @@
 const Joi = require('joi');
 const Promise = require('bluebird');
 const { NotFoundError, ForbiddenError, ValidationError } = require('../../common/error');
-const { adminListAccountsQuerySchema } = require('../../common/schema');
+const { adminListAccountsQuerySchema, adminUpdateAccountSchema } = require('../../common/schema');
 
 const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
@@ -28,7 +28,9 @@ const ACCOUNT_PUBLIC_FIELDS = [
   'name',
   'plan',
   'status',
+  'is_internal',
   'current_period_end',
+  'deletion_warning_sent_at',
   'stripe_customer_id',
   'stripe_subscription_id',
   'created_at',
@@ -84,7 +86,7 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
     const likePattern = search ? toLikePattern(search) : null;
     const request = `
       SELECT
-        a.id, a.name, a.plan, a.status, a.current_period_end, a.created_at, a.updated_at,
+        a.id, a.name, a.plan, a.status, a.is_internal, a.current_period_end, a.created_at, a.updated_at,
         COUNT(u.id)::int AS user_count,
         COUNT(*) OVER()::int AS total_count
       FROM t_account a
@@ -187,6 +189,21 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
       enedis_usage_points: usagePoints,
       stripe,
     };
+  }
+
+  /**
+   * Flags of an account. is_internal marks the accounts of the team (tests, demos): they are
+   * not customers, so they are excluded from the paying users stats and never touched by
+   * the retention policy.
+   */
+  async function updateAccount(accountId, body) {
+    await getAccountOrFail(accountId);
+    const { error, value } = adminUpdateAccountSchema.validate(body, { stripUnknown: true, abortEarly: false });
+    if (error) {
+      throw new ValidationError('admin_update_account', error);
+    }
+    const [updatedAccount] = await db.t_account.update({ id: accountId }, value, { fields: ACCOUNT_PUBLIC_FIELDS });
+    return pick(updatedAccount, ACCOUNT_PUBLIC_FIELDS);
   }
 
   /**
@@ -300,6 +317,7 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
   return {
     listAccounts,
     getAccount,
+    updateAccount,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

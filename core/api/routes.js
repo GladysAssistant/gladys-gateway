@@ -314,6 +314,17 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   const adminAuth = middlewares.adminAuth();
   app.get('/admin/api/accounts', adminAuth, asyncMiddleware(controllers.adminApiController.listAccounts));
   app.get('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.getAccount));
+  app.post(
+    '/admin/api/accounts/sync-stripe',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.syncAccountsWithStripe),
+  );
+  app.post(
+    '/admin/api/accounts/retention',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.applyRetentionPolicy),
+  );
+  app.patch('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateAccount));
   app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
   app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));
   app.post(

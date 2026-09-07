@@ -64,6 +64,17 @@ const adminListAccountsQuerySchema = Joi.object().keys({
   offset: Joi.number().integer().min(0).default(0),
 });
 
+// Jobs of the admin API (Stripe reconciliation, retention policy) are read-only by default
+const adminLifecycleJobSchema = Joi.object().keys({
+  execute: Joi.boolean().default(false),
+});
+
+const adminUpdateAccountSchema = Joi.object()
+  .keys({
+    is_internal: Joi.boolean(),
+  })
+  .min(1);
+
 // Gladys versions are named like the git tags of the Gladys repository: v4.57.0, v4.0.0-alpha
 const gladysVersionNamePattern = /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
@@ -97,5 +108,7 @@ const adminUpdateGladysVersionSchema = Joi.object()
   .min(1);
 
 module.exports.adminListAccountsQuerySchema = adminListAccountsQuerySchema;
+module.exports.adminLifecycleJobSchema = adminLifecycleJobSchema;
+module.exports.adminUpdateAccountSchema = adminUpdateAccountSchema;
 module.exports.adminCreateGladysVersionSchema = adminCreateGladysVersionSchema;
 module.exports.adminUpdateGladysVersionSchema = adminUpdateGladysVersionSchema;

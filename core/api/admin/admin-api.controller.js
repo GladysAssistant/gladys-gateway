@@ -4,7 +4,13 @@
  * every successful mutation is logged with who did it (audit trail, ids only, never emails).
  * Refused or failed calls are logged by the error middleware, not as audit lines.
  */
-module.exports = function AdminApiController(logger, adminAccountModel, adminVersionModel, adminModel) {
+module.exports = function AdminApiController(
+  logger,
+  adminAccountModel,
+  adminVersionModel,
+  adminModel,
+  adminAccountLifecycleModel,
+) {
   function describeCaller(req) {
     const { admin } = req;
     const who = admin.auth_mode === 'api_key' ? `api key ${admin.api_key_name}` : `super admin ${admin.user_id}`;
@@ -98,6 +104,128 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
     await adminModel.deleteAccount(req.params.id);
     audit(req, `delete account ${req.params.id}`);
     res.json({ status: 200 });
+  }
+
+  /**
+   * @api {patch} /admin/api/accounts/:id Update account flags
+   * @apiName adminUpdateAccount
+   * @apiGroup Admin API
+   * @apiDescription Flag an account as internal (team, tests, demos). Internal accounts are
+   * not customers: they are excluded from the paying users stats and never touched by the
+   * retention policy. Other fields are ignored.
+   *
+   * @apiParam {Boolean} is_internal
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "b2d23f66-487d-493f-8acb-9c8adb400def",
+   *   "name": "tony.stark@gladysassistant.com",
+   *   "plan": "plus",
+   *   "status": "active",
+   *   "is_internal": true,
+   *   ...
+   * }
+   */
+  async function updateAccount(req, res) {
+    const account = await adminAccountModel.updateAccount(req.params.id, req.body);
+    audit(req, `update account ${req.params.id} (${JSON.stringify(req.body)})`);
+    res.json(account);
+  }
+
+  /**
+   * @api {post} /admin/api/accounts/sync-stripe Reconcile accounts with Stripe
+   * @apiName adminSyncAccountsWithStripe
+   * @apiGroup Admin API
+   * @apiDescription For every account having a Stripe subscription, fetch the subscription
+   * on Stripe side and compare status, plan and end of access with the database. Repairs
+   * the accounts left behind by a missed webhook (an account stuck in "past_due" whose
+   * subscription Stripe has since canceled for example). Read-only unless "execute" is true.
+   * Only the accounts that differ or could not be checked are listed.
+   *
+   * @apiParam {Boolean} [execute=false] Write the Stripe values in database
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "execute": false,
+   *   "total": 226,
+   *   "checked": 225,
+   *   "changed": 95,
+   *   "errors": 1,
+   *   "accounts": [
+   *     {
+   *       "id": "be2b9666-5c72-451e-98f4-efca76ffef54",
+   *       "name": "tony.stark@gladysassistant.com",
+   *       "before": { "status": "past_due", "plan": "plus", "current_period_end": "2025-06-02T08:10:00.000Z" },
+   *       "after": { "status": "canceled", "plan": "plus", "current_period_end": "2025-06-02T08:10:00.000Z" },
+   *       "changed": true
+   *     },
+   *     {
+   *       "id": "...", "name": "...", "before": { ... }, "after": { ... }, "changed": false,
+   *       "error": "resource_missing"
+   *     }
+   *   ]
+   * }
+   */
+  async function syncAccountsWithStripe(req, res) {
+    const report = await adminAccountLifecycleModel.syncWithStripe(req.body);
+    audit(req, `sync accounts with Stripe (execute=${report.execute}, changed=${report.changed})`);
+    res.json(report);
+  }
+
+  /**
+   * @api {post} /admin/api/accounts/retention Apply the retention policy
+   * @apiName adminApplyRetentionPolicy
+   * @apiGroup Admin API
+   * @apiDescription Retention of the accounts whose subscription is over (canceled, unpaid,
+   * never converted...). Once the grace period (ACCOUNT_RETENTION_GRACE_PERIOD_IN_DAYS,
+   * 180 by default) has elapsed since the end of access, the users of the account receive
+   * an email announcing the deletion ("warn"). Once the warning period
+   * (ACCOUNT_RETENTION_WARNING_PERIOD_IN_DAYS, 30 by default) has elapsed too, the account is
+   * deleted with its backups, users, instances and Enedis data ("delete"). Accounts warned
+   * less than the warning period ago are reported as "wait". Internal accounts and accounts
+   * whose access has not ended are never candidates. Read-only unless "execute" is true:
+   * call it first without "execute" to review the list, flag the internal accounts, then
+   * call it with "execute" (daily from a cron for example).
+   *
+   * @apiParam {Boolean} [execute=false] Send the emails and delete the accounts
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "execute": true,
+   *   "grace_period_in_days": 180,
+   *   "warning_period_in_days": 30,
+   *   "total": 3,
+   *   "warned": 1,
+   *   "waiting": 1,
+   *   "deleted": 1,
+   *   "errors": 0,
+   *   "accounts": [
+   *     {
+   *       "id": "...", "name": "...", "status": "canceled",
+   *       "access_ended_at": "2025-01-10T08:10:00.000Z",
+   *       "deletion_warning_sent_at": null,
+   *       "action": "warn",
+   *       "deletion_date": "2026-10-07T08:10:00.000Z"
+   *     },
+   *     { "id": "...", "action": "wait", "deletion_date": "2026-09-20T08:10:00.000Z", ... },
+   *     { "id": "...", "action": "delete", ... },
+   *     { "id": "...", "action": "error", "error": "Cannot delete an active customer", ... }
+   *   ]
+   * }
+   */
+  async function applyRetentionPolicy(req, res) {
+    const report = await adminAccountLifecycleModel.applyRetentionPolicy(req.body);
+    audit(
+      req,
+      `apply retention policy (execute=${report.execute}, warned=${report.warned}, deleted=${report.deleted})`,
+    );
+    res.json(report);
   }
 
   /**
@@ -275,7 +403,10 @@ module.exports = function AdminApiController(logger, adminAccountModel, adminVer
   return {
     listAccounts,
     getAccount,
+    updateAccount,
     deleteAccount,
+    syncAccountsWithStripe,
+    applyRetentionPolicy,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

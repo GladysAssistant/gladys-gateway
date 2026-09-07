@@ -806,10 +806,35 @@ module.exports = function AccountModel(
         break;
       }
 
-      case 'customer.subscription.deleted':
-        // subscription is canceled, remove the client
+      case 'customer.subscription.deleted': {
+        // The subscription is over, either canceled by the user (at the end of the paid
+        // period) or by Stripe at the end of the dunning of an unpaid invoice. In the second
+        // case no `customer.subscription.updated` follows: without this update the account
+        // would stay `past_due` forever. The end of access is kept when it is already in the
+        // past (set when the subscription became past_due), otherwise access stops now.
+        if (event.data.object.id !== account.stripe_subscription_id) {
+          // an older subscription of the same customer: the account moved on to another one
+          logger.warn(
+            `Stripe Webhook : subscription "${event.data.object.id}" deleted but account ${account.id} is linked to "${account.stripe_subscription_id}", ignoring.`,
+          );
+          break;
+        }
+        const now = new Date();
+        const accessEndedAt =
+          account.current_period_end && new Date(account.current_period_end) < now ? account.current_period_end : now;
+        await db.t_account.update(
+          account.id,
+          {
+            status: 'canceled',
+            current_period_end: accessEndedAt,
+          },
+          {
+            fields: ['id'],
+          },
+        );
         telegramService.sendAlert(`Subscription canceled! Customer email = ${email}, language = ${language}`);
         break;
+      }
 
       default:
         break;

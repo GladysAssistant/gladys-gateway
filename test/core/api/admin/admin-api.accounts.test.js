@@ -180,6 +180,43 @@ describe('GET /admin/api/accounts/:id', () => {
   });
 });
 
+describe('PATCH /admin/api/accounts/:id', () => {
+  it('should flag an account as internal', async () => {
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`)
+      .send({ is_internal: true, status: 'canceled' })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.include({ id: ACCOUNT_WITH_USERS, is_internal: true, status: 'active' });
+    expect(response.body).to.not.have.property('stripe_portal_key');
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_USERS });
+    // unknown fields are ignored
+    expect(account).to.include({ is_internal: true, status: 'active' });
+    const list = await adminRequest('get', '/admin/api/accounts').expect(200);
+    expect(list.body.accounts.find((a) => a.id === ACCOUNT_WITH_USERS)).to.have.property('is_internal', true);
+    const details = await adminRequest('get', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).expect(200);
+    expect(details.body.account).to.have.property('is_internal', true);
+  });
+
+  it('should unflag an internal account', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update({ id: ACCOUNT_WITH_USERS }, { is_internal: true });
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`)
+      .send({ is_internal: false })
+      .expect(200);
+    expect(response.body).to.have.property('is_internal', false);
+  });
+
+  it('should return 422 with an empty or invalid body', async () => {
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).send({}).expect(422);
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).send({ is_internal: 'yes' }).expect(422);
+  });
+
+  it('should return 404 for an unknown account', async () => {
+    await adminRequest('patch', '/admin/api/accounts/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1')
+      .send({ is_internal: true })
+      .expect(404);
+  });
+});
+
 describe('DELETE /admin/api/accounts/:id', () => {
   it('should delete an account whose subscription is over', async function Test() {
     this.timeout(5000);

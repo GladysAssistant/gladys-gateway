@@ -189,6 +189,29 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
 }
 
 /**
+ * Email sent by the retention policy (admin API) once the grace period following the end
+ * of the subscription has elapsed: the account and its backups will be deleted on
+ * deletionDate unless the customer subscribes again.
+ */
+function buildAccountDeletionWarningScope({ account, user, deletionDate, language }) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const planName = account.plan === 'lite' ? 'Lite' : 'Plus';
+  const isFr = normalizedLanguage === 'fr';
+
+  return {
+    firstname: extractFirstname(user?.name),
+    planName,
+    planProductName: getPlanProductName(planName),
+    deletionDate: formatBillingDate(Math.floor(deletionDate.getTime() / 1000), normalizedLanguage),
+    accessEndedDate: account.current_period_end
+      ? formatBillingDate(Math.floor(new Date(account.current_period_end).getTime() / 1000), normalizedLanguage)
+      : '',
+    subscribeUrl: isFr ? 'https://gladysassistant.com/fr/plus' : 'https://gladysassistant.com/plus',
+    loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+  };
+}
+
+/**
  * Date the subscription renews, on an upcoming invoice. `next_payment_attempt`
  * is the charge date when Stripe collects automatically. The fallbacks are the
  * START of the period being invoiced — its end is one term later, a year off
@@ -297,6 +320,7 @@ async function hasRecentPaymentFailedEmail(db, accountId) {
 }
 
 module.exports = {
+  buildAccountDeletionWarningScope,
   buildPaymentFailedScope,
   buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,

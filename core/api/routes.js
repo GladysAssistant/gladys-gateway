@@ -324,6 +324,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     adminAuth,
     asyncMiddleware(controllers.adminApiController.applyRetentionPolicy),
   );
+  app.post(
+    '/admin/api/instances/watchdog',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.runInstanceWatchdog),
+  );
   app.patch('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateAccount));
   app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
   app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));

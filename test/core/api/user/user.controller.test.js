@@ -818,6 +818,8 @@ describe('GET /users/me', () => {
           plan: 'plus',
           status: 'active',
           profile_url: null,
+          instance_offline_alert_enabled: false,
+          instance_offline_alert_delay_in_minutes: 60,
           gladys_user_id: null,
           gladys_4_user_id: null,
           current_period_end: '2050-11-20T16:00:00.000Z',

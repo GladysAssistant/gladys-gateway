@@ -173,6 +173,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       `
       SELECT t_user.id, t_user.name, t_user.email, t_user.role, t_user.language, 
       t_user.profile_url, t_user.gladys_user_id, t_user.gladys_4_user_id, t_user.account_id, 
+      t_user.instance_offline_alert_enabled, t_user.instance_offline_alert_delay_in_minutes,
       (t_account.current_period_end + interval '24 hour') as current_period_end, t_account.plan as plan, 
       t_account.status as status
       FROM t_user
@@ -239,7 +240,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     }
 
     const updatedUser = await db.t_user.update(user.id, value, {
-      fields: ['id', 'name', 'email', 'profile_url', 'email_confirmed', 'language'],
+      fields: [
+        'id',
+        'name',
+        'email',
+        'profile_url',
+        'email_confirmed',
+        'language',
+        'instance_offline_alert_enabled',
+        'instance_offline_alert_delay_in_minutes',
+      ],
     });
     // The confirmation token and the previous email are for the controller (emails to send),
     // they must never be sent back in the API response: the caller of this route could

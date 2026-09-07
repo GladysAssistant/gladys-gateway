@@ -1,0 +1,46 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+<head>
+  <meta name="viewport" content="width=device-width" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Ta Gladys est de nouveau en ligne</title>
+</head>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: none; width: 100% !important; height: 100%; line-height: 1.6em; background-color: #f6f6f6; margin: 0;" bgcolor="#f6f6f6">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6;" bgcolor="#f6f6f6">
+    <tr>
+      <td></td>
+      <td width="600" style="display: block !important; max-width: 600px !important; clear: both !important; margin: 0 auto;">
+        <div style="max-width: 600px; display: block; margin: 0 auto; padding: 20px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-radius: 3px; background-color: #fff; border: 1px solid #e9e9e9;" bgcolor="#fff">
+            <tr>
+              <td style="padding: 20px;" valign="top">
+                <h1 style="font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif; font-size: 32px; line-height: 1.2; color: #000; font-weight: 200; margin: 10px 0 20px; padding: 0;">
+                  Ta Gladys « <%= instanceName %> » est de nouveau en ligne
+                </h1>
+
+                <p style="margin: 0 0 20px;">
+                  <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                </p>
+                <p style="margin: 0 0 20px;">
+                  Bonne nouvelle : ton instance Gladys « <strong><%= instanceName %></strong> » est de nouveau connectée à Gladys Plus, après <strong><%= downtime %></strong> sans contact (dernier contact avant la coupure : <%= lastSeenDate %>).
+                </p>
+                <p style="margin: 0 0 20px;">
+                  L'accès à distance, les sauvegardes et les intégrations Gladys Plus fonctionnent à nouveau normalement. Si ta Gladys redémarre souvent sans raison, jette un œil à l'alimentation de la machine et à l'état de sa carte SD.
+                </p>
+                <p style="margin: 0 0 20px;">
+                  Tu peux modifier le délai de ces alertes ou les désactiver dans Gladys, dans <strong>Paramètres → Gladys Plus</strong>.
+                </p>
+                <p style="margin: 0 0 20px;">
+                  Pierre-Gilles Leymarie, fondateur de Gladys Assistant
+                </p>
+
+              </td>
+            </tr>
+          </table>
+        </div>
+      </td>
+      <td></td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -10,6 +10,7 @@ module.exports = function AdminApiController(
   adminVersionModel,
   adminModel,
   adminAccountLifecycleModel,
+  instanceWatchdogModel,
 ) {
   function describeCaller(req) {
     const { admin } = req;
@@ -229,6 +230,62 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {post} /admin/api/instances/watchdog Run the instance watchdog
+   * @apiName adminRunInstanceWatchdog
+   * @apiGroup Admin API
+   * @apiDescription "Is my Gladys alive?": check every primary instance of the accounts
+   * having access to Gladys Plus against the websocket cluster. The users who opted in
+   * (instance_offline_alert_enabled on PATCH /users/me) whose instance has been unreachable
+   * for longer than their delay (instance_offline_alert_delay_in_minutes) receive the
+   * "instance offline" email ("alert"), once per outage; once the instance is connected
+   * again they receive the "back online" email ("back_online"). Also refreshes
+   * last_seen_at of the connected instances. Meant to be called every few minutes by a
+   * cron: the frequency only decides how late after the delay the email leaves, an instance
+   * is never reported offline while it is connected. Read-only unless "execute" is true.
+   * Only the instances with something to report are listed.
+   *
+   * @apiParam {Boolean} [execute=false] Send the emails and refresh last_seen_at
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "execute": true,
+   *   "total": 180,
+   *   "connected": 176,
+   *   "offline": 4,
+   *   "alerts": 1,
+   *   "back_online": 0,
+   *   "waiting": 1,
+   *   "errors": 0,
+   *   "instances": [
+   *     {
+   *       "id": "0bc53f3c-1e11-40d3-99a4-bd392a666eaf",
+   *       "name": "Raspberry Pi",
+   *       "account_id": "b2d23f66-487d-493f-8acb-9c8adb400def",
+   *       "connected": false,
+   *       "last_seen_at": "2026-09-07T12:00:00.000Z",
+   *       "offline_for_in_minutes": 95,
+   *       "users": [
+   *         { "id": "a139e4a6-ec6c-442d-9730-0499155d38d4", "delay_in_minutes": 60, "action": "alert" },
+   *         { "id": "bdb1a902-a65e-46f9-8c2a-5c09840e2e10", "delay_in_minutes": 120, "action": "wait" }
+   *       ]
+   *     }
+   *   ]
+   * }
+   */
+  async function runInstanceWatchdog(req, res) {
+    const report = await instanceWatchdogModel.run(req.body);
+    if (report.execute) {
+      audit(
+        req,
+        `run instance watchdog (offline=${report.offline}, alerts=${report.alerts}, back_online=${report.back_online})`,
+      );
+    }
+    res.json(report);
+  }
+
+  /**
    * @api {post} /admin/api/users/:id/reset_two_factor Reset two factor
    * @apiName adminResetTwoFactor
    * @apiGroup Admin API
@@ -407,6 +464,7 @@ module.exports = function AdminApiController(
     deleteAccount,
     syncAccountsWithStripe,
     applyRetentionPolicy,
+    runInstanceWatchdog,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

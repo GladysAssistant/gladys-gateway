@@ -1,5 +1,10 @@
 const Joi = require('joi');
 
+// Delay of the instance watchdog: short enough to be useful, long enough not to be woken
+// up by an internet box rebooting; a week at most.
+const INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES = 5;
+const INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES = 7 * 24 * 60;
+
 const signupSchema = Joi.object().keys({
   name: Joi.string().min(2).max(30),
   email: Joi.string().email(),
@@ -24,6 +29,12 @@ const updateUserSchema = Joi.object().keys({
   language: Joi.string().valid('fr', 'en'),
   gladys_user_id: Joi.number().optional().allow(null),
   gladys_4_user_id: Joi.string().optional().allow(null),
+  // Instance watchdog: email the user when his Gladys has been unreachable for this long
+  instance_offline_alert_enabled: Joi.boolean(),
+  instance_offline_alert_delay_in_minutes: Joi.number()
+    .integer()
+    .min(INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES)
+    .max(INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES),
 });
 
 const invitationSchema = Joi.object().keys({
@@ -56,6 +67,8 @@ module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;
+module.exports.INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES = INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES;
+module.exports.INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES = INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES;
 
 // Admin API (see core/api/admin/admin-api.controller.js)
 const adminListAccountsQuerySchema = Joi.object().keys({

@@ -105,7 +105,15 @@ Skipping steps is allowed (a mini-PC already in stock can go from `paid` to `ins
 
 The integration uses the Mondial Relay Web Service (SOAP, `https://api.mondialrelay.com/Web_Services.asmx`): `WSI2_CreationEtiquette` to create the shipment and get the label PDF, `WSI2_TracingColisDetaille` to follow the parcel.
 
-With a Mondial Relay **Connect Pro** account, the credentials are in **Mon profil → Mes paramètres de connexion**: the _code enseigne_ (`MONDIAL_RELAY_ENSEIGNE`, 8 characters), the _code marque_ (`MONDIAL_RELAY_BRAND_CODE`, used by the widget) and the _clé privée_ (`MONDIAL_RELAY_PRIVATE_KEY`). If they are not displayed, ask Mondial Relay support (servicesupport@mondialrelay.fr) to enable the Web Service on the account. The test credentials `BDTEST13` / `PrivateK` can be used to try the API before the account is enabled (the shipments created are not real).
+With a Mondial Relay **Connect Pro** account, the credentials are in **Mon profil → Mes paramètres de connexion**: the _code enseigne_ (`MONDIAL_RELAY_ENSEIGNE`, 8 characters), the _code marque_ (`MONDIAL_RELAY_BRAND_CODE`, used by the widget) and the _clé privée_ (`MONDIAL_RELAY_PRIVATE_KEY`). If they are not displayed, or if the check below answers `STAT=95` (account not enabled), ask Mondial Relay support (servicesupport@mondialrelay.fr) to enable the Web Service on the account. The historical test credentials `BDTEST13` / `PrivateK` are no longer accepted by the API.
+
+Once the variables are in `.env`, check the credentials with:
+
+```sh
+npm run check-mondial-relay
+```
+
+It calls the tracking method with a dummy parcel number and tells whether the credentials are accepted, or which variable is wrong (`STAT=97`: private key, `STAT=1/2/3/69`: enseigne, `STAT=95`: Web Service not enabled on the account).
 
 ### Pickup point widget on the tracking page
 

@@ -97,6 +97,11 @@ describe('EnedisWorker.getContract', function Describe() {
       lastActivationDate: '2013-08-14+01:00',
     });
   });
+  it('should reject with a ForbiddenError when the Enedis Oauth process was never done', async () => {
+    // No /enedis/finalize call: the account has no device linked to the Enedis client id
+    const response = enedisModel.getAccessToken('b2d23f66-487d-493f-8acb-9c8adb400def');
+    await assert.isRejected(response, 'Forbidden');
+  });
   it('should return 403', async () => {
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)

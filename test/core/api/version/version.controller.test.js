@@ -5,6 +5,8 @@ describe('GET/POST /v1/api/gladys/version', () => {
   it('should return status 200', () =>
     request(TEST_BACKEND_APP)
       .get('/v1/api/gladys/version')
+      // supertest >= 4 no longer sends a default User-Agent, the usage middleware records it
+      .set('user-agent', 'Gladys/4.57.0')
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
       .expect(200)
@@ -19,6 +21,8 @@ describe('GET/POST /v1/api/gladys/version', () => {
   it('should return status 200', () =>
     request(TEST_BACKEND_APP)
       .post('/v1/api/gladys/version')
+      // supertest >= 4 no longer sends a default User-Agent, the usage middleware records it
+      .set('user-agent', 'Gladys/4.57.0')
       .set('Accept', 'application/json')
       .send({
         is_docker: true,

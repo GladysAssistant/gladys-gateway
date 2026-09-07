@@ -130,7 +130,7 @@ module.exports = function AdminApiController(
    */
   async function updateAccount(req, res) {
     const account = await adminAccountModel.updateAccount(req.params.id, req.body);
-    audit(req, `update account ${req.params.id} (${JSON.stringify(req.body)})`);
+    audit(req, `update account ${req.params.id} (is_internal=${account.is_internal})`);
     res.json(account);
   }
 

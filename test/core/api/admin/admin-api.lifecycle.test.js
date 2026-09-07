@@ -19,6 +19,20 @@ function adminRequest(method, url) {
     .set('X-Admin-Api-Key', process.env.ADMIN_API_AUTHORIZATION_TOKEN);
 }
 
+function nockCustomerSubscriptions(customerId, subscriptions, times = 1) {
+  nock('https://api.stripe.com:443', { encodedQueryParams: true })
+    .get('/v1/subscriptions')
+    .query({ customer: customerId, status: 'all', limit: '100' })
+    .times(times)
+    .reply(200, { object: 'list', data: subscriptions });
+}
+
+const RUNNING_SUBSCRIPTION = {
+  id: 'sub_active',
+  status: 'active',
+  current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
+};
+
 function nockSubscription(subscriptionId, subscription) {
   nock('https://api.stripe.com:443', { encodedQueryParams: true })
     .get(`/v1/subscriptions/${subscriptionId}`)
@@ -121,16 +135,35 @@ describe('POST /admin/api/accounts/sync-stripe', () => {
     );
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
       .get('/v1/subscriptions/sub_stripe_down')
-      .reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } });
+      .reply(500);
     const response = await adminRequest('post', '/admin/api/accounts/sync-stripe').send({ execute: true }).expect(200);
     expect(response.body).to.deep.include({ total: 1, checked: 0, changed: 0, errors: 1 });
-    expect(response.body.accounts[0]).to.include({
-      id: ACCOUNT_WITH_STRIPE,
-      changed: false,
-      error: 'resource_missing',
-    });
+    expect(response.body.accounts[0]).to.include({ id: ACCOUNT_WITH_STRIPE, changed: false });
+    expect(response.body.accounts[0]).to.have.property('error');
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
     expect(account.status).to.equal('active');
+  });
+
+  it('should mark canceled an account whose subscription no longer exists on Stripe', async () => {
+    const accessEndedAt = daysAgo(400);
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { stripe_subscription_id: 'sub_gone', status: 'past_due', plan: 'lite', current_period_end: accessEndedAt },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub_gone')
+      .reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } });
+    const response = await adminRequest('post', '/admin/api/accounts/sync-stripe').send({ execute: true }).expect(200);
+    expect(response.body).to.deep.include({ total: 1, checked: 1, changed: 1, errors: 0 });
+    expect(response.body.accounts[0]).to.include({
+      id: ACCOUNT_WITH_STRIPE,
+      changed: true,
+      stripe_subscription_missing: true,
+    });
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    // the plan is unknown on Stripe side: kept, the end of access already known is kept too
+    expect(account).to.include({ status: 'canceled', plan: 'lite' });
+    expect(new Date(account.current_period_end).getTime()).to.equal(accessEndedAt.getTime());
   });
 
   it('should return 422 with an invalid body', async () => {
@@ -271,35 +304,82 @@ describe('POST /admin/api/accounts/retention', () => {
         deletion_warning_sent_at: daysAgo(31),
       },
     );
-    nockSubscription('sub_active', {
-      status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
-    });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/customers/cus_active')
-      .reply(200, { id: 'cus_active', email: 'cus@cus.fr' });
+    nockCustomerSubscriptions('cus_active', [RUNNING_SUBSCRIPTION]);
     const response = await adminRequest('post', '/admin/api/accounts/retention').send({ execute: true }).expect(200);
     expect(response.body).to.deep.include({ total: 1, deleted: 0, errors: 1 });
     expect(response.body.accounts[0]).to.include({ id: ACCOUNT_WITH_STRIPE, action: 'error' });
-    expect(response.body.accounts[0].error).to.match(/active customer/);
+    expect(response.body.accounts[0].error).to.match(/sync-stripe/);
     expect(await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE })).to.not.equal(null);
   });
 
   it('should not warn an account whose Stripe subscription is still running (database lagging behind)', async () => {
     await TEST_DATABASE_INSTANCE.t_account.update(
       { id: ACCOUNT_WITH_STRIPE },
-      { stripe_subscription_id: 'sub_active', status: 'past_due', current_period_end: daysAgo(200) },
+      {
+        stripe_customer_id: 'cus_active',
+        stripe_subscription_id: 'sub_active',
+        status: 'past_due',
+        current_period_end: daysAgo(200),
+      },
     );
-    nockSubscription('sub_active', {
-      status: 'active',
-      current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 3600,
-    });
+    nockCustomerSubscriptions('cus_active', [RUNNING_SUBSCRIPTION]);
     const response = await adminRequest('post', '/admin/api/accounts/retention').send({ execute: true }).expect(200);
     expect(response.body).to.deep.include({ total: 1, warned: 0, deleted: 0, errors: 1 });
     expect(response.body.accounts[0]).to.include({ id: ACCOUNT_WITH_STRIPE, action: 'error' });
     expect(response.body.accounts[0].error).to.match(/sync-stripe/);
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
     expect(account.deletion_warning_sent_at).to.equal(null);
+  });
+
+  it('should not trust the stored subscription: a newer running subscription of the customer protects the account', async () => {
+    // the customer re-subscribed but the account still points to the old canceled subscription
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      {
+        stripe_customer_id: 'cus_resubscribed',
+        stripe_subscription_id: 'sub_old',
+        status: 'canceled',
+        current_period_end: daysAgo(200),
+        deletion_warning_sent_at: daysAgo(31),
+      },
+    );
+    nockCustomerSubscriptions('cus_resubscribed', [
+      { id: 'sub_old', status: 'canceled', current_period_end: Math.floor(daysAgo(200).getTime() / 1000) },
+      { ...RUNNING_SUBSCRIPTION, id: 'sub_new' },
+    ]);
+    // dry run checks Stripe too, so the report is honest about what execute would do
+    const response = await adminRequest('post', '/admin/api/accounts/retention').send({}).expect(200);
+    expect(response.body).to.deep.include({ total: 1, deleted: 0, errors: 1 });
+    expect(response.body.accounts[0].error).to.match(/sub_new is active/);
+  });
+
+  it('should not trust the stored status: an "active" account whose access ended long ago is a candidate', async () => {
+    // missed cancellation webhook: the database still says active, Stripe says canceled
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { status: 'active', current_period_end: daysAgo(200) },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/retention').send({}).expect(200);
+    expect(response.body).to.deep.include({ total: 1, warned: 1, errors: 0 });
+    expect(response.body.accounts[0]).to.include({ id: ACCOUNT_WITH_STRIPE, status: 'active', action: 'warn' });
+  });
+
+  it('should treat a customer that no longer exists on Stripe as having no subscription', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      {
+        stripe_customer_id: 'cus_gone',
+        stripe_subscription_id: 'sub_gone',
+        status: 'canceled',
+        current_period_end: daysAgo(200),
+      },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_gone', status: 'all', limit: '100' })
+      .reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } });
+    const response = await adminRequest('post', '/admin/api/accounts/retention').send({}).expect(200);
+    expect(response.body).to.deep.include({ total: 1, warned: 1, errors: 0 });
   });
 
   it('should return 422 with an invalid body', async () => {

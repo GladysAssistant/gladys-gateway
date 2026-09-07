@@ -252,19 +252,59 @@ describe('DELETE /admin/api/accounts/:id', () => {
       { stripe_subscription_id: 'sub_active', stripe_customer_id: 'cus_active' },
     );
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/subscriptions/sub_active')
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_active', status: 'all', limit: '100' })
       .reply(200, {
-        id: 'sub_active',
-        status: 'active',
-        current_period_end: Math.round(new Date().getTime() / 1000) + 30 * 24 * 60 * 60,
+        object: 'list',
+        data: [
+          {
+            id: 'sub_active',
+            status: 'active',
+            current_period_end: Math.round(new Date().getTime() / 1000) + 30 * 24 * 60 * 60,
+          },
+        ],
       });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/customers/cus_active')
-      .reply(200, { id: 'cus_active', email: 'cus@cus.fr' });
     const response = await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(403);
     expect(response.body).to.have.property('error_code', 'FORBIDDEN');
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
     expect(account).to.not.equal(null);
+    expect(account.is_deleted).to.equal(false);
+  });
+
+  it('should delete an account whose subscription is canceled even if Stripe still exposes a future period', async () => {
+    // yearly subscription canceled for non payment: the unpaid period is still ahead on Stripe
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { stripe_subscription_id: 'sub_canceled_yearly', stripe_customer_id: 'cus_canceled_yearly' },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_canceled_yearly', status: 'all', limit: '100' })
+      .reply(200, {
+        object: 'list',
+        data: [
+          {
+            id: 'sub_canceled_yearly',
+            status: 'canceled',
+            current_period_end: Math.round(new Date().getTime() / 1000) + 200 * 24 * 60 * 60,
+          },
+        ],
+      });
+    await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(200);
+    expect(await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE })).to.equal(null);
+  });
+
+  it('should delete an account whose Stripe customer no longer exists', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { stripe_subscription_id: 'sub_gone', stripe_customer_id: 'cus_gone' },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_gone', status: 'all', limit: '100' })
+      .reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } });
+    await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(200);
+    expect(await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE })).to.equal(null);
   });
 
   it('should return 404 for an unknown account', async () => {

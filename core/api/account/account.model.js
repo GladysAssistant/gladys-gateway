@@ -181,7 +181,9 @@ module.exports = function AccountModel(
     );
 
     // we first test if an account already exist with this email
-    const existingAccount = await db.t_account.findOne({ name: email });
+    // An account claimed by a deletion in progress (is_deleted) is not re-linked: the
+    // customer gets a fresh account instead of one being wiped.
+    const existingAccount = await db.t_account.findOne({ name: email, is_deleted: false });
 
     // An account already exists with this email: this is a re-subscription, not a new sign-up.
     if (existingAccount !== null) {
@@ -822,8 +824,10 @@ module.exports = function AccountModel(
         const now = new Date();
         const accessEndedAt =
           account.current_period_end && new Date(account.current_period_end) < now ? account.current_period_end : now;
-        await db.t_account.update(
-          account.id,
+        // The subscription id is part of the predicate: a re-subscription re-linking the
+        // account to a new subscription between the lookup above and this update must win.
+        const updatedAccounts = await db.t_account.update(
+          { id: account.id, stripe_subscription_id: event.data.object.id },
           {
             status: 'canceled',
             current_period_end: accessEndedAt,
@@ -832,6 +836,10 @@ module.exports = function AccountModel(
             fields: ['id'],
           },
         );
+        if (updatedAccounts.length === 0) {
+          logger.warn(`Stripe Webhook : account ${account.id} was re-linked in the meantime, ignoring deletion.`);
+          break;
+        }
         telegramService.sendAlert(`Subscription canceled! Customer email = ${email}, language = ${language}`);
         break;
       }

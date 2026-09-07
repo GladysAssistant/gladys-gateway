@@ -3,6 +3,15 @@ const Stripe = require('stripe');
 
 let stripe = null;
 
+// Statuses under which Stripe still considers the subscription alive: the customer has access
+// (active, trialing) or Stripe is still trying to collect (past_due). canceled, unpaid,
+// incomplete_expired... are over, whatever period end the subscription object still exposes.
+const RUNNING_SUBSCRIPTION_STATUSES = ['active', 'trialing', 'past_due'];
+
+function isSubscriptionRunning(subscription) {
+  return RUNNING_SUBSCRIPTION_STATUSES.includes(subscription.status);
+}
+
 module.exports = function StripeService(logger) {
   if (process.env.STRIPE_SECRET_KEY) {
     stripe = Stripe(process.env.STRIPE_SECRET_KEY);
@@ -123,6 +132,35 @@ module.exports = function StripeService(logger) {
     return stripe.subscriptions.retrieve(stripeSubscriptionId);
   }
 
+  async function listCustomerSubscriptions(stripeCustomerId) {
+    const result = await stripe.subscriptions.list({ customer: stripeCustomerId, status: 'all', limit: 100 });
+    return result.data;
+  }
+
+  /**
+   * Subscriptions still running for an account, whatever the database holds. The customer is
+   * checked as a whole when known (the account could have been re-subscribed on a newer
+   * subscription without the database being updated), the stored subscription otherwise.
+   * A customer or subscription that no longer exists on Stripe has no running subscription.
+   */
+  async function getRunningSubscriptions({ stripe_customer_id: customerId, stripe_subscription_id: subscriptionId }) {
+    if (stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return [];
+    }
+    try {
+      const subscriptions = customerId
+        ? await listCustomerSubscriptions(customerId)
+        : [await getSubscription(subscriptionId)];
+      return subscriptions.filter(isSubscriptionRunning);
+    } catch (e) {
+      if (e.code === 'resource_missing') {
+        return [];
+      }
+      throw e;
+    }
+  }
+
   async function cancelMonthlySubscription(stripeSubscriptionId) {
     if (stripe === null) {
       logger.info('Stripe not enabled on this instance, resolving.');
@@ -196,6 +234,8 @@ module.exports = function StripeService(logger) {
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,
     getSubscription,
+    getRunningSubscriptions,
+    isSubscriptionRunning,
     getCustomer,
     addTaxRate,
     createBillingPortalSession,

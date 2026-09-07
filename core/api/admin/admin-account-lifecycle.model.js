@@ -56,11 +56,6 @@ function getSubscriptionPeriodEnd(subscription) {
   return subscription.current_period_end || subscription.items?.data?.[0]?.current_period_end || null;
 }
 
-function isSubscriptionRunning(subscription, now) {
-  const periodEnd = getSubscriptionPeriodEnd(subscription);
-  return ACTIVE_STATUSES.includes(subscription.status) || (periodEnd !== null && periodEnd * 1000 > now.getTime());
-}
-
 function computeAccessEnd(account, subscription, now) {
   if (ACTIVE_STATUSES.includes(subscription.status)) {
     const periodEnd = getSubscriptionPeriodEnd(subscription);
@@ -94,17 +89,25 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
     const result = { id: account.id, name: account.name, before, after: before, changed: false };
     let subscription;
+    let subscriptionMissing = false;
     try {
       subscription = await stripeService.getSubscription(account.stripe_subscription_id);
     } catch (e) {
-      logger.warn(`syncWithStripe: unable to fetch subscription ${account.stripe_subscription_id} of ${account.id}`);
-      logger.warn(e);
-      return { ...result, error: e.code || e.type || e.message || 'stripe_error' };
+      if (e.code !== 'resource_missing') {
+        logger.warn(`syncWithStripe: unable to fetch subscription ${account.stripe_subscription_id} of ${account.id}`);
+        logger.warn(e);
+        return { ...result, error: e.code || e.type || e.message || 'stripe_error' };
+      }
+      // The subscription no longer exists on Stripe (customer deleted for example): it is
+      // certainly over. The plan is kept, the end of access is the one known or now.
+      subscriptionMissing = true;
+      subscription = { status: 'canceled' };
     }
     const stripeProductId = subscription.items?.data?.[0]?.price?.product;
+    const planOnStripe = stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus';
     const after = {
       status: subscription.status,
-      plan: stripeProductId === process.env.STRIPE_LITE_PLAN_PRODUCT_ID ? 'lite' : 'plus',
+      plan: subscriptionMissing ? before.plan : planOnStripe,
       current_period_end: toIsoString(computeAccessEnd(account, subscription, now)),
     };
     const changed =
@@ -112,8 +115,10 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       after.plan !== before.plan ||
       !sameInstant(after.current_period_end, before.current_period_end);
     if (changed && execute) {
-      await db.t_account.update(
-        account.id,
+      // The subscription id is part of the predicate: an account re-linked to a new
+      // subscription in the meantime (re-subscription) must not receive the old values.
+      const updatedAccounts = await db.t_account.update(
+        { id: account.id, stripe_subscription_id: account.stripe_subscription_id },
         {
           status: after.status,
           plan: after.plan,
@@ -121,11 +126,15 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
         },
         { fields: ['id'] },
       );
+      if (updatedAccounts.length === 0) {
+        logger.warn(`syncWithStripe: account ${account.id} was re-linked in the meantime, skipped`);
+        return { ...result, after, changed: false, error: 'account_changed_in_the_meantime' };
+      }
       logger.info(
         `syncWithStripe: account ${account.id} updated (${before.status}/${before.plan} -> ${after.status}/${after.plan})`,
       );
     }
-    return { ...result, after, changed };
+    return { ...result, after, changed, ...(subscriptionMissing ? { stripe_subscription_missing: true } : {}) };
   }
 
   /**
@@ -196,15 +205,18 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       deletion_warning_sent_at: warningIsValid ? warningSentAt.toISOString() : null,
     };
     try {
-      if (!warningIsValid) {
-        // The database may lag behind Stripe (missed webhook): never warn a customer whose
-        // subscription is actually running. syncWithStripe repairs such an account.
-        if (account.stripe_subscription_id) {
-          const subscription = await stripeService.getSubscription(account.stripe_subscription_id);
-          if (isSubscriptionRunning(subscription, now)) {
-            throw new Error(`Subscription ${subscription.id} is ${subscription.status} on Stripe, run sync-stripe`);
-          }
+      // The database may lag behind Stripe (missed webhook, re-subscription on a newer
+      // subscription): never warn nor delete a customer whose subscription is actually
+      // running. syncWithStripe repairs such an account.
+      if (account.stripe_subscription_id || account.stripe_customer_id) {
+        const [runningSubscription] = await stripeService.getRunningSubscriptions(account);
+        if (runningSubscription) {
+          throw new Error(
+            `Subscription ${runningSubscription.id} is ${runningSubscription.status} on Stripe, run sync-stripe`,
+          );
         }
+      }
+      if (!warningIsValid) {
         const deletionDate = new Date(now.getTime() + policy.warning_period_in_days * ONE_DAY_IN_MS);
         if (execute) {
           await sendDeletionWarning(account, deletionDate);
@@ -218,7 +230,7 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
         return { ...result, action: 'wait', deletion_date: deletionDate.toISOString() };
       }
       if (execute) {
-        // deleteAccount checks again on Stripe side that the subscription is really over
+        // deleteAccount checks Stripe again and refuses an account re-subscribed in the meantime
         await adminModel.deleteAccount(account.id);
         logger.warn(`retention: account ${account.id} deleted (access ended on ${result.access_ended_at})`);
       }
@@ -236,7 +248,9 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
    * warned by email that the account and its backups will be deleted; once the warning
    * period has elapsed too, the account is deleted with everything attached (see
    * adminModel.deleteAccount). Internal accounts and accounts whose access has not ended are
-   * never touched. Read-only unless execute is true.
+   * never touched. The status in database is not trusted (a missed webhook leaves an account
+   * "active" with an end of access long gone): Stripe is asked for every candidate instead.
+   * Read-only unless execute is true.
    */
   async function applyRetentionPolicy(body) {
     const { execute } = validateJobBody(body);
@@ -246,16 +260,15 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     // An account that never subscribed has no end of access: its creation date is used
     const candidates = await db.query(
       `
-        SELECT id, name, plan, status, stripe_subscription_id, current_period_end, created_at,
-          deletion_warning_sent_at,
+        SELECT id, name, plan, status, stripe_customer_id, stripe_subscription_id, current_period_end,
+          created_at, deletion_warning_sent_at,
           COALESCE(current_period_end, created_at) AS access_ended_at
         FROM t_account
         WHERE is_internal = false
-          AND (status IS NULL OR status <> ALL($1::text[]))
-          AND COALESCE(current_period_end, created_at) < $2
+          AND COALESCE(current_period_end, created_at) < $1
         ORDER BY COALESCE(current_period_end, created_at) ASC;
       `,
-      [ACTIVE_STATUSES, graceLimit],
+      [graceLimit],
     );
     logger.info(`retention: ${candidates.length} accounts past the grace period (execute=${execute})`);
     const results = await Promise.mapSeries(candidates, (account) =>

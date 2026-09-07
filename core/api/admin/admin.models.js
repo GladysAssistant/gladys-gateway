@@ -75,19 +75,30 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     if (account === null) {
       throw new NotFoundError('Account not found');
     }
-    // An account that never subscribed has no Stripe data and can be deleted right away
-    if (account.stripe_subscription_id) {
-      // we get subscription from stripe side
-      const [subscription, customer] = await Promise.all([
-        stripeService.getSubscription(account.stripe_subscription_id),
-        stripeService.getCustomer(account.stripe_customer_id),
-      ]);
-      logger.info(`Trying to delete customer ${customer.id}`);
-      // Stripe timestamps are in seconds
-      const now = new Date().getTime();
-      if (subscription.current_period_end * 1000 > now) {
+    // An account that never subscribed has no Stripe data and can be deleted right away.
+    // Otherwise Stripe decides, not the database: a subscription still running (active,
+    // trialing or being collected) protects the account, a canceled one does not even if
+    // Stripe still exposes the period the customer never paid for.
+    if (account.stripe_subscription_id || account.stripe_customer_id) {
+      logger.info(`Trying to delete customer ${account.stripe_customer_id}`);
+      const runningSubscriptions = await stripeService.getRunningSubscriptions(account);
+      if (runningSubscriptions.length > 0) {
         throw new ForbiddenError('Cannot delete an active customer');
       }
+    }
+    // Claim the account before anything irreversible happens: a re-subscription through
+    // Stripe Checkout that re-linked the account to a new subscription in the meantime
+    // (see createAccountFromStripeSession) changes stripe_subscription_id and makes the
+    // claim fail. Once claimed, the account is invisible to a re-subscription: the customer
+    // gets a fresh account instead of one being wiped.
+    const claimed = await db.query(
+      `UPDATE t_account SET is_deleted = true
+       WHERE id = $1 AND stripe_subscription_id IS NOT DISTINCT FROM $2
+       RETURNING id;`,
+      [accountId, account.stripe_subscription_id],
+    );
+    if (claimed.length === 0) {
+      throw new ForbiddenError('Account was re-subscribed in the meantime, not deleting');
     }
     const backups = await db.t_backup.find({ account_id: accountId });
     // deleting backups

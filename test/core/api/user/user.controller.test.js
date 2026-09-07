@@ -142,7 +142,7 @@ describe('POST /users/login-salt', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           srp_salt: 'e0812f8c57be08780bafcc7e2cbacd155b6f63962114c12cc12462a7aa669fdb',
         });
       }));
@@ -156,7 +156,7 @@ describe('POST /users/login-salt', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           srp_salt: 'e0812f8c57be08780bafcc7e2cbacd155b6f63962114c12cc12462a7aa669fdb',
         });
       }));
@@ -184,8 +184,8 @@ describe('POST /users/login-generate-ephemeral', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('server_ephemeral_public');
-        response.body.should.have.property('login_session_key');
+        expect(response.body).to.have.property('server_ephemeral_public');
+        expect(response.body).to.have.property('login_session_key');
       }));
   it('should return 404 not found', () =>
     request(TEST_BACKEND_APP)
@@ -211,8 +211,8 @@ describe('POST /users/login-finalize', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('server_session_proof');
-        response.body.should.have.property('access_token');
+        expect(response.body).to.have.property('server_session_proof');
+        expect(response.body).to.have.property('access_token');
       }));
 
   it('should return 403 forbidden. Wrong client proof', () =>
@@ -237,7 +237,7 @@ describe('POST /users/two-factor-configure', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('otpauth_url');
+        expect(response.body).to.have.property('otpauth_url');
       }));
 
   it('should return 401 unauthorized, no jwt provided', () =>
@@ -267,7 +267,7 @@ describe('POST /users/two-factor-enable', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('two_factor_enabled', true);
+        expect(response.body).to.have.property('two_factor_enabled', true);
       });
   });
 
@@ -661,7 +661,7 @@ describe('PATCH /users/me', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('name', 'my new name');
+        expect(response.body).to.have.property('name', 'my new name');
       }));
 
   it('should update user email with the current two factor code and send email', async () => {
@@ -807,7 +807,7 @@ describe('GET /users/me', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
           name: 'Tony',
           email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
@@ -836,7 +836,7 @@ describe('POST /users/forgot-password', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           success: true,
         });
       }));
@@ -851,7 +851,7 @@ describe('POST /users/forgot-password', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           success: true,
         });
       }));
@@ -893,7 +893,7 @@ describe('POST /users/reset-password', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           success: true,
         });
       }));
@@ -916,7 +916,7 @@ describe('POST /users/reset-password', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           success: true,
         });
       }));
@@ -1047,7 +1047,7 @@ describe('GET /users/reset-password/:token', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
           email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
           two_factor_enabled: true,
@@ -1064,7 +1064,7 @@ describe('GET /users/setup', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           billing_setup: false,
           stripe_portal_key: 'fee71731-5928-4f2f-a74b-c7858d39372f',
           gladys_instance_setup: true,
@@ -1082,7 +1082,7 @@ describe('GET /users/two-factor/new', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('otpauth_url');
+        expect(response.body).to.have.property('otpauth_url');
       }));
 });
 

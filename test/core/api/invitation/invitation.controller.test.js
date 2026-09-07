@@ -1,5 +1,5 @@
 const request = require('supertest');
-const should = require('should');
+const { expect } = require('chai');
 const crypto = require('crypto');
 const configTest = require('../../../tasks/config');
 
@@ -15,7 +15,7 @@ describe('POST /invitations', () => {
       })
       .expect('Content-Type', /json/)
       .expect(200);
-    should.deepEqual(response.body, {
+    expect(response.body).to.deep.equal({
       id: response.body.id,
       email: 'pepper.potts@starkindustries.com',
       role: 'user',
@@ -37,12 +37,12 @@ describe('POST /invitations', () => {
       .expect('Content-Type', /json/)
       .expect(200);
 
-    should.equal(response.body.email, 'pepper.potts.mixed@starkindustries.com');
+    expect(response.body.email).to.equal('pepper.potts.mixed@starkindustries.com');
 
     const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({
       id: response.body.id,
     });
-    should.equal(invitation.email, 'pepper.potts.mixed@starkindustries.com');
+    expect(invitation.email).to.equal('pepper.potts.mixed@starkindustries.com');
   });
 
   it('should not send invitation, wrong email', () =>
@@ -79,7 +79,7 @@ describe('POST /invitations/accept', () => {
       .expect('Content-Type', /json/)
       .expect(201)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           status: 201,
           message: 'User created with success.',
         });
@@ -119,8 +119,8 @@ describe('POST /invitations/accept', () => {
     const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
       email: 'mixed.case.user@example.com',
     });
-    should.exist(user);
-    should.equal(user.email, 'mixed.case.user@example.com');
+    expect(user).to.be.an('object');
+    expect(user.email).to.equal('mixed.case.user@example.com');
   });
 
   it('should not accept invitation, not found hash', () =>
@@ -175,7 +175,7 @@ describe('GET /invitations/:id', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           email: 'oneuserinvited@gladysassistant.com',
           id: 'b141f826-5e43-4aa6-807e-a37d4e9177de',
         });
@@ -191,7 +191,7 @@ describe('POST /invitations/:id/revoke', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           success: true,
         });
       }));

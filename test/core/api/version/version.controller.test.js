@@ -1,5 +1,5 @@
 const request = require('supertest');
-const should = require('should');
+const { expect } = require('chai');
 
 describe('GET/POST /v1/api/gladys/version', () => {
   it('should return status 200', () =>
@@ -9,7 +9,7 @@ describe('GET/POST /v1/api/gladys/version', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((res) => {
-        should.deepEqual(res.body, {
+        expect(res.body).to.deep.equal({
           name: 'v4.0.0-alpha',
           created_at: '2018-10-16T02:21:25.901Z',
           default_release_note_link: 'https://github.com/GladysAssistant/Gladys/releases/tag/v4.57.0',
@@ -32,7 +32,7 @@ describe('GET/POST /v1/api/gladys/version', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((res) => {
-        should.deepEqual(res.body, {
+        expect(res.body).to.deep.equal({
           name: 'v4.0.0-alpha',
           created_at: '2018-10-16T02:21:25.901Z',
           default_release_note_link: 'https://github.com/GladysAssistant/Gladys/releases/tag/v4.57.0',

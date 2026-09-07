@@ -212,8 +212,11 @@ module.exports = function AccountModel(
       logger.info(
         `createAccountFromStripeSession: re-linking account ${existingAccount.id} (was ${existingAccount.status}) to new Stripe customer ${customer.id} / subscription ${subscription.id}, plan=${plan}`,
       );
-      const updatedAccount = await db.t_account.update(
-        existingAccount.id,
+      // is_deleted is part of the predicate: a deletion claiming the account between the
+      // lookup above and this update (see adminModel.deleteAccount) must win, the customer
+      // then gets a brand new account below instead of one being wiped.
+      const [updatedAccount] = await db.t_account.update(
+        { id: existingAccount.id, is_deleted: false },
         {
           stripe_customer_id: customer.id,
           stripe_subscription_id: subscription.id,
@@ -225,21 +228,26 @@ module.exports = function AccountModel(
           fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
         },
       );
-      logger.info(`createAccountFromStripeSession: account ${existingAccount.id} successfully re-linked`);
+      if (updatedAccount) {
+        logger.info(`createAccountFromStripeSession: account ${existingAccount.id} successfully re-linked`);
 
-      logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
-      await mailService.send({ email, language }, 'welcome_back', {
-        loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
-      });
+        logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
+        await mailService.send({ email, language }, 'welcome_back', {
+          loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+        });
 
-      telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
+        telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
 
-      await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
+        await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
 
-      return updatedAccount;
+        return updatedAccount;
+      }
+      logger.warn(
+        `createAccountFromStripeSession: account ${existingAccount.id} was claimed by a deletion in the meantime, creating a brand new account instead`,
+      );
+    } else {
+      logger.info(`createAccountFromStripeSession: no existing account for ${email}, creating a brand new account`);
     }
-
-    logger.info(`createAccountFromStripeSession: no existing account for ${email}, creating a brand new account`);
 
     const newAccount = {
       name: email,

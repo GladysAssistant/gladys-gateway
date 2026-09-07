@@ -12,10 +12,10 @@ describe('GET /accounts/users', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.be.instanceOf(Array);
+        expect(response.body).to.be.instanceOf(Array);
         response.body.forEach((user) => {
-          user.should.have.property('email');
-          user.should.have.property('is_invitation');
+          expect(user).to.have.property('email');
+          expect(user).to.have.property('is_invitation');
         });
       }));
 });
@@ -32,7 +32,7 @@ describe('POST /accounts/subscribe', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('current_period_end');
+        expect(response.body).to.have.property('current_period_end');
       }));
 });
 
@@ -45,7 +45,7 @@ describe('POST /accounts/users/:id/revoke', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('success', true);
+        expect(response.body).to.have.property('success', true);
       }));
 });
 
@@ -58,7 +58,7 @@ describe('GET /accounts/invoices', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, [
+        expect(response.body).to.deep.equal([
           {
             id: '88b4b295-deae-4452-a5f0-e67f18cf6abe',
             hosted_invoice_url: 'test',

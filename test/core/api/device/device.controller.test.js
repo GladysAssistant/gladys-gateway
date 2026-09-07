@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 
 describe('GET /users/me/devices', () => {
@@ -10,7 +11,7 @@ describe('GET /users/me/devices', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, [
+        expect(response.body).to.deep.equal([
           {
             id: '1356c620-0c88-46fc-87bf-de620f30f0e3',
             name: 'Safari Tony Stark',
@@ -30,7 +31,7 @@ describe('POST /devices/:id/revoke', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           id: '1356c620-0c88-46fc-87bf-de620f30f0e3',
           revoked: true,
         });

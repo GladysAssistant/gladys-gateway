@@ -1,5 +1,5 @@
 const request = require('supertest');
-const should = require('should');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 const Jwt = require('../../../../core/service/jwt');
 
@@ -20,8 +20,8 @@ describe('POST /open-api-keys', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('api_key');
-        response.body.should.have.property('name', 'My new api key');
+        expect(response.body).to.have.property('api_key');
+        expect(response.body).to.have.property('name', 'My new api key');
       }));
 
   it('should not create a new open api key (missing name)', () =>
@@ -42,7 +42,7 @@ describe('GET /open-api-keys', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, [
+        expect(response.body).to.deep.equal([
           {
             id: '4a01dfc5-899e-4a95-9288-c6096f1be180',
             name: 'Open API Key',
@@ -70,7 +70,7 @@ describe('DELETE /open-api-keys/:id', () => {
       .expect('Content-Type', /json/)
       .expect(404);
     const key = await TEST_DATABASE_INSTANCE.t_open_api_key.findOne({ id: '4a01dfc5-899e-4a95-9288-c6096f1be180' });
-    key.should.have.property('revoked', false);
+    expect(key).to.have.property('revoked', false);
   });
 });
 
@@ -86,7 +86,7 @@ describe('PATCH /open-api-keys/:id', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('name', 'new-name');
+        expect(response.body).to.have.property('name', 'new-name');
       }));
 
   it('should not update the name of the api key of another user', async () => {
@@ -100,7 +100,7 @@ describe('PATCH /open-api-keys/:id', () => {
       .expect('Content-Type', /json/)
       .expect(404);
     const key = await TEST_DATABASE_INSTANCE.t_open_api_key.findOne({ id: '4a01dfc5-899e-4a95-9288-c6096f1be180' });
-    key.should.have.property('name', 'Open API Key');
+    expect(key).to.have.property('name', 'Open API Key');
   });
 
   it('should return 422 when the name is missing', () =>

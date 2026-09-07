@@ -1,5 +1,5 @@
 const request = require('supertest');
-const should = require('should');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 const Jwt = require('../../../../core/service/jwt');
 
@@ -12,7 +12,7 @@ describe('GET /instances', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, [
+        expect(response.body).to.deep.equal([
           {
             id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
             name: 'Raspberry Pi 1',
@@ -33,7 +33,7 @@ describe('GET /instances/:id', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        should.deepEqual(response.body, {
+        expect(response.body).to.deep.equal({
           id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf',
           name: 'Raspberry Pi 1',
           rsa_public_key: 'public-key',
@@ -61,9 +61,9 @@ describe('POST /instances', () => {
       .expect('Content-Type', /json/)
       .expect(201)
       .then((response) => {
-        response.body.should.have.property('access_token');
-        response.body.should.have.property('refresh_token');
-        response.body.should.have.property('id');
+        expect(response.body).to.have.property('access_token');
+        expect(response.body).to.have.property('refresh_token');
+        expect(response.body).to.have.property('id');
       }));
 
   it('should not create an instance with a read-only token', () =>
@@ -98,8 +98,8 @@ describe('POST /instances', () => {
     const instances = await TEST_DATABASE_INSTANCE.t_instance.find({
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
     });
-    instances.should.have.length(1);
-    instances[0].should.have.property('primary_instance', true);
+    expect(instances).to.have.lengthOf(1);
+    expect(instances[0]).to.have.property('primary_instance', true);
   });
 });
 
@@ -112,7 +112,7 @@ describe('GET /instances/access-token', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('access_token');
+        expect(response.body).to.have.property('access_token');
       }));
 });
 
@@ -126,10 +126,10 @@ describe('GET /instances/users', () => {
       .expect(200)
       .then((response) => {
         response.body.forEach((user) => {
-          user.should.have.property('id');
-          user.should.have.property('rsa_public_key');
-          user.should.have.property('ecdsa_public_key');
-          user.should.have.property('connected');
+          expect(user).to.have.property('id');
+          expect(user).to.have.property('rsa_public_key');
+          expect(user).to.have.property('ecdsa_public_key');
+          expect(user).to.have.property('connected');
         });
       }));
 });

@@ -1,10 +1,10 @@
 let databaseTask;
 let redisTask;
-const should = require('should'); // eslint-disable-line no-unused-vars
 require('./tasks/nock');
 const Dotenv = require('dotenv');
 const chai = require('chai');
-const chaiAsPromised = require('chai-as-promised');
+// chai-as-promised v8 is ESM-only: require() returns the module namespace, the plugin is its default export
+const { default: chaiAsPromised } = require('chai-as-promised');
 
 Dotenv.config();
 

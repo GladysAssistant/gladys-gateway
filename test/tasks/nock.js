@@ -29,7 +29,10 @@ function setupPersistentNocks() {
   nock('https://api.stripe.com:443', { encodedQueryParams: true })
     .get('/v1/subscriptions/sub')
     .reply(200, {
-      current_period_end: 1289482682000, // in 2010
+      id: 'sub',
+      status: 'canceled',
+      cancel_at_period_end: false,
+      current_period_end: 1289482682, // in 2010 (Stripe timestamps are in seconds)
     })
     .persist();
 

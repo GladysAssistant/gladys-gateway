@@ -1,6 +1,7 @@
 const { RateLimiterRedis } = require('rate-limiter-flexible');
 
 const { UnauthorizedError, TooManyRequestsError } = require('../common/error');
+const { secureCompare } = require('../common/secure-compare');
 const asyncMiddleware = require('./asyncMiddleware');
 
 if (!process.env.ADMIN_API_AUTHORIZATION_TOKEN) {
@@ -29,8 +30,9 @@ module.exports = function AdminApiAuth(logger, redisClient) {
     }
 
     // if authorization header is good, we go to the next middleware
+    // (constant time comparison so the duration does not leak the token)
     const { authorization } = req.headers;
-    if (authorization === process.env.ADMIN_API_AUTHORIZATION_TOKEN) {
+    if (secureCompare(authorization, process.env.ADMIN_API_AUTHORIZATION_TOKEN)) {
       logger.info(`Admin API request`);
       return next();
     }

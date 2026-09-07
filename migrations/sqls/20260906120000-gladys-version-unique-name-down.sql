@@ -1,0 +1,1 @@
+DROP INDEX idx_unique_gladys_version_name;

@@ -179,10 +179,11 @@ describe('instance watchdog model', () => {
     const report = await watchdog.run({ execute: true });
 
     expect(report).to.deep.include({ connected: 1, back_online: 0, errors: 0 });
-    expect(report.instances).to.deep.equal([]);
+    expect(report.instances[0]).to.include({ action: 'already_closed' });
     expect(mailService.sentEmails).to.deep.equal([]);
-    // the outage is closed: the heartbeat of the connected instance is written
-    expect(db.instanceUpdates).to.have.lengthOf(1);
+    // the other run is still emailing: it heartbeats the instance itself once the email
+    // left, or keeps the real start of the outage for a retry if it did not
+    expect(db.instanceUpdates).to.deep.equal([]);
   });
 
   it('should report an offline instance without any confirmed admin to warn', async () => {

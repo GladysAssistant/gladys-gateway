@@ -113,7 +113,9 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
       { fields: ['id'] },
     );
     if (claimed.length === 0) {
-      return { action: 'ok' };
+      // A concurrent run is closing the outage: it heartbeats the instance itself once its
+      // email left, and keeps the real start of the outage for a retry if it did not.
+      return { action: 'already_closed' };
     }
     const recipients = await sendToAdmins(instance, 'instance_back_online', (admin) =>
       buildInstanceBackOnlineScope({
@@ -257,10 +259,11 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
       processOneInstance(instance, connectedInstanceIds.has(instance.id), execute, now),
     );
     // Heartbeat of the connected instances, after the emails so a "back online" email still
-    // knows when the outage started. An instance whose "back online" email failed keeps its
-    // date: the outage is still open, the retry needs the real start.
+    // knows when the outage started. An instance whose "back online" email failed, or is
+    // being sent by a concurrent run, keeps its date: the outage may still be open, the
+    // retry needs the real start.
     const heartbeatIds = results
-      .filter((instance) => instance.connected && instance.action !== 'error')
+      .filter((instance) => instance.connected && !['error', 'already_closed'].includes(instance.action))
       .map((instance) => instance.id);
     if (execute && heartbeatIds.length > 0) {
       await db.query('UPDATE t_instance SET last_seen_at = $1 WHERE id = ANY($2::uuid[])', [now, heartbeatIds]);

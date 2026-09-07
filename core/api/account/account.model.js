@@ -18,6 +18,7 @@ const {
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { instanceOfflineAlertSchema } = require('../../common/schema');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -916,6 +917,42 @@ module.exports = function AccountModel(
     return deletedUser;
   }
 
+  /**
+   * Instance watchdog of the account: the admins of the account receive an email when its
+   * Gladys has been unreachable for longer than the delay (see instance-watchdog.model.js).
+   * Only an admin can change it, everyone reads it on GET /users/me.
+   */
+  async function updateInstanceOfflineAlert(user, body) {
+    const { error, value } = instanceOfflineAlertSchema.validate(body || {}, { stripUnknown: true, abortEarly: false });
+    if (error) {
+      throw new ValidationError('instance_offline_alert', error);
+    }
+    const userWithAccount = await db.t_user.findOne(
+      { id: user.id, is_deleted: false },
+      { fields: ['id', 'role', 'account_id'] },
+    );
+    if (userWithAccount === null) {
+      throw new NotFoundError('User not found');
+    }
+    if (userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+    const values = {};
+    if (value.enabled !== undefined) {
+      values.instance_offline_alert_enabled = value.enabled;
+    }
+    if (value.delay_in_minutes !== undefined) {
+      values.instance_offline_alert_delay_in_minutes = value.delay_in_minutes;
+    }
+    const [account] = await db.t_account.update({ id: userWithAccount.account_id }, values, {
+      fields: ['instance_offline_alert_enabled', 'instance_offline_alert_delay_in_minutes'],
+    });
+    return {
+      enabled: account.instance_offline_alert_enabled,
+      delay_in_minutes: account.instance_offline_alert_delay_in_minutes,
+    };
+  }
+
   async function getInvoices(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -965,6 +1002,7 @@ module.exports = function AccountModel(
     getUsers,
     updateCard,
     revokeUser,
+    updateInstanceOfflineAlert,
     subscribeMonthlyPlan,
     cancelMonthlySubscription,
     subscribeAgainToMonthlySubscription,

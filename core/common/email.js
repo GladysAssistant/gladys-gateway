@@ -22,6 +22,26 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/confirmation.ejs`, 'utf8')),
     },
   },
+  instance_offline: {
+    en: {
+      subject: 'Your Gladys is not responding',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/instance_offline.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ta Gladys ne répond plus',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/instance_offline.ejs`, 'utf8')),
+    },
+  },
+  instance_back_online: {
+    en: {
+      subject: 'Your Gladys is back online',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/instance_back_online.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Ta Gladys est de nouveau en ligne',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/instance_back_online.ejs`, 'utf8')),
+    },
+  },
   invitation: {
     en: {
       subject: "You're invited to Gladys Plus",

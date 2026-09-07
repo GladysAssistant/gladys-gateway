@@ -43,6 +43,11 @@ app.get('/:template_name/:language', (req, res) => {
       accessEndedDate: '2 juin 2025',
       planProductName: 'Gladys Plus',
       subscribeUrl: 'https://gladysassistant.com/fr/plus',
+      instanceName: 'Raspberry Pi',
+      offlineFor: '2 h 15 min',
+      lastSeenDate: '7 septembre 2026 à 14:05 UTC',
+      alertDelay: '1 h',
+      downtime: '3 h 40 min',
       ...welcomeScope,
     }),
   );

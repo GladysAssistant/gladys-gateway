@@ -145,7 +145,7 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
       db.t_instance.find(
         { account_id: accountId },
         {
-          fields: ['id', 'name', 'primary_instance', 'is_deleted', 'created_at', 'updated_at'],
+          fields: ['id', 'name', 'primary_instance', 'is_deleted', 'last_seen_at', 'created_at', 'updated_at'],
           order: [{ field: 'created_at' }],
         },
       ),

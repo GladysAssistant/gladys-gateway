@@ -23,6 +23,14 @@ const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
 const GLADYS_PLUS_TRIAL_LIST = 'gladysPlusTrial';
 
+// Status stored on the account when a checkout session is completed. Stripe then holds the
+// subscription either active or trialing, and the status in database must reflect it (see
+// syncWithStripe in the admin API, which compares both). Anything else keeps the historical
+// default: the webhooks correct it afterwards.
+function getCheckoutAccountStatus(subscription) {
+  return subscription.status === 'trialing' ? 'trialing' : 'active';
+}
+
 module.exports = function AccountModel(
   logger,
   db,
@@ -221,7 +229,7 @@ module.exports = function AccountModel(
           stripe_customer_id: customer.id,
           stripe_subscription_id: subscription.id,
           current_period_end: new Date(subscription.current_period_end * 1000),
-          status: 'active',
+          status: getCheckoutAccountStatus(subscription),
           plan,
         },
         {
@@ -254,7 +262,7 @@ module.exports = function AccountModel(
       stripe_customer_id: customer.id,
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
-      status: 'active',
+      status: getCheckoutAccountStatus(subscription),
       plan,
     };
 
@@ -724,9 +732,9 @@ module.exports = function AccountModel(
 
         // Fetched as soon as this could be a yearly renewal: the subscription
         // carries both the interval, when the invoice does not, and the trial
-        // state, which `account.status` cannot be trusted for (a checkout
-        // account is inserted as `active` even while Stripe still has it
-        // trialing).
+        // state, which `account.status` cannot be trusted for (accounts created
+        // before the checkout stored the trial status are `active` in database
+        // even while Stripe still has them trialing).
         if ((!interval || interval === 'year') && subscriptionId) {
           subscription = await stripeService.getSubscription(subscriptionId);
           interval = interval || subscription?.items?.data?.[0]?.price?.recurring?.interval || null;

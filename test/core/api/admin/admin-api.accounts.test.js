@@ -180,6 +180,43 @@ describe('GET /admin/api/accounts/:id', () => {
   });
 });
 
+describe('PATCH /admin/api/accounts/:id', () => {
+  it('should flag an account as internal', async () => {
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`)
+      .send({ is_internal: true, status: 'canceled' })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.include({ id: ACCOUNT_WITH_USERS, is_internal: true, status: 'active' });
+    expect(response.body).to.not.have.property('stripe_portal_key');
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_USERS });
+    // unknown fields are ignored
+    expect(account).to.include({ is_internal: true, status: 'active' });
+    const list = await adminRequest('get', '/admin/api/accounts').expect(200);
+    expect(list.body.accounts.find((a) => a.id === ACCOUNT_WITH_USERS)).to.have.property('is_internal', true);
+    const details = await adminRequest('get', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).expect(200);
+    expect(details.body.account).to.have.property('is_internal', true);
+  });
+
+  it('should unflag an internal account', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update({ id: ACCOUNT_WITH_USERS }, { is_internal: true });
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`)
+      .send({ is_internal: false })
+      .expect(200);
+    expect(response.body).to.have.property('is_internal', false);
+  });
+
+  it('should return 422 with an empty or invalid body', async () => {
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).send({}).expect(422);
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).send({ is_internal: 'yes' }).expect(422);
+  });
+
+  it('should return 404 for an unknown account', async () => {
+    await adminRequest('patch', '/admin/api/accounts/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1')
+      .send({ is_internal: true })
+      .expect(404);
+  });
+});
+
 describe('DELETE /admin/api/accounts/:id', () => {
   it('should delete an account whose subscription is over', async function Test() {
     this.timeout(5000);
@@ -215,19 +252,59 @@ describe('DELETE /admin/api/accounts/:id', () => {
       { stripe_subscription_id: 'sub_active', stripe_customer_id: 'cus_active' },
     );
     nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/subscriptions/sub_active')
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_active', status: 'all', limit: '100' })
       .reply(200, {
-        id: 'sub_active',
-        status: 'active',
-        current_period_end: Math.round(new Date().getTime() / 1000) + 30 * 24 * 60 * 60,
+        object: 'list',
+        data: [
+          {
+            id: 'sub_active',
+            status: 'active',
+            current_period_end: Math.round(new Date().getTime() / 1000) + 30 * 24 * 60 * 60,
+          },
+        ],
       });
-    nock('https://api.stripe.com:443', { encodedQueryParams: true })
-      .get('/v1/customers/cus_active')
-      .reply(200, { id: 'cus_active', email: 'cus@cus.fr' });
     const response = await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(403);
     expect(response.body).to.have.property('error_code', 'FORBIDDEN');
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
     expect(account).to.not.equal(null);
+    expect(account.is_deleted).to.equal(false);
+  });
+
+  it('should delete an account whose subscription is canceled even if Stripe still exposes a future period', async () => {
+    // yearly subscription canceled for non payment: the unpaid period is still ahead on Stripe
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { stripe_subscription_id: 'sub_canceled_yearly', stripe_customer_id: 'cus_canceled_yearly' },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_canceled_yearly', status: 'all', limit: '100' })
+      .reply(200, {
+        object: 'list',
+        data: [
+          {
+            id: 'sub_canceled_yearly',
+            status: 'canceled',
+            current_period_end: Math.round(new Date().getTime() / 1000) + 200 * 24 * 60 * 60,
+          },
+        ],
+      });
+    await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(200);
+    expect(await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE })).to.equal(null);
+  });
+
+  it('should delete an account whose Stripe customer no longer exists', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { stripe_subscription_id: 'sub_gone', stripe_customer_id: 'cus_gone' },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions')
+      .query({ customer: 'cus_gone', status: 'all', limit: '100' })
+      .reply(404, { error: { type: 'invalid_request_error', code: 'resource_missing' } });
+    await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}`).expect(200);
+    expect(await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE })).to.equal(null);
   });
 
   it('should return 404 for an unknown account', async () => {

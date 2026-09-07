@@ -27,6 +27,7 @@ const Account = require('./api/account/account.model');
 const Device = require('./api/device/device.model');
 const Admin = require('./api/admin/admin.models');
 const AdminAccountModel = require('./api/admin/admin-account.model');
+const AdminAccountLifecycleModel = require('./api/admin/admin-account-lifecycle.model');
 const AdminVersionModel = require('./api/admin/admin-version.model');
 const OpenApi = require('./api/openapi/openapi.model');
 const Version = require('./api/version/version.model');
@@ -206,6 +207,13 @@ module.exports = async (port) => {
     openAIModel: OpenAIModel(logger, db, legacyRedisClient, instanceModel),
   };
   models.adminAccountModel = AdminAccountModel(logger, db, services.stripeService, models.enedisModel);
+  models.adminAccountLifecycleModel = AdminAccountLifecycleModel(
+    logger,
+    db,
+    services.stripeService,
+    services.mailService,
+    models.adminModel,
+  );
   models.adminVersionModel = AdminVersionModel(logger, db);
 
   const controllers = {
@@ -222,6 +230,7 @@ module.exports = async (port) => {
       models.adminAccountModel,
       models.adminVersionModel,
       models.adminModel,
+      models.adminAccountLifecycleModel,
     ),
     openAIController: OpenAIController(models.openAIModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),

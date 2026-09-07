@@ -181,7 +181,9 @@ module.exports = function AccountModel(
     );
 
     // we first test if an account already exist with this email
-    const existingAccount = await db.t_account.findOne({ name: email });
+    // An account claimed by a deletion in progress (is_deleted) is not re-linked: the
+    // customer gets a fresh account instead of one being wiped.
+    const existingAccount = await db.t_account.findOne({ name: email, is_deleted: false });
 
     // An account already exists with this email: this is a re-subscription, not a new sign-up.
     if (existingAccount !== null) {
@@ -210,8 +212,11 @@ module.exports = function AccountModel(
       logger.info(
         `createAccountFromStripeSession: re-linking account ${existingAccount.id} (was ${existingAccount.status}) to new Stripe customer ${customer.id} / subscription ${subscription.id}, plan=${plan}`,
       );
-      const updatedAccount = await db.t_account.update(
-        existingAccount.id,
+      // is_deleted is part of the predicate: a deletion claiming the account between the
+      // lookup above and this update (see adminModel.deleteAccount) must win, the customer
+      // then gets a brand new account below instead of one being wiped.
+      const [updatedAccount] = await db.t_account.update(
+        { id: existingAccount.id, is_deleted: false },
         {
           stripe_customer_id: customer.id,
           stripe_subscription_id: subscription.id,
@@ -223,21 +228,26 @@ module.exports = function AccountModel(
           fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
         },
       );
-      logger.info(`createAccountFromStripeSession: account ${existingAccount.id} successfully re-linked`);
+      if (updatedAccount) {
+        logger.info(`createAccountFromStripeSession: account ${existingAccount.id} successfully re-linked`);
 
-      logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
-      await mailService.send({ email, language }, 'welcome_back', {
-        loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
-      });
+        logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
+        await mailService.send({ email, language }, 'welcome_back', {
+          loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+        });
 
-      telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
+        telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);
 
-      await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
+        await maybeSubscribeToTrialEmailList({ subscription, email, customer, language });
 
-      return updatedAccount;
+        return updatedAccount;
+      }
+      logger.warn(
+        `createAccountFromStripeSession: account ${existingAccount.id} was claimed by a deletion in the meantime, creating a brand new account instead`,
+      );
+    } else {
+      logger.info(`createAccountFromStripeSession: no existing account for ${email}, creating a brand new account`);
     }
-
-    logger.info(`createAccountFromStripeSession: no existing account for ${email}, creating a brand new account`);
 
     const newAccount = {
       name: email,
@@ -806,10 +816,41 @@ module.exports = function AccountModel(
         break;
       }
 
-      case 'customer.subscription.deleted':
-        // subscription is canceled, remove the client
+      case 'customer.subscription.deleted': {
+        // The subscription is over, either canceled by the user (at the end of the paid
+        // period) or by Stripe at the end of the dunning of an unpaid invoice. In the second
+        // case no `customer.subscription.updated` follows: without this update the account
+        // would stay `past_due` forever. The end of access is kept when it is already in the
+        // past (set when the subscription became past_due), otherwise access stops now.
+        if (event.data.object.id !== account.stripe_subscription_id) {
+          // an older subscription of the same customer: the account moved on to another one
+          logger.warn(
+            `Stripe Webhook : subscription "${event.data.object.id}" deleted but account ${account.id} is linked to "${account.stripe_subscription_id}", ignoring.`,
+          );
+          break;
+        }
+        const now = new Date();
+        const accessEndedAt =
+          account.current_period_end && new Date(account.current_period_end) < now ? account.current_period_end : now;
+        // The subscription id is part of the predicate: a re-subscription re-linking the
+        // account to a new subscription between the lookup above and this update must win.
+        const updatedAccounts = await db.t_account.update(
+          { id: account.id, stripe_subscription_id: event.data.object.id },
+          {
+            status: 'canceled',
+            current_period_end: accessEndedAt,
+          },
+          {
+            fields: ['id'],
+          },
+        );
+        if (updatedAccounts.length === 0) {
+          logger.warn(`Stripe Webhook : account ${account.id} was re-linked in the meantime, ignoring deletion.`);
+          break;
+        }
         telegramService.sendAlert(`Subscription canceled! Customer email = ${email}, language = ${language}`);
         break;
+      }
 
       default:
         break;

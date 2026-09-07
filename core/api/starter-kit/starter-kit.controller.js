@@ -1,4 +1,19 @@
-module.exports = function StarterKitController(starterKitModel) {
+/**
+ * Starter kit orders. Public routes are used by the customer tracking page (token from the
+ * email), admin routes are part of the Admin API (see core/middleware/adminAuth.js) and every
+ * mutation is logged with who did it (audit trail, ids only, never emails).
+ */
+module.exports = function StarterKitController(logger, starterKitModel) {
+  function describeCaller(req) {
+    const { admin } = req;
+    const who = admin.auth_mode === 'api_key' ? `api key ${admin.api_key_name}` : `super admin ${admin.user_id}`;
+    return `${who} from ${req.ip}`;
+  }
+
+  function audit(req, action) {
+    logger.warn(`Admin API audit: ${action} by ${describeCaller(req)}`);
+  }
+
   /**
    * @api {get} /starter-kit/orders/:token Get starter kit order (customer tracking page)
    * @apiName Get starter kit order
@@ -47,9 +62,11 @@ module.exports = function StarterKitController(starterKitModel) {
   }
 
   /**
-   * @api {get} /admin/starter-kit/orders List starter kit orders
+   * @api {get} /admin/api/starter-kit/orders List starter kit orders
    * @apiName List starter kit orders
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiParam {String} [status] Filter by status, or "open" for orders not delivered/cancelled
    * @apiParam {Number} [limit=50]
@@ -69,9 +86,11 @@ module.exports = function StarterKitController(starterKitModel) {
   }
 
   /**
-   * @api {get} /admin/starter-kit/orders/:id Get starter kit order
+   * @api {get} /admin/api/starter-kit/orders/:id Get starter kit order
    * @apiName Get starter kit order (admin)
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    */
   async function getOrder(req, res, next) {
     const order = await starterKitModel.getOrderById(req.params.id);
@@ -79,9 +98,11 @@ module.exports = function StarterKitController(starterKitModel) {
   }
 
   /**
-   * @api {post} /admin/starter-kit/orders Create starter kit order manually
+   * @api {post} /admin/api/starter-kit/orders Create starter kit order manually
    * @apiName Create starter kit order
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiParam {String} email
    * @apiParam {String} [customer_name]
@@ -93,13 +114,16 @@ module.exports = function StarterKitController(starterKitModel) {
    */
   async function createOrder(req, res, next) {
     const order = await starterKitModel.createOrder(req.body);
+    audit(req, `create starter kit order ${order.id}`);
     res.status(201).json(order);
   }
 
   /**
-   * @api {patch} /admin/starter-kit/orders/:id Update starter kit order
+   * @api {patch} /admin/api/starter-kit/orders/:id Update starter kit order
    * @apiName Update starter kit order
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiParam {String} [notes]
    * @apiParam {String} [ssh_password]
@@ -110,13 +134,16 @@ module.exports = function StarterKitController(starterKitModel) {
    */
   async function updateOrder(req, res, next) {
     const order = await starterKitModel.updateOrder(req.params.id, req.body);
+    audit(req, `update starter kit order ${order.id}`);
     res.json(order);
   }
 
   /**
-   * @api {post} /admin/starter-kit/orders/:id/status Change order status
-   * @apiName Change starter kit order status
-   * @apiGroup StarterKitAdmin
+   * @api {post} /admin/api/starter-kit/orders/:id/status Change order status
+   * @apiName adminChangeStarterKitOrderStatus
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiParam {string="mini_pc_ordered","mini_pc_received","installed","shipped","delivered","cancelled"} status
    * @apiParam {Date} [mini_pc_expected_at] Expected reception date of the mini-PC
@@ -126,42 +153,55 @@ module.exports = function StarterKitController(starterKitModel) {
    */
   async function changeStatus(req, res, next) {
     const order = await starterKitModel.changeStatus(req.params.id, req.body);
+    audit(req, `move starter kit order ${order.id} to ${order.status}`);
     res.json(order);
   }
 
   /**
-   * @api {post} /admin/starter-kit/orders/:id/label Create the Mondial Relay shipment and label
+   * @api {post} /admin/api/starter-kit/orders/:id/label Create the Mondial Relay shipment and label
    * @apiName Create starter kit label
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    */
   async function createLabel(req, res, next) {
     const order = await starterKitModel.createLabel(req.params.id);
+    audit(req, `create Mondial Relay label of starter kit order ${order.id}`);
     res.json(order);
   }
 
   /**
-   * @api {post} /admin/starter-kit/orders/:id/resend-email Send again an email to the customer
+   * @api {post} /admin/api/starter-kit/orders/:id/resend-email Send again an email to the customer
    * @apiName Resend starter kit email
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiParam {String} template starter_kit_order_confirmed, starter_kit_pickup_point_reminder,
    * starter_kit_status_update, starter_kit_shipped or starter_kit_delivered
    */
   async function resendEmail(req, res, next) {
     const order = await starterKitModel.resendEmail(req.params.id, req.body);
+    audit(req, `resend ${req.body.template} email of starter kit order ${order.id}`);
     res.json(order);
   }
 
   /**
-   * @api {post} /admin/api/starter-kit/daily Daily starter kit tasks (cron)
+   * @api {post} /admin/api/starter-kit/daily Run starter kit daily tasks
    * @apiName Starter kit daily tasks
-   * @apiGroup StarterKitAdmin
+   * @apiGroup Admin API
+   * @apiHeader {String} [X-Admin-Api-Key] Admin API key (machine access)
+   * @apiHeader {String} [Authorization] Super admin access token (Bearer JWT)
    *
    * @apiDescription Sends pickup point reminders, refreshes Mondial Relay tracking
    * (orders are marked as delivered automatically) and posts a digest on Telegram.
    */
   async function runDailyTasks(req, res, next) {
     const result = await starterKitModel.runDailyTasks();
+    audit(
+      req,
+      `run starter kit daily tasks (${result.reminded.length} reminded, ${result.delivered.length} delivered)`,
+    );
     res.json({ status: 200, ...result });
   }
 

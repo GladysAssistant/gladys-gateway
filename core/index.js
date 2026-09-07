@@ -27,6 +27,8 @@ const Invitation = require('./api/invitation/invitation.model');
 const Account = require('./api/account/account.model');
 const Device = require('./api/device/device.model');
 const Admin = require('./api/admin/admin.models');
+const AdminAccountModel = require('./api/admin/admin-account.model');
+const AdminVersionModel = require('./api/admin/admin-version.model');
 const OpenApi = require('./api/openapi/openapi.model');
 const Version = require('./api/version/version.model');
 const Backup = require('./api/backup/backup.model');
@@ -48,6 +50,7 @@ const InvitationController = require('./api/invitation/invitation.controller');
 const AccountController = require('./api/account/account.controller');
 const DeviceController = require('./api/device/device.controller');
 const AdminController = require('./api/admin/admin.controller');
+const AdminApiController = require('./api/admin/admin-api.controller');
 const OpenAIController = require('./api/openai/openai.controller');
 const OpenAIModel = require('./api/openai/openai.model');
 const OpenApiController = require('./api/openapi/openapi.controller');
@@ -77,6 +80,7 @@ const OpenApiKeyAuthMiddleware = require('./middleware/openApiApiKeyAuth');
 const gladysUsageMiddleware = require('./middleware/gladysUsage');
 const requestExecutionTime = require('./middleware/requestExecutionTime');
 const AdminApiAuth = require('./middleware/adminApiAuth');
+const AdminAuth = require('./middleware/adminAuth');
 const OpenAIAuthAndRateLimit = require('./middleware/openAIAuthAndRateLimit');
 const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAuth');
 const CheckUserPlan = require('./middleware/checkUserPlan');
@@ -215,6 +219,8 @@ module.exports = async (port) => {
     tempoModel: TempoModel(logger, db, redisClient),
     openAIModel: OpenAIModel(logger, db, legacyRedisClient, instanceModel),
   };
+  models.adminAccountModel = AdminAccountModel(logger, db, services.stripeService, models.enedisModel);
+  models.adminVersionModel = AdminVersionModel(logger, db);
 
   const controllers = {
     pingController: PingController(models.pingModel),
@@ -225,6 +231,12 @@ module.exports = async (port) => {
     accountController: AccountController(models.accountModel, models.socketModel),
     deviceController: DeviceController(models.deviceModel),
     adminController: AdminController(models.adminModel),
+    adminApiController: AdminApiController(
+      logger,
+      models.adminAccountModel,
+      models.adminVersionModel,
+      models.adminModel,
+    ),
     openAIController: OpenAIController(models.openAIModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
     versionController: VersionController(models.versionModel),
@@ -251,7 +263,7 @@ module.exports = async (port) => {
     enedisController: EnedisController(logger, models.enedisModel),
     ecowattController: EcowattController(logger, models.ecowattModel),
     tempoController: TempoController(logger, models.tempoModel),
-    starterKitController: StarterKitController(models.starterKitModel),
+    starterKitController: StarterKitController(logger, models.starterKitModel),
     cameraController: CameraController(
       logger,
       models.userModel,
@@ -285,6 +297,7 @@ module.exports = async (port) => {
     gladysUsage: gladysUsageMiddleware(logger, db),
     requestExecutionTime: requestExecutionTime(logger, services.analyticsService),
     adminApiAuth: AdminApiAuth(logger, legacyRedisClient),
+    adminAuth: AdminAuth(logger, legacyRedisClient, AccessTokenAuthMiddleware(logger)),
     openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
     cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
     checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, logger),

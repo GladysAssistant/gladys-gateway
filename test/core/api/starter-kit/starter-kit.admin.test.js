@@ -13,8 +13,9 @@ const ORDER_SHIPPED = '5f0c5a2a-6a0b-4b53-9c3a-0a0d2e3f4a03';
 const soapResponse = (method, inner) =>
   `<?xml version="1.0" encoding="utf-8"?><soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/"><soap:Body><${method}Response xmlns="http://www.mondialrelay.fr/webservice/"><${method}Result>${inner}</${method}Result></${method}Response></soap:Body></soap:Envelope>`;
 
+// Machine access with the admin API key (the super admin token is tested separately)
 function admin(req) {
-  return req.set('Accept', 'application/json').set('Authorization', configTest.jwtAccessTokenDashboard);
+  return req.set('Accept', 'application/json').set('X-Admin-Api-Key', process.env.ADMIN_API_AUTHORIZATION_TOKEN);
 }
 
 // Emails sent during the test (the fixtures contain an old confirmation email event)
@@ -32,7 +33,11 @@ describe('Starter kit admin API', () => {
     previousSuperAdminUserId = process.env.SUPER_ADMIN_USER_ID;
   });
   after(() => {
-    process.env.SUPER_ADMIN_USER_ID = previousSuperAdminUserId;
+    if (previousSuperAdminUserId === undefined) {
+      delete process.env.SUPER_ADMIN_USER_ID;
+    } else {
+      process.env.SUPER_ADMIN_USER_ID = previousSuperAdminUserId;
+    }
   });
   beforeEach(() => {
     process.env.SUPER_ADMIN_USER_ID = SUPER_ADMIN_USER_ID;
@@ -46,40 +51,59 @@ describe('Starter kit admin API', () => {
   });
 
   describe('authorization', () => {
-    it('should refuse a user who is not the super admin', async () => {
-      process.env.SUPER_ADMIN_USER_ID = 'other_id';
-      await admin(request(TEST_BACKEND_APP).get('/admin/starter-kit/orders')).expect(401);
+    it('should accept the super admin access token', async () => {
+      await request(TEST_BACKEND_APP)
+        .get('/admin/api/starter-kit/orders')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard)
+        .expect(200);
     });
 
-    it('should refuse the cron route without the admin API token', async () => {
+    it('should refuse a user who is not the super admin', async () => {
+      process.env.SUPER_ADMIN_USER_ID = 'other_id';
+      await request(TEST_BACKEND_APP)
+        .get('/admin/api/starter-kit/orders')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard)
+        .expect(401);
+    });
+
+    it('should refuse a wrong admin API key', async () => {
+      await request(TEST_BACKEND_APP)
+        .get('/admin/api/starter-kit/orders')
+        .set('X-Admin-Api-Key', 'x'.repeat(process.env.ADMIN_API_AUTHORIZATION_TOKEN.length))
+        .expect(401);
+    });
+
+    it('should refuse the cron route without credentials', async () => {
       await request(TEST_BACKEND_APP).post('/admin/api/starter-kit/daily').expect(401);
     });
   });
 
-  describe('GET /admin/starter-kit/orders', () => {
+  describe('GET /admin/api/starter-kit/orders', () => {
     it('should list orders with counts by status', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).get('/admin/starter-kit/orders')).expect(200);
+      const response = await admin(request(TEST_BACKEND_APP).get('/admin/api/starter-kit/orders')).expect(200);
       expect(response.body.orders).to.have.lengthOf(3);
       expect(response.body.counts).to.deep.equal({ paid: 1, installed: 1, shipped: 1 });
       expect(response.body.orders[0]).to.have.property('email');
     });
 
     it('should filter by status', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).get('/admin/starter-kit/orders?status=shipped')).expect(
-        200,
-      );
+      const response = await admin(
+        request(TEST_BACKEND_APP).get('/admin/api/starter-kit/orders?status=shipped'),
+      ).expect(200);
       expect(response.body.orders).to.have.lengthOf(1);
       expect(response.body.orders[0]).to.have.property('id', ORDER_SHIPPED);
     });
 
     it('should reject an invalid status filter', async () => {
-      await admin(request(TEST_BACKEND_APP).get('/admin/starter-kit/orders?status=nope')).expect(422);
+      await admin(request(TEST_BACKEND_APP).get('/admin/api/starter-kit/orders?status=nope')).expect(422);
     });
   });
 
-  describe('GET /admin/starter-kit/orders/:id', () => {
+  describe('GET /admin/api/starter-kit/orders/:id', () => {
     it('should return the order with its events', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).get(`/admin/starter-kit/orders/${ORDER_PAID}`)).expect(
+      const response = await admin(request(TEST_BACKEND_APP).get(`/admin/api/starter-kit/orders/${ORDER_PAID}`)).expect(
         200,
       );
       expect(response.body).to.include({
@@ -95,14 +119,14 @@ describe('Starter kit admin API', () => {
 
     it('should return 404 for an unknown order', async () => {
       await admin(
-        request(TEST_BACKEND_APP).get('/admin/starter-kit/orders/00000000-0000-4000-8000-000000000000'),
+        request(TEST_BACKEND_APP).get('/admin/api/starter-kit/orders/00000000-0000-4000-8000-000000000000'),
       ).expect(404);
     });
   });
 
-  describe('POST /admin/starter-kit/orders', () => {
+  describe('POST /admin/api/starter-kit/orders', () => {
     it('should create an order manually and send the confirmation email', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post('/admin/starter-kit/orders'))
+      const response = await admin(request(TEST_BACKEND_APP).post('/admin/api/starter-kit/orders'))
         .send({
           email: 'Manual@Test.fr',
           customer_name: 'Manuel Test',
@@ -124,20 +148,20 @@ describe('Starter kit admin API', () => {
     });
 
     it('should create an order without email by default', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post('/admin/starter-kit/orders'))
+      const response = await admin(request(TEST_BACKEND_APP).post('/admin/api/starter-kit/orders'))
         .send({ email: 'silent@test.fr' })
         .expect(201);
       expect(await getEmailEvents(response.body.id)).to.deep.equal([]);
     });
 
     it('should validate the body', async () => {
-      await admin(request(TEST_BACKEND_APP).post('/admin/starter-kit/orders')).send({ email: 'nope' }).expect(422);
+      await admin(request(TEST_BACKEND_APP).post('/admin/api/starter-kit/orders')).send({ email: 'nope' }).expect(422);
     });
   });
 
-  describe('PATCH /admin/starter-kit/orders/:id', () => {
+  describe('PATCH /admin/api/starter-kit/orders/:id', () => {
     it('should update notes, expected date and pickup point', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).patch(`/admin/starter-kit/orders/${ORDER_PAID}`))
+      const response = await admin(request(TEST_BACKEND_APP).patch(`/admin/api/starter-kit/orders/${ORDER_PAID}`))
         .send({
           notes: 'Client joignable le soir',
           mini_pc_expected_at: '2026-09-12',
@@ -151,15 +175,15 @@ describe('Starter kit admin API', () => {
     });
 
     it('should not allow to change the status through PATCH', async () => {
-      await admin(request(TEST_BACKEND_APP).patch(`/admin/starter-kit/orders/${ORDER_PAID}`))
+      await admin(request(TEST_BACKEND_APP).patch(`/admin/api/starter-kit/orders/${ORDER_PAID}`))
         .send({ status: 'shipped' })
         .expect(422);
     });
   });
 
-  describe('POST /admin/starter-kit/orders/:id/status', () => {
+  describe('POST /admin/api/starter-kit/orders/:id/status', () => {
     it('should move the order to mini_pc_ordered and email the customer', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/status`))
+      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/status`))
         .send({ status: 'mini_pc_ordered', mini_pc_expected_at: '2026-09-12', note: 'Commandé sur Amazon' })
         .expect(200);
       expect(response.body).to.include({ status: 'mini_pc_ordered', notes: 'Commandé sur Amazon' });
@@ -174,7 +198,7 @@ describe('Starter kit admin API', () => {
     });
 
     it('should allow to skip steps and not email on mini_pc_received', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/status`))
+      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/status`))
         .send({ status: 'mini_pc_received' })
         .expect(200);
       expect(response.body).to.have.property('status', 'mini_pc_received');
@@ -182,27 +206,27 @@ describe('Starter kit admin API', () => {
     });
 
     it('should let notify=false silence the customer email', async () => {
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/status`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/status`))
         .send({ status: 'installed', notify: false })
         .expect(200);
       expect(await getEmailEvents(ORDER_PAID)).to.deep.equal([]);
     });
 
     it('should refuse to go backward', async () => {
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`))
         .send({ status: 'paid' })
         .expect(400);
     });
 
     it('should refuse an unknown status', async () => {
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`))
         .send({ status: 'lost' })
         .expect(422);
     });
 
     it('should ship with a tracking number given manually (no Mondial Relay API)', async () => {
       const response = await admin(
-        request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`),
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`),
       )
         .send({ status: 'shipped', shipment_number: '87654321' })
         .expect(200);
@@ -215,7 +239,7 @@ describe('Starter kit admin API', () => {
 
     it('should refuse to ship without tracking number when Mondial Relay is not configured', async () => {
       const response = await admin(
-        request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`),
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`),
       )
         .send({ status: 'shipped' })
         .expect(400);
@@ -239,7 +263,7 @@ describe('Starter kit admin API', () => {
           ),
         );
       const response = await admin(
-        request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`),
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`),
       )
         .send({ status: 'shipped' })
         .expect(200);
@@ -260,19 +284,21 @@ describe('Starter kit admin API', () => {
     });
 
     it('should mark a shipped order as delivered and email the customer', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_SHIPPED}/status`))
+      const response = await admin(
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_SHIPPED}/status`),
+      )
         .send({ status: 'delivered' })
         .expect(200);
       expect(response.body).to.have.property('status', 'delivered');
       expect(await getEmailEvents(ORDER_SHIPPED)).to.deep.equal(['starter_kit_delivered']);
       // terminal: no more changes
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_SHIPPED}/status`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_SHIPPED}/status`))
         .send({ status: 'cancelled' })
         .expect(403);
     });
 
     it('should cancel an order without emailing the customer', async () => {
-      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/status`))
+      const response = await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/status`))
         .send({ status: 'cancelled', note: 'Remboursé' })
         .expect(200);
       expect(response.body).to.have.property('status', 'cancelled');
@@ -281,7 +307,7 @@ describe('Starter kit admin API', () => {
     });
   });
 
-  describe('POST /admin/starter-kit/orders/:id/label', () => {
+  describe('POST /admin/api/starter-kit/orders/:id/label', () => {
     it('should create the label without changing the status', async () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
@@ -295,7 +321,7 @@ describe('Starter kit admin API', () => {
           ),
         );
       const response = await admin(
-        request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/label`),
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/label`),
       ).expect(200);
       expect(response.body).to.include({
         status: 'installed',
@@ -304,7 +330,9 @@ describe('Starter kit admin API', () => {
       });
       expect(await getEmailEvents(ORDER_INSTALLED)).to.deep.equal([]);
       // Shipping afterwards reuses the existing shipment
-      const shipped = await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/status`))
+      const shipped = await admin(
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`),
+      )
         .send({ status: 'shipped' })
         .expect(200);
       expect(shipped.body).to.include({ status: 'shipped', shipment_number: '31234568' });
@@ -313,13 +341,13 @@ describe('Starter kit admin API', () => {
     it('should refuse to create a label without pickup point', async () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/label`)).expect(400);
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/label`)).expect(400);
     });
 
     it('should refuse to create a label twice', async () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_SHIPPED}/label`)).expect(400);
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_SHIPPED}/label`)).expect(400);
     });
 
     it('should surface Mondial Relay errors as 502', async () => {
@@ -329,15 +357,15 @@ describe('Starter kit admin API', () => {
         .post('/Web_Services.asmx')
         .reply(200, soapResponse('WSI2_CreationEtiquette', '<STAT>14</STAT>'));
       const response = await admin(
-        request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_INSTALLED}/label`),
+        request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/label`),
       ).expect(502);
       expect(response.body.error_message).to.include('Numéro de Relais de livraison invalide');
     });
   });
 
-  describe('POST /admin/starter-kit/orders/:id/resend-email', () => {
+  describe('POST /admin/api/starter-kit/orders/:id/resend-email', () => {
     it('should send again an email with the stable tracking token of the order', async () => {
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/resend-email`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/resend-email`))
         .send({ template: 'starter_kit_order_confirmed' })
         .expect(200);
       expect(await getEmailEvents(ORDER_PAID)).to.deep.equal(['starter_kit_order_confirmed']);
@@ -348,14 +376,14 @@ describe('Starter kit admin API', () => {
       await request(TEST_BACKEND_APP).get(`/starter-kit/orders/${token}`).expect(200);
       await request(TEST_BACKEND_APP).get('/starter-kit/orders/token-paid').expect(404);
       // Sending another email keeps the same token
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/resend-email`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/resend-email`))
         .send({ template: 'starter_kit_status_update' })
         .expect(200);
       await request(TEST_BACKEND_APP).get(`/starter-kit/orders/${token}`).expect(200);
     });
 
     it('should reject an unknown template', async () => {
-      await admin(request(TEST_BACKEND_APP).post(`/admin/starter-kit/orders/${ORDER_PAID}/resend-email`))
+      await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/resend-email`))
         .send({ template: 'welcome' })
         .expect(422);
     });
@@ -365,7 +393,11 @@ describe('Starter kit admin API', () => {
     it('should keep the order and unlink the deleted account', async () => {
       const accountId = 'be2b9666-5c72-451e-98f4-efca76ffef54';
       await TEST_DATABASE_INSTANCE.t_starter_kit_order.update(ORDER_PAID, { account_id: accountId });
-      await admin(request(TEST_BACKEND_APP).delete(`/admin/accounts/${accountId}`)).expect(200);
+      await request(TEST_BACKEND_APP)
+        .delete(`/admin/accounts/${accountId}`)
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard)
+        .expect(200);
       const order = await TEST_DATABASE_INSTANCE.t_starter_kit_order.findOne({ id: ORDER_PAID });
       expect(order).to.include({ account_id: null, status: 'paid', ssh_password: 'ssh-password-paid' });
     });
@@ -380,7 +412,7 @@ describe('Starter kit admin API', () => {
         .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>82</STAT><Libelle01>Colis livré</Libelle01>'));
       const response = await request(TEST_BACKEND_APP)
         .post('/admin/api/starter-kit/daily')
-        .set('Authorization', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
+        .set('X-Admin-Api-Key', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
         .expect(200);
       expect(response.body).to.deep.equal({ status: 200, reminded: [ORDER_PAID], delivered: [ORDER_SHIPPED] });
       expect(await getEmailEvents(ORDER_PAID)).to.deep.equal(['starter_kit_pickup_point_reminder']);
@@ -394,11 +426,11 @@ describe('Starter kit admin API', () => {
     it('should not remind twice and skip tracking when Mondial Relay is not configured', async () => {
       await request(TEST_BACKEND_APP)
         .post('/admin/api/starter-kit/daily')
-        .set('Authorization', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
+        .set('X-Admin-Api-Key', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
         .expect(200);
       const response = await request(TEST_BACKEND_APP)
         .post('/admin/api/starter-kit/daily')
-        .set('Authorization', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
+        .set('X-Admin-Api-Key', process.env.ADMIN_API_AUTHORIZATION_TOKEN)
         .expect(200);
       expect(response.body).to.deep.equal({ status: 200, reminded: [], delivered: [] });
       expect(await getEmailEvents(ORDER_PAID)).to.deep.equal(['starter_kit_pickup_point_reminder']);

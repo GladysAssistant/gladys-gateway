@@ -33,7 +33,10 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
   app.use((req, res, next) => {
     res.header('Access-Control-Allow-Origin', '*');
     res.header('Access-Control-Allow-Methods', 'GET,PUT,POST,PATCH,DELETE,OPTIONS');
-    res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, Content-Length, X-Requested-With');
+    res.header(
+      'Access-Control-Allow-Headers',
+      'Content-Type, Authorization, Content-Length, X-Requested-With, X-Admin-Api-Key',
+    );
     next();
   });
 
@@ -306,6 +309,33 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.adminController.deleteAccount),
   );
 
+  // Admin API (accounts, users, Enedis, Gladys versions)
+  // Auth: X-Admin-Api-Key header (ADMIN_API_AUTHORIZATION_TOKEN) or super admin access token
+  const adminAuth = middlewares.adminAuth();
+  app.get('/admin/api/accounts', adminAuth, asyncMiddleware(controllers.adminApiController.listAccounts));
+  app.get('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.getAccount));
+  app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
+  app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));
+  app.post(
+    '/admin/api/accounts/:id/enedis/refresh',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.refreshEnedisData),
+  );
+  app.post(
+    '/admin/api/users/:id/reset_two_factor',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.resetTwoFactor),
+  );
+  app.delete('/admin/api/users/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteUser));
+  app.get('/admin/api/gladys/versions', adminAuth, asyncMiddleware(controllers.adminApiController.listVersions));
+  // The release GitHub Action only holds the restricted GLADYS_VERSION_API_KEY
+  app.post(
+    '/admin/api/gladys/versions',
+    middlewares.adminAuth({ apiKeys: ['ADMIN_API_AUTHORIZATION_TOKEN', 'GLADYS_VERSION_API_KEY'] }),
+    asyncMiddleware(controllers.adminApiController.createVersion),
+  );
+  app.patch('/admin/api/gladys/versions/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateVersion));
+
   // starter kit: customer tracking page (token sent by email)
   app.get(
     '/starter-kit/orders/:token',
@@ -318,56 +348,32 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.starterKitController.selectPickupPoint),
   );
 
-  // starter kit: admin
-  app.get(
-    '/admin/starter-kit/orders',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
-    asyncMiddleware(controllers.starterKitController.getOrders),
-  );
-  app.post(
-    '/admin/starter-kit/orders',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
-    asyncMiddleware(controllers.starterKitController.createOrder),
-  );
-  app.get(
-    '/admin/starter-kit/orders/:id',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
-    asyncMiddleware(controllers.starterKitController.getOrder),
-  );
+  // Admin API: starter kit orders (same auth as the other /admin/api routes)
+  app.get('/admin/api/starter-kit/orders', adminAuth, asyncMiddleware(controllers.starterKitController.getOrders));
+  app.post('/admin/api/starter-kit/orders', adminAuth, asyncMiddleware(controllers.starterKitController.createOrder));
+  app.get('/admin/api/starter-kit/orders/:id', adminAuth, asyncMiddleware(controllers.starterKitController.getOrder));
   app.patch(
-    '/admin/starter-kit/orders/:id',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
+    '/admin/api/starter-kit/orders/:id',
+    adminAuth,
     asyncMiddleware(controllers.starterKitController.updateOrder),
   );
   app.post(
-    '/admin/starter-kit/orders/:id/status',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
+    '/admin/api/starter-kit/orders/:id/status',
+    adminAuth,
     asyncMiddleware(controllers.starterKitController.changeStatus),
   );
   app.post(
-    '/admin/starter-kit/orders/:id/label',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
+    '/admin/api/starter-kit/orders/:id/label',
+    adminAuth,
     asyncMiddleware(controllers.starterKitController.createLabel),
   );
   app.post(
-    '/admin/starter-kit/orders/:id/resend-email',
-    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
-    middlewares.isSuperAdmin,
+    '/admin/api/starter-kit/orders/:id/resend-email',
+    adminAuth,
     asyncMiddleware(controllers.starterKitController.resendEmail),
   );
-
-  // starter kit: daily cron (reminders, Mondial Relay tracking, Telegram digest)
-  app.post(
-    '/admin/api/starter-kit/daily',
-    middlewares.adminApiAuth,
-    asyncMiddleware(controllers.starterKitController.runDailyTasks),
-  );
+  // daily cron (reminders, Mondial Relay tracking, Telegram digest)
+  app.post('/admin/api/starter-kit/daily', adminAuth, asyncMiddleware(controllers.starterKitController.runDailyTasks));
 
   // stripe webhook
   app.post('/stripe/webhook', asyncMiddleware(controllers.accountController.stripeEvent));

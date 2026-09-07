@@ -251,7 +251,7 @@ describe('Starter kit admin API', () => {
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
       let requestBody;
       nock('https://api.mondialrelay.com')
-        .post('/Web_Services.asmx', (body) => {
+        .post('/WebService.asmx', (body) => {
           requestBody = body;
           return body.includes('<WSI2_CreationEtiquette');
         })
@@ -312,7 +312,7 @@ describe('Starter kit admin API', () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
       nock('https://api.mondialrelay.com')
-        .post('/Web_Services.asmx')
+        .post('/WebService.asmx')
         .reply(
           200,
           soapResponse(
@@ -354,7 +354,7 @@ describe('Starter kit admin API', () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
       nock('https://api.mondialrelay.com')
-        .post('/Web_Services.asmx')
+        .post('/WebService.asmx')
         .reply(200, soapResponse('WSI2_CreationEtiquette', '<STAT>14</STAT>'));
       const response = await admin(
         request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/label`),
@@ -408,7 +408,7 @@ describe('Starter kit admin API', () => {
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
       nock('https://api.mondialrelay.com')
-        .post('/Web_Services.asmx', (body) => body.includes('<Expedition>12345678</Expedition>'))
+        .post('/WebService.asmx', (body) => body.includes('<Expedition>12345678</Expedition>'))
         .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>82</STAT><Libelle01>Colis livré</Libelle01>'));
       const response = await request(TEST_BACKEND_APP)
         .post('/admin/api/starter-kit/daily')

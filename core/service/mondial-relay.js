@@ -1,10 +1,10 @@
 const crypto = require('crypto');
 const axios = require('axios');
 
-// Mondial Relay "Web Service" (SOAP, v5): https://api.mondialrelay.com/Web_Services.asmx
-// Credentials (code enseigne + clé privée) are found in the Mondial Relay Connect Pro
-// account, under "Mon profil" > "Mes paramètres de connexion".
-const DEFAULT_API_URL = 'https://api.mondialrelay.com/Web_Services.asmx';
+// Mondial Relay "Web Service" (SOAP, v5): https://api.mondialrelay.com/WebService.asmx
+// (the URL, the code enseigne and the clé privée are displayed in the Mondial Relay
+// Connect Pro account, under "Mon profil" > "Mes paramètres de connexion").
+const DEFAULT_API_URL = 'https://api.mondialrelay.com/WebService.asmx';
 const SOAP_NAMESPACE = 'http://www.mondialrelay.fr/webservice/';
 const LABEL_BASE_URL = 'https://www.mondialrelay.com';
 const PUBLIC_TRACKING_URL = 'https://www.mondialrelay.fr/suivi-de-colis/';
@@ -289,7 +289,8 @@ module.exports = function MondialRelayService(logger) {
     return Boolean(enseigne && privateKey);
   }
 
-  // Code used by the Mondial Relay pickup point widget on the website
+  // "Brand" parameter of the Mondial Relay pickup point widget on the website: the code
+  // enseigne (8 characters), unless Mondial Relay provided a dedicated widget code
   function getWidgetBrandCode() {
     return process.env.MONDIAL_RELAY_BRAND_CODE || getConfig().enseigne || null;
   }

@@ -64,7 +64,7 @@ describe('MondialRelayService', () => {
   it('should create a pickup point shipment and return the label', async () => {
     let requestBody;
     nock('https://api.mondialrelay.com')
-      .post('/Web_Services.asmx', (body) => {
+      .post('/WebService.asmx', (body) => {
         requestBody = body;
         return true;
       })
@@ -104,7 +104,7 @@ describe('MondialRelayService', () => {
 
   it('should throw a readable error when Mondial Relay returns an error STAT', async () => {
     nock('https://api.mondialrelay.com')
-      .post('/Web_Services.asmx')
+      .post('/WebService.asmx')
       .reply(200, soapResponse('WSI2_CreationEtiquette', '<STAT>97</STAT>'));
     await expect(
       service.createPickupPointShipment({
@@ -118,7 +118,7 @@ describe('MondialRelayService', () => {
   it('should get the tracking of a shipment and detect delivery', async () => {
     nock('https://api.mondialrelay.com')
       .post(
-        '/Web_Services.asmx',
+        '/WebService.asmx',
         (body) => body.includes('<WSI2_TracingColisDetaille') && body.includes('<Langue>FR</Langue>'),
       )
       .reply(
@@ -140,7 +140,7 @@ describe('MondialRelayService', () => {
 
   it('should not report an in-transit shipment as delivered and ask English tracking with GB', async () => {
     nock('https://api.mondialrelay.com')
-      .post('/Web_Services.asmx', (body) => body.includes('<Langue>GB</Langue>'))
+      .post('/WebService.asmx', (body) => body.includes('<Langue>GB</Langue>'))
       .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>81</STAT><Libelle01>In progress</Libelle01>'));
     const tracking = await service.getTracking('31234567', 'en');
     expect(tracking.delivered).to.equal(false);
@@ -149,7 +149,7 @@ describe('MondialRelayService', () => {
 
   it('should throw when the tracking returns an error STAT', async () => {
     nock('https://api.mondialrelay.com')
-      .post('/Web_Services.asmx')
+      .post('/WebService.asmx')
       .reply(200, soapResponse('WSI2_TracingColisDetaille', '<STAT>94</STAT>'));
     await expect(service.getTracking('00000000')).to.be.rejectedWith('Colis inexistant');
   });

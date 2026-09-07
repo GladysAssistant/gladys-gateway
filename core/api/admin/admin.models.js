@@ -100,6 +100,10 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
     if (claimed.length === 0) {
       throw new ForbiddenError('Account was re-subscribed in the meantime, not deleting');
     }
+    // Users are soft deleted right away: the unique index on t_user.email only covers non
+    // deleted users, so a re-subscription landing during the (long) backup deletion below can
+    // create its fresh account and confirm its user without waiting for the rows to be gone.
+    await db.t_user.update({ account_id: accountId }, { is_deleted: true });
     const backups = await db.t_backup.find({ account_id: accountId });
     // deleting backups
     logger.info(`Deleting from Storage ${backups.length} backups.`);

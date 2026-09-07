@@ -126,6 +126,12 @@ describe('Instance offline alert settings (GET /users/me, PATCH /accounts/instan
     expect(account).to.include({ instance_offline_alert_enabled: false, instance_offline_alert_delay_in_minutes: 60 });
   });
 
+  it('should answer 404 for a user that no longer exists', async () => {
+    const jwt = Jwt();
+    const token = jwt.generateAccessToken({ id: '1dd07393-f052-4395-bbd7-dc932e2a2f4b' }, ['dashboard:write']);
+    await updateAlert({ enabled: true }, token).expect(404);
+  });
+
   it('should refuse a user who is not admin of the account', async () => {
     await TEST_DATABASE_INSTANCE.t_user.update({ id: ADMIN_ID }, { role: 'user' });
     await updateAlert({ enabled: true }).expect(403);

@@ -82,6 +82,6 @@ Two jobs keep the accounts table consistent with Stripe and clean up the account
 */5 * * * * curl -s -X POST "https://<gateway-url>/admin/api/instances/watchdog" -H "Content-Type: application/json" -H "X-Admin-Api-Key: $ADMIN_API_KEY" -d '{"execute": true}'
 ```
 
-The frequency only decides how late after the delay the email leaves: an instance is never reported offline while it is connected, whatever the cron interval.
+The frequency only decides how late after the delay the email leaves: an instance is never reported offline while it is connected, whatever the cron interval. The job fails closed: when none of the instances is connected while at least `INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES` (10 by default) of them are checked, the socket cluster is suspect rather than every customer, and the run is aborted without any email (`"aborted": "no_instance_connected"` in the report).
 
 Internal accounts (team, tests, demos) are flagged with `PATCH /admin/api/accounts/:id` and `{ "is_internal": true }`: they are excluded from the paying users stats and are never touched by the retention policy.

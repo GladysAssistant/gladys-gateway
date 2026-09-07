@@ -11,6 +11,14 @@ const {
 // An instance of a churned account is offline for good: nobody should be emailed about it.
 const ACTIVE_STATUSES = ['active', 'trialing'];
 
+// Fail closed: from this many primary instances, none of them connected means the socket
+// cluster is not answering (partitioned node, adapter issue), not that every customer is
+// offline at once. Below it (dev, tests), a fully offline fleet is a normal situation.
+function getFailClosedMinInstances() {
+  const parsed = parseInt(process.env.INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES, 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
+}
+
 /**
  * Instance watchdog ("is my Gladys alive?"). The gateway is the only party that can tell a
  * user his home is unreachable, precisely because the home itself cannot: power cut, dead
@@ -49,7 +57,14 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
     await mailService.send(
       { email: user.email, language: user.language },
       'instance_offline',
-      buildInstanceOfflineScope({ instance, user, lastSeenAt: instance.last_seen_at, now, language: user.language }),
+      buildInstanceOfflineScope({
+        instance,
+        user,
+        lastSeenAt: instance.last_seen_at,
+        delayInMinutes: user.delay_in_minutes,
+        now,
+        language: user.language,
+      }),
     );
     await db.t_user.update({ id: user.id }, { instance_offline_alert_sent_at: now }, { fields: ['id'] });
     logger.warn(`instance watchdog: offline alert sent to user ${user.id} for instance ${instance.id}`);
@@ -156,6 +171,23 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
     logger.info(
       `instance watchdog: ${instances.length} instances, ${connectedIds.length} connected (execute=${execute})`,
     );
+    if (connectedIds.length === 0 && instances.length >= getFailClosedMinInstances()) {
+      logger.error(
+        `instance watchdog: none of the ${instances.length} instances is connected, the socket cluster is suspect: aborting`,
+      );
+      return {
+        execute,
+        aborted: 'no_instance_connected',
+        total: instances.length,
+        connected: 0,
+        offline: instances.length,
+        alerts: 0,
+        back_online: 0,
+        waiting: 0,
+        errors: 0,
+        instances: [],
+      };
+    }
     const results = await Promise.mapSeries(instances, async (instance) => {
       const connected = connectedInstanceIds.has(instance.id);
       const users = await Promise.mapSeries(instance.users, (user) =>
@@ -171,10 +203,14 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
         users,
       };
     });
-    if (execute && connectedIds.length > 0) {
-      // Heartbeat of the connected instances, after the emails so a "back online" email
-      // still knows when the outage started.
-      await db.query('UPDATE t_instance SET last_seen_at = $1 WHERE id = ANY($2::uuid[])', [now, connectedIds]);
+    // Heartbeat of the connected instances, after the emails so a "back online" email still
+    // knows when the outage started. An instance whose "back online" email failed keeps its
+    // date: the outage is still open for that user, the retry needs the real start.
+    const heartbeatIds = results
+      .filter((instance) => instance.connected && !instance.users.some((user) => user.action === 'error'))
+      .map((instance) => instance.id);
+    if (execute && heartbeatIds.length > 0) {
+      await db.query('UPDATE t_instance SET last_seen_at = $1 WHERE id = ANY($2::uuid[])', [now, heartbeatIds]);
     }
     const countUserActions = (action) =>
       results.reduce((count, instance) => count + instance.users.filter((user) => user.action === action).length, 0);

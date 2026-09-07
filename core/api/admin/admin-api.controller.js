@@ -241,7 +241,10 @@ module.exports = function AdminApiController(
    * again they receive the "back online" email ("back_online"). Also refreshes
    * last_seen_at of the connected instances. Meant to be called every few minutes by a
    * cron: the frequency only decides how late after the delay the email leaves, an instance
-   * is never reported offline while it is connected. Read-only unless "execute" is true.
+   * is never reported offline while it is connected. Fails closed when none of the
+   * instances is connected while at least INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES (10 by
+   * default) are checked: the socket cluster is suspect, the run is aborted without any
+   * email ("aborted": "no_instance_connected"). Read-only unless "execute" is true.
    * Only the instances with something to report are listed.
    *
    * @apiParam {Boolean} [execute=false] Send the emails and refresh last_seen_at

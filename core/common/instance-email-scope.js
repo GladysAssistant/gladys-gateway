@@ -52,16 +52,16 @@ function minutesBetween(from, to) {
 
 /**
  * Email sent by the instance watchdog when the Gladys instance of the user has not been
- * seen by the gateway for longer than the delay chosen by the user.
+ * seen by the gateway for longer than the delay chosen by the user (delayInMinutes).
  */
-function buildInstanceOfflineScope({ instance, user, lastSeenAt, now = new Date(), language }) {
+function buildInstanceOfflineScope({ instance, user, lastSeenAt, delayInMinutes, now = new Date(), language }) {
   const normalizedLanguage = normalizeLanguage(language);
   return {
     firstname: extractFirstname(user?.name),
     instanceName: instance.name,
     offlineFor: formatDuration(minutesBetween(lastSeenAt, now), normalizedLanguage),
     lastSeenDate: formatDateTime(lastSeenAt, normalizedLanguage),
-    alertDelay: formatDuration(user.instance_offline_alert_delay_in_minutes, normalizedLanguage),
+    alertDelay: formatDuration(delayInMinutes, normalizedLanguage),
   };
 }
 

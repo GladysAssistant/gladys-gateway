@@ -39,8 +39,10 @@ describe('instance-email-scope', () => {
   it('should build the instance offline scope', () => {
     const scope = buildInstanceOfflineScope({
       instance: { name: 'Raspberry Pi' },
-      user: { name: 'Tony Stark', instance_offline_alert_delay_in_minutes: 60 },
+      // the user as the watchdog job carries it: the delay is a separate argument
+      user: { name: 'Tony Stark', delay_in_minutes: 60 },
       lastSeenAt: new Date('2026-09-07T12:00:00Z'),
+      delayInMinutes: 60,
       now: new Date('2026-09-07T14:15:00Z'),
       language: 'fr',
     });
@@ -74,8 +76,9 @@ describe('instance-email-scope', () => {
       const offlineHtml = emails.instance_offline[language].ejs(
         buildInstanceOfflineScope({
           instance: { name: 'Raspberry Pi' },
-          user: { name: 'Tony', instance_offline_alert_delay_in_minutes: 60 },
+          user: { name: 'Tony' },
           lastSeenAt: new Date('2026-09-07T12:00:00Z'),
+          delayInMinutes: 60,
           now: new Date('2026-09-07T14:15:00Z'),
           language,
         }),
@@ -83,6 +86,7 @@ describe('instance-email-scope', () => {
       expect(offlineHtml).to.include('Raspberry Pi');
       expect(offlineHtml).to.include('2 h 15 min');
       expect(offlineHtml).to.include('1 h');
+      expect(offlineHtml).to.not.include('NaN');
       const backOnlineHtml = emails.instance_back_online[language].ejs(
         buildInstanceBackOnlineScope({
           instance: { name: 'Raspberry Pi' },

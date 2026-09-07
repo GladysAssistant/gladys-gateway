@@ -21,15 +21,16 @@ function getFailClosedMinInstances() {
 
 /**
  * Instance watchdog ("is my Gladys alive?"). The gateway is the only party that can tell a
- * user his home is unreachable, precisely because the home itself cannot: power cut, dead
- * SD card, internet box down while on holidays.
+ * household its home is unreachable, precisely because the home itself cannot: power cut,
+ * dead SD card, internet box down while on holidays.
  *
  * Two sources feed t_instance.last_seen_at: the websocket disconnect of the instance (exact
  * time it went away) and the job below, which refreshes the instances still connected (so
  * a gateway node crashing, where no disconnect event is emitted, does not leave a stale
- * date behind). The users opt in per user (t_user.instance_offline_alert_enabled) with
- * their own delay, and t_user.instance_offline_alert_sent_at tracks the outage reported to
- * them: set when the "offline" email is sent, cleared when the "back online" one is.
+ * date behind). The alert is a setting of the account (t_account.instance_offline_alert_*,
+ * changed by its admins), the emails go to the admins of the account, and
+ * t_account.instance_offline_alert_sent_at tracks the outage reported to them: set when
+ * the "offline" email is sent, cleared when the "back online" one is.
  */
 module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailService) {
   function validateJobBody(body) {
@@ -53,164 +54,180 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
     }
   }
 
+  // One email per admin, the failures reported per recipient: a bounced address must not
+  // deprive the other admins of the alert.
+  async function sendToAdmins(instance, template, buildScope) {
+    return Promise.mapSeries(instance.admins, async (admin) => {
+      try {
+        await mailService.send({ email: admin.email, language: admin.language }, template, buildScope(admin));
+        return { id: admin.id, status: 'sent' };
+      } catch (e) {
+        logger.warn(`instance watchdog: failed to email admin ${admin.id} for instance ${instance.id}`);
+        logger.warn(e);
+        return { id: admin.id, status: 'error', error: e.message || 'error' };
+      }
+    });
+  }
+
   /**
-   * The emails are claimed in database before leaving, with a conditional update: two
-   * runs overlapping (a cron firing while a manual call is still running) read the same
-   * state, and only the one whose claim succeeds sends. A claim released when the email
-   * fails, so the next run retries.
+   * The emails are claimed in database before leaving, with a conditional update of the
+   * account: two runs overlapping (a cron firing while a manual call is still running) read
+   * the same state, and only the one whose claim succeeds sends. The claim is released when
+   * no email left at all, so the next run retries.
    */
-  async function sendOfflineAlert(instance, user, now) {
-    const claimed = await db.t_user.update(
-      { id: user.id, instance_offline_alert_sent_at: null },
+  async function sendOfflineAlert(instance, now) {
+    const claimed = await db.t_account.update(
+      { id: instance.account_id, instance_offline_alert_sent_at: null },
       { instance_offline_alert_sent_at: now },
       { fields: ['id'] },
     );
     if (claimed.length === 0) {
-      return false;
+      return { action: 'already_alerted' };
     }
-    try {
-      await mailService.send(
-        { email: user.email, language: user.language },
-        'instance_offline',
-        buildInstanceOfflineScope({
-          instance,
-          user,
-          lastSeenAt: instance.last_seen_at,
-          delayInMinutes: user.delay_in_minutes,
-          now,
-          language: user.language,
-        }),
-      );
-    } catch (e) {
-      await db.t_user.update(
-        { id: user.id, instance_offline_alert_sent_at: now },
+    const recipients = await sendToAdmins(instance, 'instance_offline', (admin) =>
+      buildInstanceOfflineScope({
+        instance,
+        user: admin,
+        lastSeenAt: instance.last_seen_at,
+        delayInMinutes: instance.delay_in_minutes,
+        now,
+        language: admin.language,
+      }),
+    );
+    if (!recipients.some((recipient) => recipient.status === 'sent')) {
+      await db.t_account.update(
+        { id: instance.account_id, instance_offline_alert_sent_at: now },
         { instance_offline_alert_sent_at: null },
         { fields: ['id'] },
       );
-      throw e;
+      return { action: 'error', recipients };
     }
-    logger.warn(`instance watchdog: offline alert sent to user ${user.id} for instance ${instance.id}`);
-    return true;
+    logger.warn(`instance watchdog: offline alert sent for instance ${instance.id} (account ${instance.account_id})`);
+    return { action: 'alert', recipients };
   }
 
-  async function sendBackOnlineAlert(instance, user, now) {
-    const claimed = await db.t_user.update(
-      { id: user.id, 'instance_offline_alert_sent_at is not': null },
+  async function sendBackOnlineAlert(instance, now) {
+    const claimed = await db.t_account.update(
+      { id: instance.account_id, 'instance_offline_alert_sent_at is not': null },
       { instance_offline_alert_sent_at: null },
       { fields: ['id'] },
     );
     if (claimed.length === 0) {
-      return false;
+      return { action: 'ok' };
     }
-    try {
-      await mailService.send(
-        { email: user.email, language: user.language },
-        'instance_back_online',
-        buildInstanceBackOnlineScope({
-          instance,
-          user,
-          lastSeenAt: instance.last_seen_at,
-          now,
-          language: user.language,
-        }),
-      );
-    } catch (e) {
-      await db.t_user.update(
-        { id: user.id, instance_offline_alert_sent_at: null },
-        { instance_offline_alert_sent_at: user.alert_sent_at },
+    const recipients = await sendToAdmins(instance, 'instance_back_online', (admin) =>
+      buildInstanceBackOnlineScope({
+        instance,
+        user: admin,
+        lastSeenAt: instance.last_seen_at,
+        now,
+        language: admin.language,
+      }),
+    );
+    if (!recipients.some((recipient) => recipient.status === 'sent')) {
+      await db.t_account.update(
+        { id: instance.account_id, instance_offline_alert_sent_at: null },
+        { instance_offline_alert_sent_at: instance.alert_sent_at },
         { fields: ['id'] },
       );
-      throw e;
+      return { action: 'error', recipients };
     }
-    logger.info(`instance watchdog: back online email sent to user ${user.id} for instance ${instance.id}`);
-    return true;
+    logger.info(
+      `instance watchdog: back online email sent for instance ${instance.id} (account ${instance.account_id})`,
+    );
+    return { action: 'back_online', recipients };
   }
 
   /**
-   * What the watchdog has to do for one user of the instance, given whether the instance is
-   * connected right now. The "offline" email needs the instance to be seen at least once
-   * (a brand new instance is not "offline") and unreachable for longer than the delay of
-   * the user; it is sent once per outage. The "back online" email closes the outage.
+   * What the watchdog has to do for one instance, given whether it is connected right now.
+   * The "offline" email needs the instance to be seen at least once (a brand new instance
+   * is not "offline") and unreachable for longer than the delay of the account; it is sent
+   * once per outage. The "back online" email closes the outage, even if the alerts were
+   * disabled in the meantime.
    */
-  function decideUserAction(user, connected, lastSeenAt, now) {
-    const alertOpen = user.alert_sent_at !== null;
+  function decideAction(instance, connected, now) {
+    const alertOpen = instance.alert_sent_at !== null;
     if (connected) {
       return alertOpen ? 'back_online' : 'ok';
     }
     if (alertOpen) {
       return 'already_alerted';
     }
-    if (!user.enabled) {
-      // an alert was open when the user disabled the alerts: nothing left to do
+    if (!instance.enabled) {
       return 'ok';
     }
-    if (lastSeenAt === null) {
+    if (instance.last_seen_at === null) {
       return 'never_seen';
     }
-    return minutesBetween(lastSeenAt, now) >= user.delay_in_minutes ? 'alert' : 'wait';
+    if (minutesBetween(instance.last_seen_at, now) < instance.delay_in_minutes) {
+      return 'wait';
+    }
+    return instance.admins.length > 0 ? 'alert' : 'no_recipient';
   }
 
-  async function processOneUser(instance, user, connected, execute, now) {
-    const action = decideUserAction(user, connected, instance.last_seen_at, now);
-    const result = { id: user.id, delay_in_minutes: user.delay_in_minutes, action };
+  async function processOneInstance(instance, connected, execute, now) {
+    const action = decideAction(instance, connected, now);
+    const result = {
+      id: instance.id,
+      name: instance.name,
+      account_id: instance.account_id,
+      connected,
+      last_seen_at: instance.last_seen_at ? new Date(instance.last_seen_at).toISOString() : null,
+      offline_for_in_minutes: !connected && instance.last_seen_at ? minutesBetween(instance.last_seen_at, now) : null,
+      enabled: instance.enabled,
+      delay_in_minutes: instance.delay_in_minutes,
+      action,
+      recipients: instance.admins.map((admin) => ({ id: admin.id })),
+    };
     if (!execute) {
       return result;
     }
-    try {
-      if (action === 'alert' && !(await sendOfflineAlert(instance, user, now))) {
-        // claimed by a concurrent run in the meantime
-        return { ...result, action: 'already_alerted' };
-      }
-      if (action === 'back_online' && !(await sendBackOnlineAlert(instance, user, now))) {
-        return { ...result, action: 'ok' };
-      }
-      return result;
-    } catch (e) {
-      logger.warn(`instance watchdog: failed to email user ${user.id} for instance ${instance.id}`);
-      logger.warn(e);
-      return { ...result, action: 'error', error: e.message || 'error' };
+    if (action === 'alert') {
+      return { ...result, ...(await sendOfflineAlert(instance, now)) };
     }
+    if (action === 'back_online') {
+      return { ...result, ...(await sendBackOnlineAlert(instance, now)) };
+    }
+    return result;
   }
 
   /**
    * Check every primary instance of the accounts having access to Gladys Plus against the
-   * websocket cluster, email the users whose instance has been unreachable for longer than
-   * their delay, and the users whose instance came back after such an email. Meant to be
-   * called every few minutes by a cron; the frequency does not matter for the correctness
-   * (an instance is only reported offline when it is not connected right now), only for how
-   * late after the delay the email leaves. Read-only unless execute is true.
+   * websocket cluster, email the admins of the accounts whose instance has been unreachable
+   * for longer than their delay, and the admins whose instance came back after such an
+   * email. Meant to be called every few minutes by a cron; the frequency does not matter
+   * for the correctness (an instance is only reported offline when it is not connected
+   * right now), only for how late after the delay the email leaves. Read-only unless
+   * execute is true.
    */
   async function run(body) {
     const { execute } = validateJobBody(body);
     const now = new Date();
     const connectedInstanceIds = await socketModel.getConnectedInstanceIds();
-    // Only the users who opted in, plus the ones with an outage still open (to close it
-    // even if they opted out in the meantime), are worth carrying.
+    // The confirmed admins of the account are the recipients
     const instances = await db.query(
       `
         SELECT i.id, i.name, i.account_id, i.last_seen_at,
+          a.instance_offline_alert_enabled AS enabled,
+          a.instance_offline_alert_delay_in_minutes AS delay_in_minutes,
+          a.instance_offline_alert_sent_at AS alert_sent_at,
           COALESCE(
             json_agg(
-              json_build_object(
-                'id', u.id, 'email', u.email, 'name', u.name, 'language', u.language,
-                'enabled', u.instance_offline_alert_enabled,
-                'delay_in_minutes', u.instance_offline_alert_delay_in_minutes,
-                'alert_sent_at', u.instance_offline_alert_sent_at
-              )
+              json_build_object('id', u.id, 'email', u.email, 'name', u.name, 'language', u.language)
               ORDER BY u.created_at, u.id
             ) FILTER (WHERE u.id IS NOT NULL),
             '[]'
-          ) AS users
+          ) AS admins
         FROM t_instance i
         JOIN t_account a ON a.id = i.account_id
-        LEFT JOIN t_user u ON u.account_id = i.account_id
+        LEFT JOIN t_user u ON u.account_id = a.id
           AND u.is_deleted = false
           AND u.email_confirmed = true
-          AND (u.instance_offline_alert_enabled = true OR u.instance_offline_alert_sent_at IS NOT NULL)
+          AND u.role = 'admin'
         WHERE i.is_deleted = false
           AND i.primary_instance = true
           AND a.status = ANY($1)
-        GROUP BY i.id
+        GROUP BY i.id, a.id
         ORDER BY i.last_seen_at ASC NULLS FIRST;
       `,
       [ACTIVE_STATUSES],
@@ -236,46 +253,31 @@ module.exports = function InstanceWatchdogModel(logger, db, socketModel, mailSer
         instances: [],
       };
     }
-    const results = await Promise.mapSeries(instances, async (instance) => {
-      const connected = connectedInstanceIds.has(instance.id);
-      const users = await Promise.mapSeries(instance.users, (user) =>
-        processOneUser(instance, user, connected, execute, now),
-      );
-      return {
-        id: instance.id,
-        name: instance.name,
-        account_id: instance.account_id,
-        connected,
-        last_seen_at: instance.last_seen_at ? new Date(instance.last_seen_at).toISOString() : null,
-        offline_for_in_minutes: !connected && instance.last_seen_at ? minutesBetween(instance.last_seen_at, now) : null,
-        users,
-      };
-    });
+    const results = await Promise.mapSeries(instances, (instance) =>
+      processOneInstance(instance, connectedInstanceIds.has(instance.id), execute, now),
+    );
     // Heartbeat of the connected instances, after the emails so a "back online" email still
     // knows when the outage started. An instance whose "back online" email failed keeps its
-    // date: the outage is still open for that user, the retry needs the real start.
+    // date: the outage is still open, the retry needs the real start.
     const heartbeatIds = results
-      .filter((instance) => instance.connected && !instance.users.some((user) => user.action === 'error'))
+      .filter((instance) => instance.connected && instance.action !== 'error')
       .map((instance) => instance.id);
     if (execute && heartbeatIds.length > 0) {
       await db.query('UPDATE t_instance SET last_seen_at = $1 WHERE id = ANY($2::uuid[])', [now, heartbeatIds]);
     }
-    const countUserActions = (action) =>
-      results.reduce((count, instance) => count + instance.users.filter((user) => user.action === action).length, 0);
+    const countActions = (action) => results.filter((instance) => instance.action === action).length;
     return {
       execute,
       total: results.length,
       connected: connectedIds.length,
       offline: results.length - connectedIds.length,
-      alerts: countUserActions('alert'),
-      back_online: countUserActions('back_online'),
-      waiting: countUserActions('wait'),
-      errors: countUserActions('error'),
-      // Only the instances with something to say: offline with a subscribed user, or coming back
-      instances: results.filter(
-        (instance) =>
-          instance.users.length > 0 && (!instance.connected || instance.users.some((u) => u.action !== 'ok')),
-      ),
+      alerts: countActions('alert'),
+      back_online: countActions('back_online'),
+      waiting: countActions('wait'),
+      errors: countActions('error'),
+      // Only the instances with something to say: the connected ones with no open outage,
+      // and the offline ones nobody asked about, are left out
+      instances: results.filter((instance) => instance.action !== 'ok'),
     };
   }
 

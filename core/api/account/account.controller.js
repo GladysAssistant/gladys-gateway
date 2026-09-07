@@ -202,6 +202,32 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
+   * @api {patch} /accounts/instance-offline-alert Update the instance offline alert
+   * @apiName Update instance offline alert
+   * @apiGroup Account
+   * @apiDescription "Is my Gladys alive?": when enabled, the admins of the account receive
+   * an email once the Gladys instance of the account has been unreachable for longer than
+   * the delay, and another one when it is back online. Admin only; the current values are
+   * returned by GET /users/me (instance_offline_alert_enabled,
+   * instance_offline_alert_delay_in_minutes).
+   *
+   * @apiParam {Boolean} [enabled]
+   * @apiParam {Number} [delay_in_minutes] Between 5 minutes and 7 days
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "enabled": true,
+   *   "delay_in_minutes": 60
+   * }
+   */
+  async function updateInstanceOfflineAlert(req, res, next) {
+    const settings = await accountModel.updateInstanceOfflineAlert(req.user, req.body);
+    res.json(settings);
+  }
+
+  /**
    * @api {get} /accounts/invoices Get Invoices
    * @apiName Get invoices
    * @apiGroup Account
@@ -244,6 +270,7 @@ module.exports = function AccountController(accountModel, socketModel) {
     subscribeAgainToMonthlySubscription,
     updateCard,
     revokeUser,
+    updateInstanceOfflineAlert,
     getCard,
     cancelMonthlySubscription,
     stripeEvent,

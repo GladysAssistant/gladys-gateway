@@ -29,13 +29,19 @@ const updateUserSchema = Joi.object().keys({
   language: Joi.string().valid('fr', 'en'),
   gladys_user_id: Joi.number().optional().allow(null),
   gladys_4_user_id: Joi.string().optional().allow(null),
-  // Instance watchdog: email the user when his Gladys has been unreachable for this long
-  instance_offline_alert_enabled: Joi.boolean(),
-  instance_offline_alert_delay_in_minutes: Joi.number()
-    .integer()
-    .min(INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES)
-    .max(INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES),
 });
+
+// Instance watchdog (PATCH /accounts/instance-offline-alert): email the admins of the
+// account when its Gladys has been unreachable for this long
+const instanceOfflineAlertSchema = Joi.object()
+  .keys({
+    enabled: Joi.boolean(),
+    delay_in_minutes: Joi.number()
+      .integer()
+      .min(INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES)
+      .max(INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES),
+  })
+  .min(1);
 
 const invitationSchema = Joi.object().keys({
   email: Joi.string().email(),
@@ -67,6 +73,7 @@ module.exports.invitationSchema = invitationSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;
+module.exports.instanceOfflineAlertSchema = instanceOfflineAlertSchema;
 module.exports.INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES = INSTANCE_OFFLINE_ALERT_MIN_DELAY_IN_MINUTES;
 module.exports.INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES = INSTANCE_OFFLINE_ALERT_MAX_DELAY_IN_MINUTES;
 

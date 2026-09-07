@@ -277,6 +277,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.revokeUser),
   );
+  app.patch(
+    '/accounts/instance-offline-alert',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.updateInstanceOfflineAlert),
+  );
   app.get(
     '/accounts/invoices',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),

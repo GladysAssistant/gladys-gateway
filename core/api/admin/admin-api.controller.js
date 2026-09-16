@@ -229,6 +229,54 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {post} /admin/api/accounts/activation-reminders Remind the accounts never activated
+   * @apiName adminSendActivationReminders
+   * @apiGroup Admin API
+   * @apiDescription Reminder for the customers who subscribed through Stripe Checkout but
+   * never activated their Gladys Plus account. ACCOUNT_ACTIVATION_REMINDER_DELAY_IN_DAYS
+   * (7 by default) after the account was created (the welcome email is sent at that moment),
+   * the billing email receives one reminder with a fresh activation link, in the language of
+   * the checkout ("remind"). An account is a candidate only while its subscription is running,
+   * it has no user and no reminder was sent yet: each account is reminded once. The status in
+   * database is not trusted: Stripe is asked whether the customer still has a running
+   * subscription, otherwise the account is reported as "skip" and left alone (sync-stripe
+   * repairs it). Internal accounts are never candidates. Read-only unless "execute" is true.
+   * The server runs it daily by itself (ACCOUNT_ACTIVATION_REMINDER_CRON): this route is
+   * there to review the candidates without "execute", or to run it by hand.
+   *
+   * @apiParam {Boolean} [execute=false] Send the emails
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "execute": true,
+   *   "delay_in_days": 7,
+   *   "total": 3,
+   *   "reminded": 1,
+   *   "skipped": 1,
+   *   "errors": 1,
+   *   "accounts": [
+   *     {
+   *       "id": "...", "name": "...", "status": "trialing", "language": "fr",
+   *       "created_at": "2026-09-08T08:10:00.000Z",
+   *       "action": "remind"
+   *     },
+   *     { "id": "...", "action": "skip", "reason": "subscription_not_running_on_stripe", ... },
+   *     { "id": "...", "action": "error", "error": "INVALID_TEMPLATE_OR_LANGUAGE", ... }
+   *   ]
+   * }
+   */
+  async function sendActivationReminders(req, res) {
+    const report = await adminAccountLifecycleModel.sendActivationReminders(req.body);
+    audit(
+      req,
+      `send activation reminders (execute=${report.execute}, reminded=${report.reminded}, skipped=${report.skipped})`,
+    );
+    res.json(report);
+  }
+
+  /**
    * @api {post} /admin/api/users/:id/reset_two_factor Reset two factor
    * @apiName adminResetTwoFactor
    * @apiGroup Admin API
@@ -407,6 +455,7 @@ module.exports = function AdminApiController(
     deleteAccount,
     syncAccountsWithStripe,
     applyRetentionPolicy,
+    sendActivationReminders,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

@@ -231,6 +231,7 @@ module.exports = function AccountModel(
           current_period_end: new Date(subscription.current_period_end * 1000),
           status: getCheckoutAccountStatus(subscription),
           plan,
+          language,
         },
         {
           fields: ['id', 'name', 'current_period_end', 'status', 'plan'],
@@ -264,6 +265,8 @@ module.exports = function AccountModel(
       current_period_end: new Date(subscription.current_period_end * 1000),
       status: getCheckoutAccountStatus(subscription),
       plan,
+      // Kept for the emails sent while the account has no user yet (activation reminder)
+      language,
     };
 
     const insertedAccount = await db.t_account.insert(newAccount);

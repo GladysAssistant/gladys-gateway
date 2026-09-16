@@ -1,7 +1,10 @@
 const Promise = require('bluebird');
+const crypto = require('crypto');
+const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
-const { buildAccountDeletionWarningScope } = require('../../common/billing-email-scope');
+const { normalizeEmail } = require('../../common/normalize-email');
+const { buildAccountDeletionWarningScope, buildWelcomeReminderScope } = require('../../common/billing-email-scope');
 
 // Statuses under which the customer has access to Gladys Plus (see checkUserPlan middleware)
 const ACTIVE_STATUSES = ['active', 'trialing'];
@@ -13,6 +16,13 @@ const STRIPE_CONCURRENCY = 4;
 function readPositiveIntegerEnv(name, defaultValue) {
   const parsed = parseInt(process.env[name], 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+// How long after the welcome email a customer who never activated the account is reminded.
+function getActivationReminderPolicy() {
+  return {
+    delay_in_days: readPositiveIntegerEnv('ACCOUNT_ACTIVATION_REMINDER_DELAY_IN_DAYS', 7),
+  };
 }
 
 // How long an account whose subscription is over is kept before being warned, then deleted.
@@ -174,9 +184,10 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       { account_id: account.id, is_deleted: false },
       { fields: ['id', 'email', 'name', 'language'] },
     );
-    // An account that was never activated has no user: the billing email is warned instead
-    // (in the default language of the mail service)
-    const recipients = users.length > 0 ? users : [{ email: account.name, name: null, language: null }];
+    // An account that was never activated has no user: the billing email is warned instead,
+    // in the language of the checkout when known
+    const recipients =
+      users.length > 0 ? users : [{ email: account.name, name: null, language: account.language || null }];
     await Promise.mapSeries(recipients, (recipient) =>
       mailService.send(
         { email: recipient.email, language: recipient.language },
@@ -260,8 +271,8 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     // An account that never subscribed has no end of access: its creation date is used
     const candidates = await db.query(
       `
-        SELECT id, name, plan, status, stripe_customer_id, stripe_subscription_id, current_period_end,
-          created_at, deletion_warning_sent_at,
+        SELECT id, name, plan, status, language, stripe_customer_id, stripe_subscription_id,
+          current_period_end, created_at, deletion_warning_sent_at,
           COALESCE(current_period_end, created_at) AS access_ended_at
         FROM t_account
         WHERE is_internal = false
@@ -287,8 +298,119 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
   }
 
+  async function sendActivationReminder(account, now) {
+    const email = normalizeEmail(account.name);
+    // The firstname is only on the Stripe customer: without it the email is still sent
+    let customer = null;
+    try {
+      customer = await stripeService.getCustomer(account.stripe_customer_id);
+    } catch (e) {
+      logger.warn(`activationReminder: unable to fetch customer ${account.stripe_customer_id} of ${account.id}`);
+      logger.warn(e);
+    }
+    // A fresh invitation, like the welcome email: the previous one stays valid too
+    const token = (await randomBytes(64)).toString('hex');
+    // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
+    // (due to SQL injection for example)
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await db.t_invitation.insert({
+      email,
+      role: 'admin',
+      token_hash: tokenHash,
+      account_id: account.id,
+    });
+    await mailService.send(
+      { email, language: account.language },
+      'welcome_reminder',
+      buildWelcomeReminderScope({
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+        customer,
+        account,
+        language: account.language,
+      }),
+    );
+    await db.t_account.update(account.id, { activation_reminder_sent_at: now }, { fields: ['id'] });
+  }
+
+  async function remindOneAccount(account, execute, now) {
+    const result = {
+      id: account.id,
+      name: account.name,
+      status: account.status,
+      language: account.language,
+      created_at: toIsoString(account.created_at),
+    };
+    try {
+      // The status in database is the copy of the webhooks and may lag behind Stripe (a
+      // missed customer.subscription.deleted leaves the account "active"): a customer whose
+      // subscription is actually over is not reminded, syncWithStripe repairs the account.
+      // Stripe unreachable is an error: the customer is not reminded either, next run will.
+      const [runningSubscription] = await stripeService.getRunningSubscriptions(account);
+      if (!runningSubscription) {
+        return { ...result, action: 'skip', reason: 'subscription_not_running_on_stripe' };
+      }
+      if (execute) {
+        await sendActivationReminder(account, now);
+        logger.info(`activationReminder: reminder sent for account ${account.id}`);
+      }
+      return { ...result, action: 'remind' };
+    } catch (e) {
+      logger.warn(`activationReminder: failed to remind account ${account.id}`);
+      logger.warn(e);
+      return { ...result, action: 'error', error: e.message || 'error' };
+    }
+  }
+
+  /**
+   * Reminder for the customers who subscribed through Stripe Checkout but never activated
+   * their Gladys Plus account: the welcome email invited them to, nobody clicked. Once the
+   * delay has elapsed since the account was created (the welcome email is sent at that
+   * moment), the billing email receives one reminder with a fresh activation link, in the
+   * language of the checkout. Sent once per account: an account is a candidate only while
+   * it has a running subscription (Stripe is asked, the status in database is not trusted),
+   * no user and no reminder yet. Internal accounts are never touched. Read-only unless
+   * execute is true. Scheduled daily by the scheduler service, the admin API is there to
+   * review the candidates and to run it by hand.
+   */
+  async function sendActivationReminders(body) {
+    const { execute } = validateJobBody(body);
+    const policy = getActivationReminderPolicy();
+    const now = new Date();
+    const createdBefore = new Date(now.getTime() - policy.delay_in_days * ONE_DAY_IN_MS);
+    const candidates = await db.query(
+      `
+        SELECT id, name, plan, status, language, stripe_customer_id, current_period_end, created_at
+        FROM t_account
+        WHERE is_internal = false
+          AND is_deleted = false
+          AND stripe_subscription_id IS NOT NULL
+          AND status IN ('active', 'trialing')
+          AND activation_reminder_sent_at IS NULL
+          AND created_at < $1
+          AND NOT EXISTS (
+            SELECT 1 FROM t_user WHERE t_user.account_id = t_account.id AND t_user.is_deleted = false
+          )
+        ORDER BY created_at ASC;
+      `,
+      [createdBefore],
+    );
+    logger.info(`activationReminder: ${candidates.length} accounts not activated (execute=${execute})`);
+    const results = await Promise.mapSeries(candidates, (account) => remindOneAccount(account, execute, now));
+    const countByAction = (action) => results.filter((result) => result.action === action).length;
+    return {
+      execute,
+      ...policy,
+      total: results.length,
+      reminded: countByAction('remind'),
+      skipped: countByAction('skip'),
+      errors: countByAction('error'),
+      accounts: results,
+    };
+  }
+
   return {
     syncWithStripe,
     applyRetentionPolicy,
+    sendActivationReminders,
   };
 };

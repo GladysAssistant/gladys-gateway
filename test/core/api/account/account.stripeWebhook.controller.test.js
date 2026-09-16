@@ -57,6 +57,8 @@ describe('stripeWebhook', () => {
     });
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
+    // no locale on the checkout session: the emails default to English
+    expect(accountUpdated).to.have.property('language', 'en');
   });
 
   it('should store Stripe customer email in lowercase on account and invitation', async () => {
@@ -862,6 +864,9 @@ describe('stripeWebhook', () => {
         list: 'gladysPlusTrial',
         language: 'fr',
       });
+      // the language of the checkout is kept for the emails sent before the account is activated
+      const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+      expect(account).to.have.property('language', 'fr');
     });
 
     it('should NOT subscribe a 6-month trial customer (starter kit) to the email list', async () => {

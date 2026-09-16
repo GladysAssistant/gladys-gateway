@@ -72,6 +72,16 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome.ejs`, 'utf8')),
     },
   },
+  welcome_reminder: {
+    en: {
+      subject: 'Your Gladys Plus account is not activated yet',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/welcome_reminder.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: "Ton compte Gladys Plus n'est pas encore activé",
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome_reminder.ejs`, 'utf8')),
+    },
+  },
   welcome_back: {
     en: {
       subject: 'Gladys Plus - Welcome back!',

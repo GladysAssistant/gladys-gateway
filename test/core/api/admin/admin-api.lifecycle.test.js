@@ -386,3 +386,123 @@ describe('POST /admin/api/accounts/retention', () => {
     await adminRequest('post', '/admin/api/accounts/retention').send({ execute: 'yes' }).expect(422);
   });
 });
+
+describe('POST /admin/api/accounts/activation-reminders', () => {
+  // The fixture account with a Stripe subscription has no user: a customer who subscribed
+  // through Stripe Checkout and never clicked the welcome email. It was created now.
+  it('should not list an account created less than the delay ago', async () => {
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders')
+      .send({})
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      execute: false,
+      delay_in_days: 7,
+      total: 0,
+      reminded: 0,
+      errors: 0,
+      accounts: [],
+    });
+  });
+
+  it('should plan a reminder for an account not activated after the delay, without acting', async () => {
+    const createdAt = daysAgo(8);
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { created_at: createdAt, language: 'fr', status: 'trialing' },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders').send({}).expect(200);
+    expect(response.body).to.deep.include({ execute: false, total: 1, reminded: 1, errors: 0 });
+    expect(response.body.accounts).to.deep.equal([
+      {
+        id: ACCOUNT_WITH_STRIPE,
+        name: 'new-account-lost@gladysassistant.com',
+        status: 'trialing',
+        language: 'fr',
+        created_at: createdAt.toISOString(),
+        action: 'remind',
+      },
+    ]);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    expect(account.activation_reminder_sent_at).to.equal(null);
+    expect(await TEST_DATABASE_INSTANCE.t_invitation.find({ account_id: ACCOUNT_WITH_STRIPE })).to.have.lengthOf(0);
+  });
+
+  it('should remind the billing email once with a fresh activation link when execute is true', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update({ id: ACCOUNT_WITH_STRIPE }, { created_at: daysAgo(8) });
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders')
+      .send({ execute: true })
+      .expect(200);
+    expect(response.body).to.deep.include({ execute: true, total: 1, reminded: 1, errors: 0 });
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    expect(new Date(account.activation_reminder_sent_at).getTime()).to.be.closeTo(Date.now(), 10000);
+    const invitations = await TEST_DATABASE_INSTANCE.t_invitation.find({ account_id: ACCOUNT_WITH_STRIPE });
+    expect(invitations).to.have.lengthOf(1);
+    expect(invitations[0]).to.include({
+      email: 'new-account-lost@gladysassistant.com',
+      role: 'admin',
+      accepted: false,
+    });
+    expect(invitations[0].token_hash).to.have.lengthOf(64);
+    // a second run does not remind the same account again
+    const secondResponse = await adminRequest('post', '/admin/api/accounts/activation-reminders')
+      .send({ execute: true })
+      .expect(200);
+    expect(secondResponse.body).to.deep.include({ total: 0, reminded: 0 });
+  });
+
+  it('should still remind when the Stripe customer cannot be fetched', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { created_at: daysAgo(8), stripe_customer_id: 'cus_stripe_down' },
+    );
+    nock('https://api.stripe.com:443', { encodedQueryParams: true }).get('/v1/customers/cus_stripe_down').reply(500);
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders')
+      .send({ execute: true })
+      .expect(200);
+    expect(response.body).to.deep.include({ total: 1, reminded: 1, errors: 0 });
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    expect(account.activation_reminder_sent_at).to.not.equal(null);
+  });
+
+  it('should not list an account that has a user', async () => {
+    // the other fixture account has users and was created now: its creation date is moved back
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_USERS },
+      { created_at: daysAgo(30), stripe_subscription_id: 'sub_activated' },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders').send({}).expect(200);
+    expect(response.body.total).to.equal(0);
+  });
+
+  it('should not list an account whose subscription is not running', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { created_at: daysAgo(8), status: 'canceled' },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders').send({}).expect(200);
+    expect(response.body.total).to.equal(0);
+  });
+
+  it('should not list an account already reminded', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { created_at: daysAgo(8), activation_reminder_sent_at: daysAgo(1) },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders').send({}).expect(200);
+    expect(response.body.total).to.equal(0);
+  });
+
+  it('should never list an internal account', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update(
+      { id: ACCOUNT_WITH_STRIPE },
+      { created_at: daysAgo(8), is_internal: true },
+    );
+    const response = await adminRequest('post', '/admin/api/accounts/activation-reminders').send({}).expect(200);
+    expect(response.body.total).to.equal(0);
+  });
+
+  it('should return 422 with an invalid body', async () => {
+    await adminRequest('post', '/admin/api/accounts/activation-reminders').send({ execute: 'yes' }).expect(422);
+  });
+});

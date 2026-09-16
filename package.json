@@ -86,6 +86,7 @@
     "joi": "^18.2.8",
     "jsonwebtoken": "^9.0.3",
     "massive": "^6.9.0",
+    "node-cron": "^4.6.0",
     "nodemailer": "^10.0.0",
     "object-sizeof": "^1.4.0",
     "omit-deep": "^0.3.0",

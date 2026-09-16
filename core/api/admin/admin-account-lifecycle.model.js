@@ -271,8 +271,8 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     // An account that never subscribed has no end of access: its creation date is used
     const candidates = await db.query(
       `
-        SELECT id, name, plan, status, stripe_customer_id, stripe_subscription_id, current_period_end,
-          created_at, deletion_warning_sent_at,
+        SELECT id, name, plan, status, language, stripe_customer_id, stripe_subscription_id,
+          current_period_end, created_at, deletion_warning_sent_at,
           COALESCE(current_period_end, created_at) AS access_ended_at
         FROM t_account
         WHERE is_internal = false
@@ -341,6 +341,14 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       created_at: toIsoString(account.created_at),
     };
     try {
+      // The status in database is the copy of the webhooks and may lag behind Stripe (a
+      // missed customer.subscription.deleted leaves the account "active"): a customer whose
+      // subscription is actually over is not reminded, syncWithStripe repairs the account.
+      // Stripe unreachable is an error: the customer is not reminded either, next run will.
+      const [runningSubscription] = await stripeService.getRunningSubscriptions(account);
+      if (!runningSubscription) {
+        return { ...result, action: 'skip', reason: 'subscription_not_running_on_stripe' };
+      }
       if (execute) {
         await sendActivationReminder(account, now);
         logger.info(`activationReminder: reminder sent for account ${account.id}`);
@@ -359,8 +367,10 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
    * delay has elapsed since the account was created (the welcome email is sent at that
    * moment), the billing email receives one reminder with a fresh activation link, in the
    * language of the checkout. Sent once per account: an account is a candidate only while
-   * it has a running subscription, no user and no reminder yet. Internal accounts are never
-   * touched. Read-only unless execute is true.
+   * it has a running subscription (Stripe is asked, the status in database is not trusted),
+   * no user and no reminder yet. Internal accounts are never touched. Read-only unless
+   * execute is true. Scheduled daily by the scheduler service, the admin API is there to
+   * review the candidates and to run it by hand.
    */
   async function sendActivationReminders(body) {
     const { execute } = validateJobBody(body);
@@ -392,6 +402,7 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       ...policy,
       total: results.length,
       reminded: countByAction('remind'),
+      skipped: countByAction('skip'),
       errors: countByAction('error'),
       accounts: results,
     };

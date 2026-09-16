@@ -39,6 +39,8 @@ before(async function Before() {
   // Don't wait for the real RTE backoff / refresh polling in tests
   process.env.ECOWATT_RETRY_MIN_TIMEOUT_IN_MS = 10;
   process.env.ECOWATT_WAIT_FOR_REFRESH_INTERVAL_IN_MS = 20;
+  // The scheduled jobs are tested by calling them, never by waiting for the clock
+  process.env.ACCOUNT_ACTIVATION_REMINDER_CRON = 'disabled';
 
   // starting 2 backends to try multi-server socket exchange
   const { io, app, db, redisClient, legacyRedisClient } = await server(process.env.SERVER_PORT);
@@ -51,6 +53,7 @@ before(async function Before() {
   global.TEST_IO_SERVER_2 = iosServer2;
   global.TEST_DATABASE_INSTANCE = db;
   global.TEST_LEGACY_REDIS_CLIENT = legacyRedisClient;
+  global.TEST_REDIS_CLIENT = redisClient;
 });
 
 beforeEach(async function BeforeEach() {

@@ -27,6 +27,15 @@ async function getEmailEvents(orderId) {
   return events.map((event) => event.payload.template);
 }
 
+const shipmentCreationResponse = (shipments, statuses = '') =>
+  `<?xml version="1.0" encoding="utf-16"?><ShipmentCreationResponse xmlns="http://www.example.org/Response">` +
+  `<ShipmentsList>${shipments}</ShipmentsList><StatusList>${statuses}</StatusList></ShipmentCreationResponse>`;
+
+const shipmentCreated = (shipmentNumber, labelUrl) =>
+  shipmentCreationResponse(
+    `<Shipment ShipmentNumber="${shipmentNumber}"><LabelList><Label><Output>${labelUrl}</Output></Label></LabelList></Shipment>`,
+  );
+
 describe('Starter kit admin API', () => {
   let previousSuperAdminUserId;
   before(() => {
@@ -46,6 +55,9 @@ describe('Starter kit admin API', () => {
   afterEach(() => {
     delete process.env.MONDIAL_RELAY_ENSEIGNE;
     delete process.env.MONDIAL_RELAY_PRIVATE_KEY;
+    delete process.env.MONDIAL_RELAY_API2_LOGIN;
+    delete process.env.MONDIAL_RELAY_API2_PASSWORD;
+    delete process.env.MONDIAL_RELAY_API2_CUSTOMER_ID;
     nock.cleanAll();
     setupPersistentNocks();
   });
@@ -243,25 +255,20 @@ describe('Starter kit admin API', () => {
       )
         .send({ status: 'shipped' })
         .expect(400);
-      expect(response.body.error_message).to.include('Mondial Relay API is not configured');
+      expect(response.body.error_message).to.include('Mondial Relay shipment API is not configured');
     });
 
     it('should create the Mondial Relay shipment when shipping without tracking number', async () => {
-      process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
-      process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
+      process.env.MONDIAL_RELAY_API2_LOGIN = 'BDTEST13@business-api.mondialrelay.com';
+      process.env.MONDIAL_RELAY_API2_PASSWORD = 'api2password';
+      process.env.MONDIAL_RELAY_API2_CUSTOMER_ID = 'BDTEST13';
       let requestBody;
-      nock('https://api.mondialrelay.com')
-        .post('/WebService.asmx', (body) => {
+      nock('https://connect-api.mondialrelay.com')
+        .post('/api/shipment', (body) => {
           requestBody = body;
-          return body.includes('<WSI2_CreationEtiquette');
+          return body.includes('<ShipmentCreationRequest');
         })
-        .reply(
-          200,
-          soapResponse(
-            'WSI2_CreationEtiquette',
-            '<STAT>0</STAT><ExpeditionNum>31234567</ExpeditionNum><URL_Etiquette>/ww2/PDF/label.aspx</URL_Etiquette>',
-          ),
-        );
+        .reply(200, shipmentCreated('31234567', 'https://connect.mondialrelay.com/label.pdf'));
       const response = await admin(
         request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/status`),
       )
@@ -270,11 +277,11 @@ describe('Starter kit admin API', () => {
       expect(response.body).to.include({
         status: 'shipped',
         shipment_number: '31234567',
-        label_url: 'https://www.mondialrelay.com/ww2/PDF/label.aspx',
+        label_url: 'https://connect.mondialrelay.com/label.pdf',
       });
-      expect(requestBody).to.include('<LIV_Rel>012345</LIV_Rel>');
-      expect(requestBody).to.include('<Dest_Ad1>MARIE CURIE</Dest_Ad1>');
-      expect(requestBody).to.include('<Dest_Ad3>1 AVENUE DE LA REPUBLIQUE</Dest_Ad3>');
+      expect(requestBody).to.include('Location="FR-012345"');
+      expect(requestBody).to.include('<AddressAdd1>MARIE CURIE</AddressAdd1>');
+      expect(requestBody).to.include('<Streetname>AVENUE DE LA REPUBLIQUE</Streetname><HouseNo>1</HouseNo>');
       const events = await TEST_DATABASE_INSTANCE.t_starter_kit_order_event.find({
         order_id: ORDER_INSTALLED,
         type: 'label_created',
@@ -309,17 +316,12 @@ describe('Starter kit admin API', () => {
 
   describe('POST /admin/api/starter-kit/orders/:id/label', () => {
     it('should create the label without changing the status', async () => {
-      process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
-      process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
-      nock('https://api.mondialrelay.com')
-        .post('/WebService.asmx')
-        .reply(
-          200,
-          soapResponse(
-            'WSI2_CreationEtiquette',
-            '<STAT>0</STAT><ExpeditionNum>31234568</ExpeditionNum><URL_Etiquette>https://www.mondialrelay.com/label.pdf</URL_Etiquette>',
-          ),
-        );
+      process.env.MONDIAL_RELAY_API2_LOGIN = 'BDTEST13@business-api.mondialrelay.com';
+      process.env.MONDIAL_RELAY_API2_PASSWORD = 'api2password';
+      process.env.MONDIAL_RELAY_API2_CUSTOMER_ID = 'BDTEST13';
+      nock('https://connect-api.mondialrelay.com')
+        .post('/api/shipment')
+        .reply(200, shipmentCreated('31234568', 'https://www.mondialrelay.com/label.pdf'));
       const response = await admin(
         request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/label`),
       ).expect(200);
@@ -339,27 +341,36 @@ describe('Starter kit admin API', () => {
     });
 
     it('should refuse to create a label without pickup point', async () => {
-      process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
-      process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
+      process.env.MONDIAL_RELAY_API2_LOGIN = 'BDTEST13@business-api.mondialrelay.com';
+      process.env.MONDIAL_RELAY_API2_PASSWORD = 'api2password';
+      process.env.MONDIAL_RELAY_API2_CUSTOMER_ID = 'BDTEST13';
       await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_PAID}/label`)).expect(400);
     });
 
     it('should refuse to create a label twice', async () => {
-      process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
-      process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
+      process.env.MONDIAL_RELAY_API2_LOGIN = 'BDTEST13@business-api.mondialrelay.com';
+      process.env.MONDIAL_RELAY_API2_PASSWORD = 'api2password';
+      process.env.MONDIAL_RELAY_API2_CUSTOMER_ID = 'BDTEST13';
       await admin(request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_SHIPPED}/label`)).expect(400);
     });
 
     it('should surface Mondial Relay errors as 502', async () => {
-      process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
-      process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
-      nock('https://api.mondialrelay.com')
-        .post('/WebService.asmx')
-        .reply(200, soapResponse('WSI2_CreationEtiquette', '<STAT>14</STAT>'));
+      process.env.MONDIAL_RELAY_API2_LOGIN = 'BDTEST13@business-api.mondialrelay.com';
+      process.env.MONDIAL_RELAY_API2_PASSWORD = 'api2password';
+      process.env.MONDIAL_RELAY_API2_CUSTOMER_ID = 'BDTEST13';
+      nock('https://connect-api.mondialrelay.com')
+        .post('/api/shipment')
+        .reply(
+          200,
+          shipmentCreationResponse(
+            '',
+            '<Status Code="10073" Level="Error" Message="Location not allowed for this shipment."/>',
+          ),
+        );
       const response = await admin(
         request(TEST_BACKEND_APP).post(`/admin/api/starter-kit/orders/${ORDER_INSTALLED}/label`),
       ).expect(502);
-      expect(response.body.error_message).to.include('Numéro de Relais de livraison invalide');
+      expect(response.body.error_message).to.include('Location not allowed for this shipment.');
     });
   });
 
@@ -405,6 +416,7 @@ describe('Starter kit admin API', () => {
 
   describe('POST /admin/api/starter-kit/daily', () => {
     it('should send pickup point reminders and mark delivered parcels', async () => {
+      // The daily tracking refresh uses API1, with the code enseigne and the private key
       process.env.MONDIAL_RELAY_ENSEIGNE = 'BDTEST13';
       process.env.MONDIAL_RELAY_PRIVATE_KEY = 'PrivateK';
       nock('https://api.mondialrelay.com')

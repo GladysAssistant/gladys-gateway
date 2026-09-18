@@ -460,9 +460,9 @@ module.exports = function StarterKitModel(
     if (!order.pickup_point) {
       throw new BadRequestError('The customer has not selected a pickup point yet');
     }
-    if (!mondialRelayService.isConfigured()) {
+    if (!mondialRelayService.isShipmentApiConfigured()) {
       throw new BadRequestError(
-        'Mondial Relay API is not configured (MONDIAL_RELAY_ENSEIGNE / MONDIAL_RELAY_PRIVATE_KEY)',
+        'Mondial Relay shipment API is not configured (MONDIAL_RELAY_API2_LOGIN / MONDIAL_RELAY_API2_PASSWORD)',
       );
     }
     const address = order.shipping_address || {};

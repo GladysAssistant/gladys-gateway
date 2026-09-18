@@ -1,12 +1,24 @@
 const crypto = require('crypto');
 const axios = require('axios');
 
-// Mondial Relay "Web Service" (SOAP, v5): https://api.mondialrelay.com/WebService.asmx
-// (the URL, the code enseigne and the clé privée are displayed in the Mondial Relay
-// Connect Pro account, under "Mon profil" > "Mes paramètres de connexion").
+// Mondial Relay exposes two different APIs (technical documentation V1.2, February 2026):
+//
+// - API1, SOAP, https://api.mondialrelay.com/WebService.asmx: pickup point search and parcel
+//   tracing. Secured by an MD5 hash of the parameters and of the "clé privée" of the account.
+//   Its shipment creation methods (WSI2_CreationEtiquette) are no longer maintained by Mondial
+//   Relay and must not be used.
+// - API2 ("dual carrier"), REST/XML, https://connect-api.mondialrelay.com/api/shipment: creates
+//   the shipments and their labels. It has its own credentials (login, password, customer id),
+//   generated in Connect under "Administration" > "Configuration des API" > "API Version V2.0".
+//
+// So this service tracks parcels with API1 and creates shipments with API2.
 const DEFAULT_API_URL = 'https://api.mondialrelay.com/WebService.asmx';
 const SOAP_NAMESPACE = 'http://www.mondialrelay.fr/webservice/';
-const LABEL_BASE_URL = 'https://www.mondialrelay.com';
+const DEFAULT_SHIPMENT_API_URL = 'https://connect-api.mondialrelay.com/api/shipment';
+const SANDBOX_SHIPMENT_API_URL = 'https://connect-api-sandbox.mondialrelay.com/api/shipment';
+const SHIPMENT_API_VERSION = '1.0';
+const DEFAULT_LABEL_FORMAT = '10x15';
+const DEFAULT_CULTURE = 'fr-FR';
 const PUBLIC_TRACKING_URL = 'https://www.mondialrelay.fr/suivi-de-colis/';
 
 // Delivery in a pickup point ("Point Relais")
@@ -92,60 +104,18 @@ const STAT_MESSAGES = {
   99: 'Erreur générique du service',
 };
 
-// Ordered parameters of WSI2_CreationEtiquette (order matters for the security hash)
-const CREATE_LABEL_PARAMS = [
-  'Enseigne',
-  'ModeCol',
-  'ModeLiv',
-  'NDossier',
-  'NClient',
-  'Expe_Langage',
-  'Expe_Ad1',
-  'Expe_Ad2',
-  'Expe_Ad3',
-  'Expe_Ad4',
-  'Expe_Ville',
-  'Expe_CP',
-  'Expe_Pays',
-  'Expe_Tel1',
-  'Expe_Tel2',
-  'Expe_Mail',
-  'Dest_Langage',
-  'Dest_Ad1',
-  'Dest_Ad2',
-  'Dest_Ad3',
-  'Dest_Ad4',
-  'Dest_Ville',
-  'Dest_CP',
-  'Dest_Pays',
-  'Dest_Tel1',
-  'Dest_Tel2',
-  'Dest_Mail',
-  'Poids',
-  'Longueur',
-  'Taille',
-  'NbColis',
-  'CRT_Valeur',
-  'CRT_Devise',
-  'Exp_Valeur',
-  'Exp_Devise',
-  'COL_Rel_Pays',
-  'COL_Rel',
-  'LIV_Rel_Pays',
-  'LIV_Rel',
-  'TAvisage',
-  'TReprise',
-  'Montage',
-  'TRDV',
-  'Assurance',
-  'Instructions',
-];
-
 const TRACKING_PARAMS = ['Enseigne', 'Expedition', 'Langue'];
 
+// API2 error codes that mean the credentials or the account configuration are wrong, as
+// opposed to a problem with the shipment itself (see "ERROR CODES" of the documentation).
+const SHIPMENT_API_CREDENTIAL_ERRORS = ['10000', '10001', '10002', '10003', '10004', '10005', '10006', '10007'];
+const SHIPMENT_API_ACCESS_ERRORS = ['10066', '10067'];
+
 class MondialRelayError extends Error {
-  constructor(stat, method) {
-    const message = STAT_MESSAGES[stat] || 'Erreur inconnue';
+  // `stat` is the STAT code for API1, the error code of the StatusList for API2. `statMessage`
+  // is given by API2 in the language of the request, and looked up in STAT_MESSAGES for API1.
+  constructor(stat, method, statMessage) {
+    const message = statMessage || STAT_MESSAGES[stat] || 'Erreur inconnue';
     super(`Mondial Relay ${method} failed with STAT=${stat}: ${message}`);
     this.stat = stat;
     this.statMessage = message;
@@ -168,18 +138,6 @@ function sanitizeText(value, maxLength = 32) {
     .trim()
     .slice(0, maxLength)
     .trim();
-}
-
-function sanitizePhone(value) {
-  if (!value) {
-    return '';
-  }
-  const phone = String(value).replace(/[^0-9+]/g, '');
-  // Mondial Relay expects either a national (0XXXXXXXXX) or international (+33XXXXXXXXX) number
-  if (/^(\+\d{8,14}|0\d{9})$/.test(phone)) {
-    return phone;
-  }
-  return '';
 }
 
 // Postal code formats accepted by Mondial Relay per country (technical documentation):
@@ -234,6 +192,80 @@ function extractTag(xml, tag) {
   return match ? decodeXml(match[1].trim()) : null;
 }
 
+// Attributes of every `<tag ...>` element of an XML document, as plain objects.
+function extractElementAttributes(xml, tag) {
+  const elements = [];
+  const elementRegex = new RegExp(`<${tag}\\b([^>]*?)/?>`, 'g');
+  let element = elementRegex.exec(xml);
+  while (element !== null) {
+    const attributes = {};
+    const attributeRegex = /([A-Za-z_][\w.-]*)\s*=\s*"([^"]*)"/g;
+    let attribute = attributeRegex.exec(element[1]);
+    while (attribute !== null) {
+      attributes[attribute[1]] = decodeXml(attribute[2]);
+      attribute = attributeRegex.exec(element[1]);
+    }
+    elements.push(attributes);
+    element = elementRegex.exec(xml);
+  }
+  return elements;
+}
+
+// International dialling codes of the countries served by Mondial Relay. API2 wants the phone
+// numbers in international format ("+33320202020"), while customers usually type a national one.
+const DIALLING_CODES = {
+  FR: '33',
+  BE: '32',
+  LU: '352',
+  NL: '31',
+  ES: '34',
+  PT: '351',
+  IT: '39',
+  DE: '49',
+  AT: '43',
+  CH: '41',
+  GB: '44',
+  IE: '353',
+  PL: '48',
+};
+
+// Phone number in the international format expected by API2, or an empty string when the
+// number cannot be converted: the field is optional for a pickup point delivery.
+function toInternationalPhone(value, country = 'FR') {
+  if (!value) {
+    return '';
+  }
+  const phone = String(value).replace(/[^0-9+]/g, '');
+  if (phone.startsWith('+')) {
+    return /^\+[1-9]\d{6,14}$/.test(phone) ? phone : '';
+  }
+  const diallingCode = DIALLING_CODES[String(country || 'FR').toUpperCase()];
+  if (!diallingCode) {
+    return '';
+  }
+  // National format: a single leading zero is the national prefix and is dropped
+  const nationalNumber = phone.replace(/^0+/, '');
+  if (!/^[1-9]\d{5,13}$/.test(nationalNumber)) {
+    return '';
+  }
+  return `+${diallingCode}${nationalNumber}`;
+}
+
+// API2 wants the house number and the street name in two separate fields, while an address is
+// usually stored as one line. A leading number (with its "bis"/"ter"/letter suffix) is the house
+// number in the countries served here; the rest is the street name.
+function splitStreet(addressLine) {
+  const address = sanitizeText(addressLine, 60);
+  const match = /^(\d+\s*(?:BIS|TER|QUATER|[A-Z])?)\s+(.+)$/.exec(address);
+  if (!match) {
+    return { houseNo: '', streetName: address.slice(0, 40) };
+  }
+  return {
+    houseNo: match[1].replace(/\s+/g, '').slice(0, 10),
+    streetName: match[2].slice(0, 40),
+  };
+}
+
 function extractBlocks(xml, tag) {
   const regex = new RegExp(`<${tag}>([\\s\\S]*?)</${tag}>`, 'g');
   const blocks = [];
@@ -274,19 +306,45 @@ function getPublicTrackingUrl(shipmentNumber, postalCode) {
   return url;
 }
 
+// Sandbox environment of API2, enabled with MONDIAL_RELAY_API2_SANDBOX=true. The shipments it
+// creates are not real: the labels carry a "ModeSandbox" flag and no parcel is ever collected.
+function getShipmentApiUrl() {
+  if (process.env.MONDIAL_RELAY_API2_URL) {
+    return process.env.MONDIAL_RELAY_API2_URL;
+  }
+  return process.env.MONDIAL_RELAY_API2_SANDBOX === 'true' ? SANDBOX_SHIPMENT_API_URL : DEFAULT_SHIPMENT_API_URL;
+}
+
 module.exports = function MondialRelayService(logger) {
   // Read at call time so the credentials can be rotated without a code change (and toggled in tests)
   function getConfig() {
+    const enseigne = process.env.MONDIAL_RELAY_ENSEIGNE;
     return {
-      enseigne: process.env.MONDIAL_RELAY_ENSEIGNE,
+      enseigne,
       privateKey: process.env.MONDIAL_RELAY_PRIVATE_KEY,
       apiUrl: process.env.MONDIAL_RELAY_API_URL || DEFAULT_API_URL,
+      shipmentApi: {
+        url: getShipmentApiUrl(),
+        login: process.env.MONDIAL_RELAY_API2_LOGIN,
+        password: process.env.MONDIAL_RELAY_API2_PASSWORD,
+        // The customer id of API2 is the code enseigne, unless Mondial Relay gave another one
+        customerId: process.env.MONDIAL_RELAY_API2_CUSTOMER_ID || enseigne,
+        culture: process.env.MONDIAL_RELAY_API2_CULTURE || DEFAULT_CULTURE,
+        labelFormat: process.env.MONDIAL_RELAY_LABEL_FORMAT || DEFAULT_LABEL_FORMAT,
+      },
     };
   }
 
+  // API1 (tracing) is configured
   function isConfigured() {
     const { enseigne, privateKey } = getConfig();
     return Boolean(enseigne && privateKey);
+  }
+
+  // API2 (shipment and label creation) is configured
+  function isShipmentApiConfigured() {
+    const { login, password, customerId } = getConfig().shipmentApi;
+    return Boolean(login && password && customerId);
   }
 
   // "Brand" parameter of the Mondial Relay pickup point widget on the website: the code
@@ -331,8 +389,112 @@ module.exports = function MondialRelayService(logger) {
     };
   }
 
+  // One <Address> block of the API2 request. Mondial Relay prints the label as
+  // "[AddressAdd1] / [AddressAdd2] / [HouseNo] [StreetName] / [AddressAdd3] / [PostCode] [City]",
+  // so the name goes in AddressAdd1 and the address complement in AddressAdd3.
+  function buildAddressXml(tag, address) {
+    const country = (address.country || 'FR').toUpperCase();
+    const { houseNo, streetName } = splitStreet(address.address_1);
+    const fields = {
+      Title: '',
+      Firstname: '',
+      Lastname: '',
+      Streetname: streetName,
+      HouseNo: houseNo,
+      CountryCode: country,
+      PostCode: sanitizePostalCode(address.postal_code, country),
+      City: sanitizeText(address.city, 30),
+      AddressAdd1: sanitizeText(address.name, 30),
+      AddressAdd2: '',
+      AddressAdd3: sanitizeText(address.address_2, 30),
+      PhoneNo: '',
+      MobileNo: toInternationalPhone(address.phone, country),
+      Email: address.email || '',
+    };
+    const body = Object.keys(fields)
+      .map((key) => `<${key}>${escapeXml(fields[key])}</${key}>`)
+      .join('');
+    return `<${tag}><Address>${body}</Address></${tag}>`;
+  }
+
+  function buildShipmentCreationRequest({ reference, sender, recipient, pickupPoint, weightInGrams }) {
+    const { shipmentApi } = getConfig();
+    const context = [
+      '<Context>',
+      `<Login>${escapeXml(shipmentApi.login)}</Login>`,
+      `<Password>${escapeXml(shipmentApi.password)}</Password>`,
+      `<CustomerId>${escapeXml(shipmentApi.customerId)}</CustomerId>`,
+      `<Culture>${escapeXml(shipmentApi.culture)}</Culture>`,
+      `<VersionAPI>${SHIPMENT_API_VERSION}</VersionAPI>`,
+      '</Context>',
+    ].join('');
+    const outputOptions = [
+      '<OutputOptions>',
+      `<OutputFormat>${escapeXml(shipmentApi.labelFormat)}</OutputFormat>`,
+      '<OutputType>PdfUrl</OutputType>',
+      '</OutputOptions>',
+    ].join('');
+    // The delivery location of a pickup point delivery is "<country>-<pickup point id>"
+    const deliveryLocation = `${(pickupPoint.country || 'FR').toUpperCase()}-${pickupPoint.id}`;
+    const collectionMode = process.env.MONDIAL_RELAY_COLLECT_MODE || DEFAULT_COLLECT_MODE;
+    const collectionLocation = process.env.MONDIAL_RELAY_COLLECT_POINT_ID || '';
+    const shipment = [
+      '<Shipment>',
+      `<OrderNo>${escapeXml(reference)}</OrderNo>`,
+      '<CustomerNo/>',
+      '<ParcelCount>1</ParcelCount>',
+      `<DeliveryMode Mode="${DELIVERY_MODE_PICKUP_POINT}" Location="${escapeXml(deliveryLocation)}"/>`,
+      `<CollectionMode Mode="${escapeXml(collectionMode)}" Location="${escapeXml(collectionLocation)}"/>`,
+      `<Parcels><Parcel><Weight Value="${weightInGrams}" Unit="gr"/></Parcel></Parcels>`,
+      buildAddressXml('Sender', sender),
+      buildAddressXml('Recipient', recipient),
+      '</Shipment>',
+    ].join('');
+    return [
+      '<?xml version="1.0" encoding="utf-8"?>',
+      '<ShipmentCreationRequest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ',
+      'xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.example.org/Request">',
+      context,
+      outputOptions,
+      `<ShipmentsList>${shipment}</ShipmentsList>`,
+      '</ShipmentCreationRequest>',
+    ].join('');
+  }
+
+  // POST an already built XML request to API2 and return the raw response.
+  async function callShipmentApi(xml) {
+    const { shipmentApi } = getConfig();
+    const response = await axios.post(shipmentApi.url, xml, {
+      headers: {
+        Accept: 'application/xml',
+        'Content-Type': 'text/xml',
+      },
+      timeout: 30 * 1000,
+      responseType: 'text',
+    });
+    return response.data;
+  }
+
+  // Business errors of an API2 response. Warnings are logged but do not fail the call: they
+  // report optional fields that were ignored, the shipment is created anyway.
+  function getShipmentApiErrors(xml) {
+    const statuses = extractElementAttributes(xml, 'Status');
+    const errors = [];
+    statuses.forEach((status) => {
+      const level = String(status.Level || '');
+      const message = status.Message || '';
+      if (level.toLowerCase() === 'warning') {
+        logger.warn(`Mondial Relay: shipment creation warning ${status.Code}: ${message}`);
+        return;
+      }
+      errors.push({ code: String(status.Code || ''), level, message });
+    });
+    return errors;
+  }
+
   /**
    * Create a shipment to a pickup point and return its tracking number and label.
+   * Uses API2 ("dual carrier"), the only supported way to create a shipment.
    *
    * @param {Object} shipment
    * @param {string} shipment.reference - Merchant reference (max 15 chars)
@@ -342,76 +504,86 @@ module.exports = function MondialRelayService(logger) {
    * @returns {Promise<{ shipment_number: string, label_url: string, tracking_url: string }>}
    */
   async function createPickupPointShipment(shipment) {
-    if (!isConfigured()) {
-      throw new Error('MONDIAL_RELAY_NOT_CONFIGURED');
+    if (!isShipmentApiConfigured()) {
+      throw new Error('MONDIAL_RELAY_API2_NOT_CONFIGURED');
     }
-    const { enseigne } = getConfig();
     const sender = getSender();
     const { recipient, pickupPoint } = shipment;
-    const weight =
-      shipment.weightInGrams || process.env.MONDIAL_RELAY_PARCEL_WEIGHT_IN_GRAMS || DEFAULT_WEIGHT_IN_GRAMS;
-    const values = {
-      Enseigne: enseigne,
-      ModeCol: process.env.MONDIAL_RELAY_COLLECT_MODE || DEFAULT_COLLECT_MODE,
-      ModeLiv: DELIVERY_MODE_PICKUP_POINT,
-      NDossier: sanitizeText(shipment.reference, 15),
-      NClient: '',
-      Expe_Langage: 'FR',
-      Expe_Ad1: sanitizeText(sender.name),
-      Expe_Ad2: '',
-      Expe_Ad3: sanitizeText(sender.address_1),
-      Expe_Ad4: sanitizeText(sender.address_2),
-      Expe_Ville: sanitizeText(sender.city, 26),
-      Expe_CP: sanitizePostalCode(sender.postal_code, sender.country),
-      Expe_Pays: sender.country,
-      Expe_Tel1: sanitizePhone(sender.phone),
-      Expe_Tel2: '',
-      Expe_Mail: sender.email || '',
-      Dest_Langage: 'FR',
-      Dest_Ad1: sanitizeText(recipient.name),
-      Dest_Ad2: '',
-      Dest_Ad3: sanitizeText(recipient.address_1),
-      Dest_Ad4: sanitizeText(recipient.address_2),
-      Dest_Ville: sanitizeText(recipient.city, 26),
-      Dest_CP: sanitizePostalCode(recipient.postal_code, recipient.country || 'FR'),
-      Dest_Pays: (recipient.country || 'FR').toUpperCase(),
-      Dest_Tel1: sanitizePhone(recipient.phone),
-      Dest_Tel2: '',
-      Dest_Mail: recipient.email || '',
-      Poids: String(weight),
-      Longueur: '',
-      Taille: '',
-      NbColis: '1',
-      CRT_Valeur: '0',
-      CRT_Devise: '',
-      Exp_Valeur: '',
-      Exp_Devise: '',
-      COL_Rel_Pays: '',
-      COL_Rel: '',
-      LIV_Rel_Pays: (pickupPoint.country || 'FR').toUpperCase(),
-      LIV_Rel: pickupPoint.id,
-      TAvisage: '',
-      TReprise: '',
-      Montage: '',
-      TRDV: '',
-      Assurance: '',
-      Instructions: '',
-    };
-    logger.info(`Mondial Relay: creating shipment ${values.NDossier} to pickup point ${pickupPoint.id}`);
-    const { stat, xml } = await call('WSI2_CreationEtiquette', CREATE_LABEL_PARAMS, values);
-    if (stat !== '0') {
-      throw new MondialRelayError(stat, 'WSI2_CreationEtiquette');
+    const weightInGrams = Number(
+      shipment.weightInGrams || process.env.MONDIAL_RELAY_PARCEL_WEIGHT_IN_GRAMS || DEFAULT_WEIGHT_IN_GRAMS,
+    );
+    const reference = sanitizeText(shipment.reference, 15);
+    logger.info(`Mondial Relay: creating shipment ${reference} to pickup point ${pickupPoint.id}`);
+    const xml = await callShipmentApi(
+      buildShipmentCreationRequest({ reference, sender, recipient, pickupPoint, weightInGrams }),
+    );
+
+    const errors = getShipmentApiErrors(xml);
+    if (errors.length > 0) {
+      const [firstError] = errors;
+      throw new MondialRelayError(
+        firstError.code,
+        'ShipmentCreationRequest',
+        errors.map((error) => `${error.code} ${error.message}`).join(' / '),
+      );
     }
-    const shipmentNumber = extractTag(xml, 'ExpeditionNum');
-    let labelUrl = extractTag(xml, 'URL_Etiquette') || '';
-    if (labelUrl.startsWith('/')) {
-      labelUrl = `${LABEL_BASE_URL}${labelUrl}`;
+    const [createdShipment] = extractElementAttributes(xml, 'Shipment');
+    const shipmentNumber = createdShipment && createdShipment.ShipmentNumber;
+    if (!shipmentNumber) {
+      throw new MondialRelayError('', 'ShipmentCreationRequest', 'No shipment number in the response');
     }
     logger.info(`Mondial Relay: shipment ${shipmentNumber} created`);
     return {
       shipment_number: shipmentNumber,
-      label_url: labelUrl,
-      tracking_url: getPublicTrackingUrl(shipmentNumber, values.Dest_CP),
+      label_url: extractTag(xml, 'Output') || '',
+      tracking_url: getPublicTrackingUrl(shipmentNumber, sanitizePostalCode(recipient.postal_code, recipient.country)),
+    };
+  }
+
+  /**
+   * Check the API2 credentials without creating anything, by sending a request with no shipment
+   * in it: valid credentials answer with the business error 10011 (no shipment entity defined),
+   * wrong ones with an authentication error.
+   *
+   * @returns {Promise<{ ok: boolean, code: string, message: string }>}
+   */
+  async function checkShipmentApiCredentials() {
+    if (!isShipmentApiConfigured()) {
+      throw new Error('MONDIAL_RELAY_API2_NOT_CONFIGURED');
+    }
+    const { shipmentApi } = getConfig();
+    const xml = await callShipmentApi(
+      [
+        '<?xml version="1.0" encoding="utf-8"?>',
+        '<ShipmentCreationRequest xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" ',
+        'xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns="http://www.example.org/Request">',
+        '<Context>',
+        `<Login>${escapeXml(shipmentApi.login)}</Login>`,
+        `<Password>${escapeXml(shipmentApi.password)}</Password>`,
+        `<CustomerId>${escapeXml(shipmentApi.customerId)}</CustomerId>`,
+        `<Culture>${escapeXml(shipmentApi.culture)}</Culture>`,
+        `<VersionAPI>${SHIPMENT_API_VERSION}</VersionAPI>`,
+        '</Context>',
+        `<OutputOptions><OutputFormat>${escapeXml(shipmentApi.labelFormat)}</OutputFormat>`,
+        '<OutputType>PdfUrl</OutputType></OutputOptions>',
+        '<ShipmentsList/>',
+        '</ShipmentCreationRequest>',
+      ].join(''),
+    );
+    const statuses = extractElementAttributes(xml, 'Status');
+    const blocking = statuses.find(
+      (status) =>
+        SHIPMENT_API_CREDENTIAL_ERRORS.includes(String(status.Code)) ||
+        SHIPMENT_API_ACCESS_ERRORS.includes(String(status.Code)),
+    );
+    if (blocking) {
+      return { ok: false, code: String(blocking.Code), message: blocking.Message || '' };
+    }
+    const [status] = statuses;
+    return {
+      ok: true,
+      code: status ? String(status.Code) : '',
+      message: status ? status.Message || '' : '',
     };
   }
 
@@ -452,16 +624,19 @@ module.exports = function MondialRelayService(logger) {
 
   return {
     isConfigured,
+    isShipmentApiConfigured,
     getWidgetBrandCode,
     createPickupPointShipment,
+    checkShipmentApiCredentials,
     getTracking,
     getPublicTrackingUrl,
     MondialRelayError,
     // exported for tests
     computeSecurity,
     sanitizeText,
-    sanitizePhone,
     sanitizePostalCode,
+    toInternationalPhone,
+    splitStreet,
   };
 };
 

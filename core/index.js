@@ -302,8 +302,8 @@ module.exports = async (port) => {
 
   routes.load(app, io, controllers, middlewares);
 
-  // Recurring jobs (activation reminders...): every replica schedules them, a Redis lock
-  // makes sure only one runs each of them
+  // Recurring jobs (activation reminders, recovery codes reminders...): every replica
+  // schedules them, a Redis lock makes sure only one runs each of them
   const scheduler = Scheduler(logger, redisClient, models.adminAccountLifecycleModel);
   scheduler.start();
 

@@ -323,6 +323,35 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {post} /admin/api/users/:id/recovery-codes-reminder Send the recovery codes reminder to a user
+   * @apiName adminSendRecoveryCodesReminderToUser
+   * @apiGroup Admin API
+   * @apiDescription Send the recovery codes reminder email to one user right away, whatever
+   * the interval, the recovery codes or the account: a manual action, to test the email on
+   * a user of yours or to chase a user by hand. The date is recorded like for the job, so
+   * the user is not reminded again by the job before the interval has elapsed. 404 for an
+   * unknown or deleted user.
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "a139e4a6-ec6c-442d-9730-0499155d38d4",
+   *   "email": "tony.stark@gladysassistant.com",
+   *   "account_id": "...",
+   *   "language": "fr",
+   *   "two_factor_enabled": true,
+   *   "has_recovery_codes": false,
+   *   "reminder_sent_at": "2026-09-18T08:00:00.000Z"
+   * }
+   */
+  async function sendRecoveryCodesReminderToUser(req, res) {
+    const result = await adminAccountLifecycleModel.sendRecoveryCodesReminderToUser(req.params.id);
+    audit(req, `send recovery codes reminder to user ${result.id}`);
+    res.json(result);
+  }
+
+  /**
    * @api {post} /admin/api/users/:id/reset_two_factor Reset two factor
    * @apiName adminResetTwoFactor
    * @apiGroup Admin API
@@ -503,6 +532,7 @@ module.exports = function AdminApiController(
     applyRetentionPolicy,
     sendActivationReminders,
     sendRecoveryCodesReminders,
+    sendRecoveryCodesReminderToUser,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

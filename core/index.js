@@ -315,6 +315,7 @@ module.exports = async (port) => {
     db,
     redisClient,
     legacyRedisClient,
+    services,
     models,
     controllers,
     scheduler,

@@ -1,7 +1,8 @@
+const Joi = require('joi');
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const { ValidationError } = require('../../common/error');
+const { NotFoundError, ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
 const { normalizeEmail } = require('../../common/normalize-email');
 const {
@@ -12,6 +13,8 @@ const {
 
 // Statuses under which the customer has access to Gladys Plus (see checkUserPlan middleware)
 const ACTIVE_STATUSES = ['active', 'trialing'];
+
+const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 // Stripe calls in parallel while reconciling: low enough to stay far from the rate limit
@@ -420,11 +423,24 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
   }
 
-  // The recovery codes are generated from the security settings of the Gladys Plus dashboard
-  function getRecoveryCodesUrl() {
-    return `${process.env.GLADYS_PLUS_FRONTEND_URL}/dashboard/settings/security`;
+  /**
+   * Send the recovery codes reminder to one user and record the date: the user is not
+   * reminded again by the job before the interval has elapsed.
+   */
+  async function sendRecoveryCodesReminder(user, now) {
+    // The recovery codes are generated from the security settings of the Gladys Plus dashboard
+    await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_reminder', {
+      firstname: extractFirstname(user.name),
+      recoveryCodesUrl: `${process.env.GLADYS_PLUS_FRONTEND_URL}/dashboard/settings/security`,
+    });
+    await db.t_user.update(user.id, { recovery_codes_reminder_sent_at: now }, { fields: ['id'] });
+    logger.info(`recoveryCodesReminder: reminder sent to user ${user.id}`);
   }
 
+  /**
+   * Remind one candidate of the job (see sendRecoveryCodesReminders), unless execute is
+   * false. Never throws: a failed email is reported as an error, the next run will retry.
+   */
   async function remindOneUser(user, execute, now) {
     const result = {
       id: user.id,
@@ -435,12 +451,7 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
     try {
       if (execute) {
-        await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_reminder', {
-          firstname: extractFirstname(user.name),
-          recoveryCodesUrl: getRecoveryCodesUrl(),
-        });
-        await db.t_user.update(user.id, { recovery_codes_reminder_sent_at: now }, { fields: ['id'] });
-        logger.info(`recoveryCodesReminder: reminder sent to user ${user.id}`);
+        await sendRecoveryCodesReminder(user, now);
       }
       return { ...result, action: 'remind' };
     } catch (e) {
@@ -499,10 +510,42 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
   }
 
+  /**
+   * Send the recovery codes reminder to one user right away, whatever the interval, the
+   * recovery codes or the account: a manual action of the admin, to test the email or to
+   * chase a user by hand. The date is recorded like for the job. 404 for an unknown or
+   * deleted user.
+   */
+  async function sendRecoveryCodesReminderToUser(userId) {
+    const { error } = uuidSchema.validate(userId);
+    if (error) {
+      throw new NotFoundError('User not found');
+    }
+    const user = await db.t_user.findOne(
+      { id: userId, is_deleted: false },
+      { fields: ['id', 'email', 'name', 'language', 'account_id', 'two_factor_enabled', 'two_factor_recovery_codes'] },
+    );
+    if (user === null) {
+      throw new NotFoundError('User not found');
+    }
+    const now = new Date();
+    await sendRecoveryCodesReminder(user, now);
+    return {
+      id: user.id,
+      email: user.email,
+      account_id: user.account_id,
+      language: user.language,
+      two_factor_enabled: user.two_factor_enabled,
+      has_recovery_codes: (user.two_factor_recovery_codes || []).length > 0,
+      reminder_sent_at: now.toISOString(),
+    };
+  }
+
   return {
     syncWithStripe,
     applyRetentionPolicy,
     sendActivationReminders,
     sendRecoveryCodesReminders,
+    sendRecoveryCodesReminderToUser,
   };
 };

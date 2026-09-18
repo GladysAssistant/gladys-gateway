@@ -44,7 +44,7 @@ before(async function Before() {
   process.env.RECOVERY_CODES_REMINDER_CRON = 'disabled';
 
   // starting 2 backends to try multi-server socket exchange
-  const { io, app, db, redisClient, legacyRedisClient } = await server(process.env.SERVER_PORT);
+  const { io, app, db, redisClient, legacyRedisClient, services } = await server(process.env.SERVER_PORT);
   const { io: iosServer2, app: appServer2 } = await server(process.env.SERVER_PORT + 1);
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);
@@ -55,6 +55,7 @@ before(async function Before() {
   global.TEST_DATABASE_INSTANCE = db;
   global.TEST_LEGACY_REDIS_CLIENT = legacyRedisClient;
   global.TEST_REDIS_CLIENT = redisClient;
+  global.TEST_SERVICES = services;
 });
 
 beforeEach(async function BeforeEach() {

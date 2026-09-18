@@ -4,6 +4,7 @@ const { expect } = require('chai');
 const ACCOUNT_WITH_USERS = 'b2d23f66-487d-493f-8acb-9c8adb400def';
 // The fixture user having two factor enabled (with recovery codes, see test/tasks/fixtures/t_user.js)
 const TWO_FACTOR_USER = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
+const USER_WITHOUT_TWO_FACTOR = '29770e0d-26a9-444e-91a1-f175c99a5218';
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 
@@ -139,6 +140,27 @@ describe('POST /admin/api/users/recovery-codes-reminders', () => {
     expect(response.body.total).to.equal(0);
   });
 
+  it('should report an error and continue when the email cannot be sent', async () => {
+    await givenUserWithoutRecoveryCodes();
+    const { mailService } = TEST_SERVICES;
+    const originalSend = mailService.send;
+    mailService.send = async () => {
+      throw new Error('SMTP down');
+    };
+    try {
+      const response = await adminRequest('post', '/admin/api/users/recovery-codes-reminders')
+        .send({ execute: true })
+        .expect(200);
+      expect(response.body).to.deep.include({ total: 1, reminded: 0, errors: 1 });
+      expect(response.body.users[0]).to.include({ id: TWO_FACTOR_USER, action: 'error', error: 'SMTP down' });
+    } finally {
+      mailService.send = originalSend;
+    }
+    // not marked as reminded: the next run will retry
+    const user = await getUser();
+    expect(user.recovery_codes_reminder_sent_at).to.equal(null);
+  });
+
   it('should return 422 with an invalid body', async () => {
     await adminRequest('post', '/admin/api/users/recovery-codes-reminders').send({ execute: 'yes' }).expect(422);
   });
@@ -148,6 +170,58 @@ describe('POST /admin/api/users/recovery-codes-reminders', () => {
       .post('/admin/api/users/recovery-codes-reminders')
       .set('Accept', 'application/json')
       .send({})
+      .expect(401);
+  });
+});
+
+describe('POST /admin/api/users/:id/recovery-codes-reminder', () => {
+  it('should send the reminder to the user right away and record the date', async () => {
+    // reminded yesterday and having recovery codes: the manual send ignores both
+    await TEST_DATABASE_INSTANCE.t_user.update(
+      { id: TWO_FACTOR_USER },
+      { recovery_codes_reminder_sent_at: daysAgo(1), language: 'fr' },
+    );
+    const response = await adminRequest('post', `/admin/api/users/${TWO_FACTOR_USER}/recovery-codes-reminder`)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.include({
+      id: TWO_FACTOR_USER,
+      email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+      account_id: ACCOUNT_WITH_USERS,
+      language: 'fr',
+      two_factor_enabled: true,
+      has_recovery_codes: true,
+    });
+    expect(new Date(response.body.reminder_sent_at).getTime()).to.be.closeTo(Date.now(), 10000);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: TWO_FACTOR_USER });
+    expect(new Date(user.recovery_codes_reminder_sent_at).getTime()).to.be.closeTo(Date.now(), 10000);
+  });
+
+  it('should send the reminder to a user without two factor nor recovery codes', async () => {
+    const response = await adminRequest(
+      'post',
+      `/admin/api/users/${USER_WITHOUT_TWO_FACTOR}/recovery-codes-reminder`,
+    ).expect(200);
+    expect(response.body).to.include({
+      id: USER_WITHOUT_TWO_FACTOR,
+      two_factor_enabled: false,
+      has_recovery_codes: false,
+    });
+  });
+
+  it('should return 404 for an unknown or deleted user', async () => {
+    await adminRequest('post', '/admin/api/users/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1/recovery-codes-reminder').expect(
+      404,
+    );
+    await adminRequest('post', '/admin/api/users/not-an-uuid/recovery-codes-reminder').expect(404);
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: TWO_FACTOR_USER }, { is_deleted: true });
+    await adminRequest('post', `/admin/api/users/${TWO_FACTOR_USER}/recovery-codes-reminder`).expect(404);
+  });
+
+  it('should refuse a call without admin credentials', async () => {
+    await request(TEST_BACKEND_APP)
+      .post(`/admin/api/users/${TWO_FACTOR_USER}/recovery-codes-reminder`)
+      .set('Accept', 'application/json')
       .expect(401);
   });
 });

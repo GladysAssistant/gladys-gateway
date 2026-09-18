@@ -3,6 +3,8 @@ const Promise = require('bluebird');
 module.exports = function Database(db) {
   function clean() {
     const tablesToClean = [
+      't_starter_kit_order_event',
+      't_starter_kit_order',
       't_ai_usage',
       't_tempo_historical_data',
       't_enedis_sync',
@@ -40,6 +42,8 @@ module.exports = function Database(db) {
       't_gladys_version',
       't_backup',
       't_gladys_usage',
+      't_starter_kit_order',
+      't_starter_kit_order_event',
     ];
 
     return Promise.each(toFillInOrder, (tableName) => db[tableName].insert(require(`./fixtures/${tableName}.js`))); // eslint-disable-line

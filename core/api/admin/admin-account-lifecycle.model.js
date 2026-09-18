@@ -1,13 +1,20 @@
+const Joi = require('joi');
 const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
-const { ValidationError } = require('../../common/error');
+const { NotFoundError, ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
 const { normalizeEmail } = require('../../common/normalize-email');
-const { buildAccountDeletionWarningScope, buildWelcomeReminderScope } = require('../../common/billing-email-scope');
+const {
+  buildAccountDeletionWarningScope,
+  buildWelcomeReminderScope,
+  extractFirstname,
+} = require('../../common/billing-email-scope');
 
 // Statuses under which the customer has access to Gladys Plus (see checkUserPlan middleware)
 const ACTIVE_STATUSES = ['active', 'trialing'];
+
+const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 // Stripe calls in parallel while reconciling: low enough to stay far from the rate limit
@@ -22,6 +29,14 @@ function readPositiveIntegerEnv(name, defaultValue) {
 function getActivationReminderPolicy() {
   return {
     delay_in_days: readPositiveIntegerEnv('ACCOUNT_ACTIVATION_REMINDER_DELAY_IN_DAYS', 7),
+  };
+}
+
+// How often a user having two factor authentication enabled without recovery codes is reminded
+// to generate them. Reminded again and again, every interval, until the codes exist.
+function getRecoveryCodesReminderPolicy() {
+  return {
+    interval_in_days: readPositiveIntegerEnv('RECOVERY_CODES_REMINDER_INTERVAL_IN_DAYS', 90),
   };
 }
 
@@ -408,9 +423,129 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
   }
 
+  /**
+   * Send the recovery codes reminder to one user and record the date: the user is not
+   * reminded again by the job before the interval has elapsed.
+   */
+  async function sendRecoveryCodesReminder(user, now) {
+    // The recovery codes are generated from the security settings of the Gladys Plus dashboard
+    await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_reminder', {
+      firstname: extractFirstname(user.name),
+      recoveryCodesUrl: `${process.env.GLADYS_PLUS_FRONTEND_URL}/dashboard/settings/security`,
+    });
+    await db.t_user.update(user.id, { recovery_codes_reminder_sent_at: now }, { fields: ['id'] });
+    logger.info(`recoveryCodesReminder: reminder sent to user ${user.id}`);
+  }
+
+  /**
+   * Remind one candidate of the job (see sendRecoveryCodesReminders), unless execute is
+   * false. Never throws: a failed email is reported as an error, the next run will retry.
+   */
+  async function remindOneUser(user, execute, now) {
+    const result = {
+      id: user.id,
+      email: user.email,
+      account_id: user.account_id,
+      language: user.language,
+      last_reminder_sent_at: toIsoString(user.recovery_codes_reminder_sent_at),
+    };
+    try {
+      if (execute) {
+        await sendRecoveryCodesReminder(user, now);
+      }
+      return { ...result, action: 'remind' };
+    } catch (e) {
+      logger.warn(`recoveryCodesReminder: failed to remind user ${user.id}`);
+      logger.warn(e);
+      return { ...result, action: 'error', error: e.message || 'error' };
+    }
+  }
+
+  /**
+   * Reminder for the users who enabled two factor authentication but never generated their
+   * recovery codes (or used them all): without codes, losing the authenticator app means
+   * losing the account. Every user having two factor enabled, no recovery codes and no
+   * reminder in the last RECOVERY_CODES_REMINDER_INTERVAL_IN_DAYS receives an email, in the
+   * language of the user, linking to the page of the dashboard generating the codes. Sent
+   * again every interval until the codes exist. Only the confirmed users of an account whose
+   * subscription is running in database are candidates: the dashboard refuses the others
+   * anyway. Internal accounts are never touched. Read-only unless execute is true. Scheduled
+   * daily by the scheduler service, the admin API is there to review the candidates and to
+   * run it by hand.
+   */
+  async function sendRecoveryCodesReminders(body) {
+    const { execute } = validateJobBody(body);
+    const policy = getRecoveryCodesReminderPolicy();
+    const now = new Date();
+    const remindedBefore = new Date(now.getTime() - policy.interval_in_days * ONE_DAY_IN_MS);
+    // A user who used every recovery code is left with an empty array, not NULL
+    const candidates = await db.query(
+      `
+        SELECT t_user.id, t_user.email, t_user.name, t_user.language, t_user.account_id,
+          t_user.recovery_codes_reminder_sent_at
+        FROM t_user
+        INNER JOIN t_account ON t_account.id = t_user.account_id
+        WHERE t_user.is_deleted = false
+          AND t_user.email_confirmed = true
+          AND t_user.two_factor_enabled = true
+          AND COALESCE(cardinality(t_user.two_factor_recovery_codes), 0) = 0
+          AND (t_user.recovery_codes_reminder_sent_at IS NULL OR t_user.recovery_codes_reminder_sent_at < $1)
+          AND t_account.is_deleted = false
+          AND t_account.is_internal = false
+          AND t_account.status IN ('active', 'trialing')
+        ORDER BY t_user.created_at ASC;
+      `,
+      [remindedBefore],
+    );
+    logger.info(`recoveryCodesReminder: ${candidates.length} users without recovery codes (execute=${execute})`);
+    const results = await Promise.mapSeries(candidates, (user) => remindOneUser(user, execute, now));
+    const countByAction = (action) => results.filter((result) => result.action === action).length;
+    return {
+      execute,
+      ...policy,
+      total: results.length,
+      reminded: countByAction('remind'),
+      errors: countByAction('error'),
+      users: results,
+    };
+  }
+
+  /**
+   * Send the recovery codes reminder to one user right away, whatever the interval, the
+   * recovery codes or the account: a manual action of the admin, to test the email or to
+   * chase a user by hand. The date is recorded like for the job. 404 for an unknown or
+   * deleted user.
+   */
+  async function sendRecoveryCodesReminderToUser(userId) {
+    const { error } = uuidSchema.validate(userId);
+    if (error) {
+      throw new NotFoundError('User not found');
+    }
+    const user = await db.t_user.findOne(
+      { id: userId, is_deleted: false },
+      { fields: ['id', 'email', 'name', 'language', 'account_id', 'two_factor_enabled', 'two_factor_recovery_codes'] },
+    );
+    if (user === null) {
+      throw new NotFoundError('User not found');
+    }
+    const now = new Date();
+    await sendRecoveryCodesReminder(user, now);
+    return {
+      id: user.id,
+      email: user.email,
+      account_id: user.account_id,
+      language: user.language,
+      two_factor_enabled: user.two_factor_enabled,
+      has_recovery_codes: (user.two_factor_recovery_codes || []).length > 0,
+      reminder_sent_at: now.toISOString(),
+    };
+  }
+
   return {
     syncWithStripe,
     applyRetentionPolicy,
     sendActivationReminders,
+    sendRecoveryCodesReminders,
+    sendRecoveryCodesReminderToUser,
   };
 };

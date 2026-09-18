@@ -62,6 +62,16 @@ module.exports = {
       ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/payment_failed.ejs`, 'utf8')),
     },
   },
+  recovery_codes_reminder: {
+    en: {
+      subject: 'Remember to generate your Gladys Plus recovery codes',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/recovery_codes_reminder.ejs`, 'utf8')),
+    },
+    fr: {
+      subject: 'Pense à générer tes codes de récupération Gladys Plus',
+      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/recovery_codes_reminder.ejs`, 'utf8')),
+    },
+  },
   welcome: {
     en: {
       subject: 'Welcome to Gladys Plus: activate your account',

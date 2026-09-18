@@ -66,6 +66,16 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     });
   }
 
+  function sendRecoveryCodesReminders() {
+    return runWithLock('recovery-codes-reminders', async () => {
+      const report = await adminAccountLifecycleModel.sendRecoveryCodesReminders({ execute: true });
+      logger.info(
+        `scheduler: recovery codes reminders sent (total=${report.total}, reminded=${report.reminded}, errors=${report.errors})`,
+      );
+      return report;
+    });
+  }
+
   function scheduleJob(name, envName, defaultSchedule, job) {
     const schedule = getSchedule(envName, defaultSchedule);
     if (schedule === null) {
@@ -90,6 +100,12 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
         '0 9 * * *',
         sendActivationReminders,
       ),
+      recoveryCodesReminders: scheduleJob(
+        'recovery-codes-reminders',
+        'RECOVERY_CODES_REMINDER_CRON',
+        '30 9 * * *',
+        sendRecoveryCodesReminders,
+      ),
     };
   }
 
@@ -102,5 +118,6 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     stop,
     runWithLock,
     sendActivationReminders,
+    sendRecoveryCodesReminders,
   };
 };

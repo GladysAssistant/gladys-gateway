@@ -418,6 +418,11 @@ describe('POST /users/login-two-factor', () => {
 
 describe('POST /users/two-factor/recovery-codes', () => {
   it('should generate 10 recovery codes', async () => {
+    // a user reminded to generate the codes: generating them resets the reminder
+    await TEST_DATABASE_INSTANCE.t_user.update(
+      { id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' },
+      { recovery_codes_reminder_sent_at: new Date() },
+    );
     const response = await request(TEST_BACKEND_APP)
       .post('/users/two-factor/recovery-codes')
       .set('Accept', 'application/json')
@@ -443,6 +448,7 @@ describe('POST /users/two-factor/recovery-codes', () => {
     response.body.recovery_codes.forEach((recoveryCode) => {
       expect(user.two_factor_recovery_codes).to.not.include(recoveryCode);
     });
+    expect(user.recovery_codes_reminder_sent_at).to.equal(null);
   });
 
   it('should return 403 and keep the existing recovery codes without the current two factor code', async () => {

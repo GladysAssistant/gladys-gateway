@@ -55,6 +55,7 @@ app.get('/:template_name/:language', (req, res) => {
       accessEndedDate: '2 juin 2025',
       planProductName: 'Gladys Plus',
       subscribeUrl: 'https://gladysassistant.com/fr/plus',
+      recoveryCodesUrl: 'http://gladysassistant.com/dashboard/settings/security',
       ...welcomeScope,
       ...(req.params.template_name === 'welcome_reminder' ? welcomeReminderScope : {}),
     }),

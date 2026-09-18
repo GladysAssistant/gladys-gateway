@@ -338,6 +338,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.adminApiController.refreshEnedisData),
   );
   app.post(
+    '/admin/api/users/recovery-codes-reminders',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminders),
+  );
+  app.post(
+    '/admin/api/users/:id/recovery-codes-reminder',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminderToUser),
+  );
+  app.post(
     '/admin/api/users/:id/reset_two_factor',
     adminAuth,
     asyncMiddleware(controllers.adminApiController.resetTwoFactor),

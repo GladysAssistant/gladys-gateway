@@ -277,6 +277,81 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {post} /admin/api/users/recovery-codes-reminders Remind the users without recovery codes
+   * @apiName adminSendRecoveryCodesReminders
+   * @apiGroup Admin API
+   * @apiDescription Reminder for the users who enabled two factor authentication but never
+   * generated their recovery codes (or used them all): without codes, losing the
+   * authenticator app means losing the account. Every confirmed user having two factor
+   * enabled, no recovery codes and no reminder in the last
+   * RECOVERY_CODES_REMINDER_INTERVAL_IN_DAYS (90 by default) receives an email, in the
+   * language of the user, linking to the security settings of the dashboard ("remind"). The
+   * reminder is sent again every interval until the codes exist. Only the users of an account
+   * whose subscription is running (status in database) are candidates, internal accounts
+   * never are. Read-only unless "execute" is true. The server runs it daily by itself
+   * (RECOVERY_CODES_REMINDER_CRON): this route is there to review the candidates without
+   * "execute", or to run it by hand.
+   *
+   * @apiParam {Boolean} [execute=false] Send the emails
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "execute": true,
+   *   "interval_in_days": 90,
+   *   "total": 2,
+   *   "reminded": 1,
+   *   "errors": 1,
+   *   "users": [
+   *     {
+   *       "id": "...", "email": "...", "account_id": "...", "language": "fr",
+   *       "last_reminder_sent_at": null,
+   *       "action": "remind"
+   *     },
+   *     { "id": "...", "action": "error", "error": "INVALID_TEMPLATE_OR_LANGUAGE", ... }
+   *   ]
+   * }
+   */
+  async function sendRecoveryCodesReminders(req, res) {
+    const report = await adminAccountLifecycleModel.sendRecoveryCodesReminders(req.body);
+    audit(
+      req,
+      `send recovery codes reminders (execute=${report.execute}, reminded=${report.reminded}, errors=${report.errors})`,
+    );
+    res.json(report);
+  }
+
+  /**
+   * @api {post} /admin/api/users/:id/recovery-codes-reminder Send the recovery codes reminder to a user
+   * @apiName adminSendRecoveryCodesReminderToUser
+   * @apiGroup Admin API
+   * @apiDescription Send the recovery codes reminder email to one user right away, whatever
+   * the interval, the recovery codes or the account: a manual action, to test the email on
+   * a user of yours or to chase a user by hand. The date is recorded like for the job, so
+   * the user is not reminded again by the job before the interval has elapsed. 404 for an
+   * unknown or deleted user.
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "a139e4a6-ec6c-442d-9730-0499155d38d4",
+   *   "email": "tony.stark@gladysassistant.com",
+   *   "account_id": "...",
+   *   "language": "fr",
+   *   "two_factor_enabled": true,
+   *   "has_recovery_codes": false,
+   *   "reminder_sent_at": "2026-09-18T08:00:00.000Z"
+   * }
+   */
+  async function sendRecoveryCodesReminderToUser(req, res) {
+    const result = await adminAccountLifecycleModel.sendRecoveryCodesReminderToUser(req.params.id);
+    audit(req, `send recovery codes reminder to user ${result.id}`);
+    res.json(result);
+  }
+
+  /**
    * @api {post} /admin/api/users/:id/reset_two_factor Reset two factor
    * @apiName adminResetTwoFactor
    * @apiGroup Admin API
@@ -456,6 +531,8 @@ module.exports = function AdminApiController(
     syncAccountsWithStripe,
     applyRetentionPolicy,
     sendActivationReminders,
+    sendRecoveryCodesReminders,
+    sendRecoveryCodesReminderToUser,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

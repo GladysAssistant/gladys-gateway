@@ -1,6 +1,7 @@
 const Promise = require('bluebird');
 const nodemailer = require('nodemailer');
 const emails = require('../common/email');
+const { buildLogoAttachment } = require('../common/email-logo');
 const { normalizeLanguage } = require('../common/language');
 
 module.exports = function MailService(logger, telegramService) {
@@ -42,6 +43,9 @@ module.exports = function MailService(logger, telegramService) {
       to: user.email,
       subject: emails[template][user.language].subject,
       html,
+      // The header logo travels with the message as an inline CID part: a data: URI
+      // would be stripped by Gmail and Outlook, and a remote URL would need hosting.
+      attachments: [buildLogoAttachment()],
     };
 
     if (process.env.DISABLE_EMAIL === 'true') {

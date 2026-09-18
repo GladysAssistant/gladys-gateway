@@ -1,0 +1,18 @@
+<%#
+  Numbered onboarding steps, rendered as Horizon style rows: a soft numbered badge
+  next to the text. Locals: items (array of HTML strings).
+-%>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 0 22px;">
+<% items.forEach(function (item, index) { -%>
+                      <tr>
+                        <td class="gl-badge-cell" valign="top" width="34" style="width: 34px; padding: 0 12px 12px 0;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="26" style="width: 26px;">
+                            <tr>
+                              <td class="gl-badge" align="center" height="26" bgcolor="#e7f0fd" style="width: 26px; height: 26px; border-radius: 13px; background-color: #e7f0fd; font-family: <%- s.font %>; font-size: 13px; line-height: 26px; font-weight: 700; color: <%= c.primary %>;"><%= index + 1 %></td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td valign="top" class="gl-rich" style="padding: 0 0 12px; font-family: <%- s.font %>; font-size: 15px; line-height: 26px; color: <%= c.text %>;"><%- item %></td>
+                      </tr>
+<% }); -%>
+                    </table>

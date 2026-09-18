@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="<%= lang %>" xmlns="http://www.w3.org/1999/xhtml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="format-detection" content="telephone=no, date=no, address=no, email=no" />
+  <meta name="color-scheme" content="light dark" />
+  <meta name="supported-color-schemes" content="light dark" />
+  <title><%= title %></title>
+  <!--[if mso]>
+  <noscript><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml></noscript>
+  <style>
+    body, table, td, p, h1, a { font-family: Arial, Helvetica, sans-serif !important; }
+  </style>
+  <![endif]-->
+  <style>
+    :root { color-scheme: light dark; supported-color-schemes: light dark; }
+
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    /* border-collapse: separate keeps border-radius working on cells; cellspacing="0" already removes the gaps */
+    table { border-collapse: separate; border-spacing: 0; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
+    /* Links inside generated content (onboarding steps) still look like links */
+    .gl-rich a { color: <%= c.link %>; text-decoration: underline; }
+
+    /* ---------- Mobile ---------- */
+    @media only screen and (max-width: 620px) {
+      .gl-outer { padding: 24px 12px 32px !important; }
+      .gl-card-pad { padding: 28px 22px !important; }
+      .gl-h1 { font-size: 25px !important; line-height: 33px !important; }
+      .gl-p, .gl-p p, .gl-rich { font-size: 16px !important; line-height: 25px !important; }
+      .gl-tile-pad { padding: 18px 18px !important; }
+      /* Full width, thumb friendly call to action */
+      .gl-btn-wrap { width: 100% !important; }
+      .gl-btn { display: block !important; width: 100% !important; padding-left: 12px !important; padding-right: 12px !important; }
+      .gl-stack { display: block !important; width: 100% !important; }
+      .gl-badge-cell { width: 30px !important; }
+    }
+
+    /* ---------- Dark mode ---------- */
+    @media (prefers-color-scheme: dark) {
+      .gl-body { background-color: #06070d !important; }
+      .gl-page {
+        background-color: #06070d !important;
+        background-image: linear-gradient(160deg, #071119 0%, #0a1020 32%, #130e1d 64%, #1b1017 100%) !important;
+      }
+      .gl-card { background-color: #141824 !important; border-color: #252c3c !important; }
+      .gl-h1, .gl-h2, .gl-signature-name { color: #f2f5fb !important; }
+      .gl-p, .gl-p p, .gl-rich, .gl-rich p, .gl-rich li { color: #c3ccdb !important; }
+      .gl-muted, .gl-label, .gl-footer, .gl-footer td, .gl-signature-role { color: #8d98ad !important; }
+      .gl-footer a, .gl-rich a, .gl-link, .gl-url { color: #7ab6f5 !important; }
+      .gl-wordmark { color: #eef2f9 !important; }
+      .gl-divider { background-color: #262d3c !important; }
+      .gl-badge { background-color: #1e2735 !important; color: #9dc4f4 !important; }
+      /* The tone classes sit on the same cell as .gl-tile, so they have to come after it */
+      .gl-tile { background-color: #1a1f2c !important; border-color: #2a3242 !important; color: #c3ccdb !important; }
+      .gl-tile-success { background-color: #10251c !important; border-color: #1e4433 !important; color: #86dcb3 !important; }
+      .gl-tile-warning { background-color: #2a1d0c !important; border-color: #4a3316 !important; color: #f2c68a !important; }
+      .gl-tile-danger { background-color: #2c1513 !important; border-color: #4d2420 !important; color: #f6a79e !important; }
+    }
+
+    /* Outlook.com dark mode */
+    [data-ogsc] .gl-body { background-color: #06070d !important; }
+    [data-ogsc] .gl-card { background-color: #141824 !important; border-color: #252c3c !important; }
+    [data-ogsc] .gl-h1, [data-ogsc] .gl-h2, [data-ogsc] .gl-signature-name { color: #f2f5fb !important; }
+    [data-ogsc] .gl-p, [data-ogsc] .gl-rich { color: #c3ccdb !important; }
+    [data-ogsc] .gl-muted, [data-ogsc] .gl-label, [data-ogsc] .gl-footer, [data-ogsc] .gl-signature-role { color: #8d98ad !important; }
+    [data-ogsc] .gl-wordmark { color: #eef2f9 !important; }
+    [data-ogsc] .gl-tile { background-color: #1a1f2c !important; border-color: #2a3242 !important; color: #c3ccdb !important; }
+    [data-ogsc] .gl-tile-success { background-color: #10251c !important; border-color: #1e4433 !important; color: #86dcb3 !important; }
+    [data-ogsc] .gl-tile-warning { background-color: #2a1d0c !important; border-color: #4a3316 !important; color: #f2c68a !important; }
+    [data-ogsc] .gl-tile-danger { background-color: #2c1513 !important; border-color: #4d2420 !important; color: #f6a79e !important; }
+  </style>
+</head>
+<body class="gl-body" style="margin: 0; padding: 0; width: 100%; background-color: <%= c.pageFallback %>; font-family: <%- s.font %>;">
+  <div style="display: none; max-height: 0; max-width: 0; overflow: hidden; opacity: 0; font-size: 1px; line-height: 1px; color: <%= c.pageFallback %>; mso-hide: all;"><%= typeof preheader === 'undefined' ? '' : preheader %>&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;</div>
+
+  <table role="presentation" class="gl-page" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="<%= c.pageFallback %>" style="width: 100%; background-color: <%= c.pageFallback %>; background-image: <%= c.pageGradient %>; background-repeat: no-repeat;">
+    <tr>
+      <td align="center" class="gl-outer" style="padding: 40px 20px 48px;">
+        <!--[if mso]>
+        <table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0"><tr><td>
+        <![endif]-->
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; max-width: 600px;">
+
+          <tr>
+            <td align="center" style="padding: 0 4px 22px;">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
+                <tr>
+                  <td style="padding-right: 10px; line-height: 0; font-size: 0;">
+                    <%# alt is empty on purpose: the wordmark next to it already reads "Gladys Plus",
+                        so a blocked image leaves a clean header instead of a duplicated label. -%>
+                    <img src="cid:<%= logoContentId %>" width="32" height="32" alt="" style="display: block; width: 32px; height: 32px; border: 0; outline: none; text-decoration: none;" />
+                  </td>
+                  <td class="gl-wordmark" style="font-family: <%- s.font %>; font-size: 17px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; color: <%= c.heading %>;">
+                    Gladys&nbsp;Plus
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td class="gl-card" bgcolor="<%= c.surface %>" style="background-color: <%= c.surfaceGlass %>; border: 1px solid <%= c.surfaceBorder %>; border-radius: 28px; box-shadow: 0 24px 60px rgba(11, 18, 32, 0.10), 0 2px 6px rgba(11, 18, 32, 0.04);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="gl-card-pad" style="padding: 40px;">

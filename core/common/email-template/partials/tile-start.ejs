@@ -1,0 +1,12 @@
+<%#
+  Opens a nested "glass tile", the Horizon pattern for a highlighted block inside a panel.
+  Locals: variant ('neutral' | 'success' | 'warning' | 'danger'), defaults to neutral.
+  Must be closed with partials/tile-end.
+  The background, border and radius live on the <td>: clients are far more consistent
+  with a rounded cell than with a rounded table.
+-%>
+<% const v = typeof variant === 'undefined' ? 'neutral' : variant; -%>
+<% const t = tone(v); -%>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 0 18px;">
+                      <tr>
+                        <td class="gl-tile gl-tile-<%= v %> gl-tile-pad gl-tile-text" bgcolor="<%= t.background %>" style="padding: 18px 22px; background-color: <%= t.background %>; border: 1px solid <%= t.border %>; border-radius: 18px; font-family: <%- s.font %>; font-size: 15px; line-height: 24px; color: <%= t.text %>;">

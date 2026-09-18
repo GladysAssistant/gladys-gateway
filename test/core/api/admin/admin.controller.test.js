@@ -15,7 +15,7 @@ describe('POST /admin/accounts/:id/resend', () => {
       .expect('Content-Type', /json/)
       .expect(200)
       .then((response) => {
-        response.body.should.have.property('status', 200);
+        expect(response.body).to.have.property('status', 200);
       });
   });
 });
@@ -92,8 +92,8 @@ describe('GET /admin/accounts', () => {
       .expect(200)
       .then((response) => {
         response.body.forEach((account) => {
-          account.should.have.property('id');
-          account.should.have.property('user_count');
+          expect(account).to.have.property('id');
+          expect(account).to.have.property('user_count');
         });
       });
   });

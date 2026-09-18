@@ -57,6 +57,8 @@ describe('stripeWebhook', () => {
     });
     expect(accountUpdated).to.have.property('status', 'active');
     expect(accountUpdated).to.have.property('plan', 'plus');
+    // no locale on the checkout session: the emails default to English
+    expect(accountUpdated).to.have.property('language', 'en');
   });
 
   it('should store Stripe customer email in lowercase on account and invitation', async () => {
@@ -307,6 +309,92 @@ describe('stripeWebhook', () => {
     expect(allAccounts[0]).to.have.property('stripe_customer_id', 'cus_resub');
     expect(allAccounts[0]).to.have.property('stripe_subscription_id', 'sub_resub');
     expect(allAccounts[0]).to.have.property('status', 'active');
+  });
+  it('should create new account as trialing when the Stripe subscription is in trial', async () => {
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cus_trial',
+          subscription: 'sub_trial',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub_trial')
+      .reply(200, {
+        id: 'sub_trial',
+        status: 'trialing',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cus_trial')
+      .reply(200, { id: 'cus_trial', email: 'trial@test.fr' });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cus_trial' });
+    expect(account).to.have.property('status', 'trialing');
+    expect(account).to.have.property('plan', 'plus');
+  });
+  it('should re-link an existing canceled account as trialing when the new subscription is in trial', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update('be2b9666-5c72-451e-98f4-efca76ffef54', { status: 'canceled' });
+
+    const event = {
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'checkout.session.completed',
+      data: {
+        object: {
+          customer: 'cus_resub_trial',
+          subscription: 'sub_resub_trial',
+        },
+      },
+    };
+    const stringEvent = JSON.stringify(event);
+    const signatureHeader = stripe.webhooks.generateTestHeaderString({
+      payload: stringEvent,
+      secret: process.env.STRIPE_ENDPOINT_SECRET,
+    });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/subscriptions/sub_resub_trial')
+      .reply(200, {
+        id: 'sub_resub_trial',
+        status: 'trialing',
+        current_period_end: 1289482682000,
+        items: { data: [{ price: { product: 'plus-plan-id' } }] },
+      });
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .get('/v1/customers/cus_resub_trial')
+      .reply(200, { id: 'cus_resub_trial', email: 'new-account-lost@gladysassistant.com' });
+
+    await request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set('stripe-signature', signatureHeader)
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+
+    const allAccounts = await TEST_DATABASE_INSTANCE.t_account.find({ name: 'new-account-lost@gladysassistant.com' });
+    expect(allAccounts).to.have.lengthOf(1);
+    expect(allAccounts[0]).to.have.property('id', 'be2b9666-5c72-451e-98f4-efca76ffef54');
+    expect(allAccounts[0]).to.have.property('stripe_subscription_id', 'sub_resub_trial');
+    expect(allAccounts[0]).to.have.property('status', 'trialing');
   });
   it('should create new account with lite plan', async () => {
     const event = {
@@ -776,6 +864,9 @@ describe('stripeWebhook', () => {
         list: 'gladysPlusTrial',
         language: 'fr',
       });
+      // the language of the checkout is kept for the emails sent before the account is activated
+      const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cusnew' });
+      expect(account).to.have.property('language', 'fr');
     });
 
     it('should NOT subscribe a 6-month trial customer (starter kit) to the email list', async () => {

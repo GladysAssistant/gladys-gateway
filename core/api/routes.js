@@ -324,6 +324,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     adminAuth,
     asyncMiddleware(controllers.adminApiController.applyRetentionPolicy),
   );
+  app.post(
+    '/admin/api/accounts/activation-reminders',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendActivationReminders),
+  );
   app.patch('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateAccount));
   app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
   app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));
@@ -331,6 +336,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/admin/api/accounts/:id/enedis/refresh',
     adminAuth,
     asyncMiddleware(controllers.adminApiController.refreshEnedisData),
+  );
+  app.post(
+    '/admin/api/users/recovery-codes-reminders',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminders),
+  );
+  app.post(
+    '/admin/api/users/:id/recovery-codes-reminder',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminderToUser),
   );
   app.post(
     '/admin/api/users/:id/reset_two_factor',

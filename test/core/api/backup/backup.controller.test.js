@@ -267,10 +267,10 @@ describe('Upload backup', () => {
         file_size: 12 * 1024 * 1024 * 1024,
       })
       .expect('Content-Type', /json/)
-      .expect(402);
+      .expect(403);
     expect(response.body).to.deep.equal({
-      status: 402,
-      error_code: 'PAYMENT_REQUIRED',
+      status: 403,
+      error_code: 'FORBIDDEN',
       error_message: 'Account is in plan lite and should be in plan plus',
     });
   });

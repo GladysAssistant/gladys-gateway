@@ -1,6 +1,6 @@
 const express = require('express');
 
-const { buildWelcomeScope } = require('./billing-email-scope');
+const { buildWelcomeReminderScope, buildWelcomeScope } = require('./billing-email-scope');
 const templates = require('./email');
 
 const app = express();
@@ -13,6 +13,18 @@ app.get('/:template_name/:language', (req, res) => {
       trial_end: Math.floor(new Date('2026-07-25T12:00:00Z').getTime() / 1000),
     },
     plan: 'plus',
+    language: req.params.language,
+  });
+
+  const welcomeReminderScope = buildWelcomeReminderScope({
+    confirmationUrlGladys4: 'http://gladysassistant.com/signup',
+    customer: { name: 'Tony Stark' },
+    account: {
+      plan: 'plus',
+      status: 'trialing',
+      created_at: new Date('2026-06-18T12:00:00Z'),
+      current_period_end: new Date('2026-07-25T12:00:00Z'),
+    },
     language: req.params.language,
   });
 
@@ -43,7 +55,9 @@ app.get('/:template_name/:language', (req, res) => {
       accessEndedDate: '2 juin 2025',
       planProductName: 'Gladys Plus',
       subscribeUrl: 'https://gladysassistant.com/fr/plus',
+      recoveryCodesUrl: 'http://gladysassistant.com/dashboard/settings/security',
       ...welcomeScope,
+      ...(req.params.template_name === 'welcome_reminder' ? welcomeReminderScope : {}),
     }),
   );
 });

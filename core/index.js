@@ -17,6 +17,7 @@ const AnalyticsService = require('./service/analytics');
 const OpenPanelService = require('./service/openpanel');
 const EmailList = require('./service/email-list');
 const MondialRelay = require('./service/mondial-relay');
+const Scheduler = require('./service/scheduler');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -316,6 +317,11 @@ module.exports = async (port) => {
 
   routes.load(app, io, controllers, middlewares);
 
+  // Recurring jobs (activation reminders, recovery codes reminders...): every replica
+  // schedules them, a Redis lock makes sure only one runs each of them
+  const scheduler = Scheduler(logger, redisClient, models.adminAccountLifecycleModel);
+  scheduler.start();
+
   server.listen(port);
 
   return {
@@ -324,7 +330,9 @@ module.exports = async (port) => {
     db,
     redisClient,
     legacyRedisClient,
+    services,
     models,
     controllers,
+    scheduler,
   };
 };

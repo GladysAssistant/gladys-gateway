@@ -1,6 +1,7 @@
 const express = require('express');
 
 const { buildWelcomeReminderScope, buildWelcomeScope } = require('./billing-email-scope');
+const { LOGO_CONTENT_ID, LOGO_PATH } = require('./email-logo');
 const templates = require('./email');
 
 const app = express();
@@ -87,6 +88,11 @@ app.get('/', (req, res) => {
   );
 });
 
+// A browser knows nothing about cid:, so the preview serves the logo over HTTP instead
+app.get('/logo.png', (req, res) => {
+  res.sendFile(LOGO_PATH);
+});
+
 app.get('/:template_name/:language', (req, res) => {
   const { template_name: templateName, language } = req.params;
 
@@ -95,7 +101,9 @@ app.get('/:template_name/:language', (req, res) => {
     return;
   }
 
-  res.send(templates[templateName][language].ejs(buildPreviewScope(templateName, language)));
+  const html = templates[templateName][language].ejs(buildPreviewScope(templateName, language));
+
+  res.send(html.replace(`cid:${LOGO_CONTENT_ID}`, '/logo.png'));
 });
 
 app.listen(3000, () => {

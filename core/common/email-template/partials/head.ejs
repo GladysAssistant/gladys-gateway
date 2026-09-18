@@ -23,7 +23,7 @@
     table { border-collapse: separate; border-spacing: 0; }
     table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
     img { border: 0; outline: none; text-decoration: none; -ms-interpolation-mode: bicubic; }
-    body { margin: 0 !important; padding: 0 !important; width: 100% !important; min-height: 100vh; }
+    body { margin: 0 !important; padding: 0 !important; width: 100% !important; }
     /* Links inside generated content (onboarding steps) still look like links */
     .gl-rich a { color: <%= c.link %>; text-decoration: underline; }
 
@@ -43,6 +43,7 @@
 
     /* ---------- Dark mode ---------- */
     @media (prefers-color-scheme: dark) {
+      .gl-body { background-color: #06070d !important; }
       .gl-page {
         background-color: #06070d !important;
         background-image: linear-gradient(160deg, #071119 0%, #0a1020 32%, #130e1d 64%, #1b1017 100%) !important;
@@ -63,6 +64,7 @@
     }
 
     /* Outlook.com dark mode */
+    [data-ogsc] .gl-body { background-color: #06070d !important; }
     [data-ogsc] .gl-card { background-color: #141824 !important; border-color: #252c3c !important; }
     [data-ogsc] .gl-h1, [data-ogsc] .gl-h2, [data-ogsc] .gl-signature-name { color: #f2f5fb !important; }
     [data-ogsc] .gl-p, [data-ogsc] .gl-rich { color: #c3ccdb !important; }
@@ -74,7 +76,7 @@
     [data-ogsc] .gl-tile-danger { background-color: #2c1513 !important; border-color: #4d2420 !important; color: #f6a79e !important; }
   </style>
 </head>
-<body class="gl-page" style="margin: 0; padding: 0; width: 100%; background-color: <%= c.pageFallback %>; background-image: <%= c.pageGradient %>; background-repeat: no-repeat; font-family: <%- s.font %>;">
+<body class="gl-body" style="margin: 0; padding: 0; width: 100%; background-color: <%= c.pageFallback %>; font-family: <%- s.font %>;">
   <div style="display: none; max-height: 0; max-width: 0; overflow: hidden; opacity: 0; font-size: 1px; line-height: 1px; color: <%= c.pageFallback %>; mso-hide: all;"><%= typeof preheader === 'undefined' ? '' : preheader %>&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;&#8203;</div>
 
   <table role="presentation" class="gl-page" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="<%= c.pageFallback %>" style="width: 100%; background-color: <%= c.pageFallback %>; background-image: <%= c.pageGradient %>; background-repeat: no-repeat;">
@@ -89,12 +91,10 @@
             <td align="center" style="padding: 0 4px 22px;">
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin: 0 auto;">
                 <tr>
-                  <td style="padding-right: 10px; line-height: 0;">
-                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="26" style="width: 26px;">
-                      <tr>
-                        <td height="26" style="width: 26px; height: 26px; border-radius: 13px; background-color: <%= c.primary %>; background-image: <%= c.primaryGradient %>; line-height: 26px; font-size: 0;">&nbsp;</td>
-                      </tr>
-                    </table>
+                  <td style="padding-right: 10px; line-height: 0; font-size: 0;">
+                    <%# alt is empty on purpose: the wordmark next to it already reads "Gladys Plus",
+                        so a blocked image leaves a clean header instead of a duplicated label. -%>
+                    <img src="cid:<%= logoContentId %>" width="32" height="32" alt="" style="display: block; width: 32px; height: 32px; border: 0; outline: none; text-decoration: none;" />
                   </td>
                   <td class="gl-wordmark" style="font-family: <%- s.font %>; font-size: 17px; line-height: 26px; font-weight: 700; letter-spacing: -0.01em; color: <%= c.heading %>;">
                     Gladys&nbsp;Plus

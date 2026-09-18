@@ -3,6 +3,7 @@ const fs = require('fs');
 const path = require('path');
 
 const { colors, styles, tone } = require('./email-theme');
+const { LOGO_CONTENT_ID } = require('./email-logo');
 
 const TEMPLATE_DIR = path.join(__dirname, 'email-template');
 
@@ -63,7 +64,8 @@ const SUBJECTS = {
 
 /**
  * Compiles a template and wraps it so that every render gets the Horizon design scope:
- * `s` (inline style atoms), `c` (colors) and `tone` (tile variants), plus the language.
+ * `s` (inline style atoms), `c` (colors), `tone` (tile variants) and `logoContentId`
+ * (the CID of the attached header logo), plus the language.
  * Templates and shared partials rely on those, so callers only ever pass their own data.
  *
  * `filename` is what lets EJS resolve the `include('../partials/...')` calls.
@@ -72,7 +74,7 @@ function compileTemplate(templateName, language) {
   const filename = path.join(TEMPLATE_DIR, language, `${templateName}.ejs`);
   const render = ejs.compile(fs.readFileSync(filename, 'utf8'), { filename });
 
-  return (scope) => render({ ...scope, lang: language, s: styles, c: colors, tone });
+  return (scope) => render({ ...scope, lang: language, s: styles, c: colors, tone, logoContentId: LOGO_CONTENT_ID });
 }
 
 module.exports = Object.fromEntries(

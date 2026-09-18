@@ -1,5 +1,7 @@
+const fs = require('fs');
 const { expect } = require('chai');
 const templates = require('../../../core/common/email');
+const { LOGO_CONTENT_ID, LOGO_PATH } = require('../../../core/common/email-logo');
 const {
   buildPaymentFailedScope,
   buildSubscriptionWillRenewScope,
@@ -62,6 +64,12 @@ function buildScope(templateName, language) {
 describe('email templates', () => {
   const templateNames = Object.keys(templates);
 
+  it('should ship the header logo, small enough to attach to every email', () => {
+    const { size } = fs.statSync(LOGO_PATH);
+    expect(size).to.be.above(0);
+    expect(size, 'the logo is attached to every email, it has to stay tiny').to.be.below(10 * 1024);
+  });
+
   it('should expose every template in both languages, with a subject', () => {
     expect(templateNames).to.have.length.above(0);
     templateNames.forEach((name) => {
@@ -110,6 +118,15 @@ describe('email templates', () => {
           expect(html).to.include('Gladys&nbsp;Plus');
           expect(html).to.include('Pierre-Gilles Leymarie');
           expect(html).to.include('hello@gladysassistant.com');
+        });
+
+        it('should reference the attached logo, never an inlined or remote image', () => {
+          expect(html).to.include(`src="cid:${LOGO_CONTENT_ID}"`);
+          // A data: URI is dropped by Gmail and Outlook, a remote image needs hosting
+          expect(html).to.not.include('src="data:');
+          expect(html).to.not.include('src="http');
+          // The wordmark carries the brand when images are blocked, so alt stays empty
+          expect(html).to.include('alt=""');
         });
       });
     });

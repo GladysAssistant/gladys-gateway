@@ -79,6 +79,7 @@ describe('billing-email-scope', () => {
 
     expect(scope.firstname).to.equal('Marie');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
     expect(scope.amount).to.equal('9,99\u00a0€/mois');
     expect(scope.planBenefits).to.deep.equal(getPlanBenefits('Plus', 'fr'));
     expect(scope.updateCardLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
@@ -100,6 +101,7 @@ describe('billing-email-scope', () => {
 
     expect(scope.firstname).to.equal('John');
     expect(scope.planName).to.equal('Lite');
+    expect(scope.planProductName).to.equal('Gladys Plus Lite');
     expect(scope.amount).to.equal('€6.99');
     expect(scope.hostedInvoiceUrl).to.equal('https://invoice.stripe.com/example');
     expect(scope.nextRetryDate).to.equal('25 June 2026');
@@ -246,6 +248,7 @@ describe('billing-email-scope', () => {
     expect(scope.nextRetryDate).to.equal('');
     expect(scope.hostedInvoiceUrl).to.equal('');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
   });
 
   it('should read the billing interval of an upcoming invoice', () => {
@@ -306,6 +309,7 @@ describe('billing-email-scope', () => {
     expect(scope.renewalDate).to.equal('1 janvier 2026');
     expect(scope.amount).to.equal('99,99\u00a0€');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
     expect(scope.planBenefits).to.have.length.above(0);
     expect(scope.manageSubscriptionLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
   });

@@ -1,6 +1,12 @@
 const { expect } = require('chai');
 const templates = require('../../../core/common/email');
-const { buildWelcomeReminderScope, buildWelcomeScope } = require('../../../core/common/billing-email-scope');
+const {
+  buildPaymentFailedScope,
+  buildSubscriptionWillRenewScope,
+  buildTrialWillEndScope,
+  buildWelcomeReminderScope,
+  buildWelcomeScope,
+} = require('../../../core/common/billing-email-scope');
 
 const LANGUAGES = ['fr', 'en'];
 
@@ -104,6 +110,91 @@ describe('email templates', () => {
           expect(html).to.include('Gladys&nbsp;Plus');
           expect(html).to.include('Pierre-Gilles Leymarie');
           expect(html).to.include('hello@gladysassistant.com');
+        });
+      });
+    });
+  });
+
+  /**
+   * The billing emails name the product the customer pays for. Building the name from
+   * "Gladys Plus" plus the plan is what used to print "Gladys Plus Plus", so they take
+   * planProductName from the scope builders instead.
+   */
+  describe('plan name in the billing emails', () => {
+    const CHARGE_DATE = Math.floor(new Date('2026-06-22T12:00:00Z').getTime() / 1000);
+    const RENEWAL_DATE = Math.floor(new Date('2026-06-25T12:00:00Z').getTime() / 1000);
+
+    function renderBillingEmails(plan, language) {
+      const account = { stripe_portal_key: 'portal-key', plan };
+
+      return {
+        trial_will_end: templates.trial_will_end[language].ejs(
+          buildTrialWillEndScope({
+            subscription: {
+              trial_end: RENEWAL_DATE,
+              items: {
+                data: [
+                  {
+                    price: {
+                      unit_amount: 999,
+                      currency: 'eur',
+                      recurring: { interval: 'month' },
+                      product: plan === 'lite' ? process.env.STRIPE_LITE_PLAN_PRODUCT_ID : 'plus-product-id',
+                    },
+                  },
+                ],
+              },
+            },
+            customer: { name: 'Tony Stark' },
+            language,
+            account,
+          }),
+        ),
+        payment_failed: templates.payment_failed[language].ejs(
+          buildPaymentFailedScope({
+            invoice: { amount_due: 999, currency: 'eur', created: CHARGE_DATE },
+            customer: { name: 'Tony Stark' },
+            language,
+            account,
+          }),
+        ),
+        subscription_will_renew: templates.subscription_will_renew[language].ejs(
+          buildSubscriptionWillRenewScope({
+            invoice: { next_payment_attempt: RENEWAL_DATE, amount_due: 9999, currency: 'eur' },
+            customer: { name: 'Tony Stark' },
+            language,
+            account,
+          }),
+        ),
+      };
+    }
+
+    let originalLitePlanProductId;
+
+    before(() => {
+      originalLitePlanProductId = process.env.STRIPE_LITE_PLAN_PRODUCT_ID;
+      process.env.STRIPE_LITE_PLAN_PRODUCT_ID = 'lite-product-id';
+    });
+
+    after(() => {
+      if (originalLitePlanProductId === undefined) {
+        delete process.env.STRIPE_LITE_PLAN_PRODUCT_ID;
+      } else {
+        process.env.STRIPE_LITE_PLAN_PRODUCT_ID = originalLitePlanProductId;
+      }
+    });
+
+    LANGUAGES.forEach((language) => {
+      it(`should name the Plus product "Gladys Plus", never "Gladys Plus Plus" (${language})`, () => {
+        Object.entries(renderBillingEmails('plus', language)).forEach(([name, html]) => {
+          expect(html, `${name}.${language} repeats the plan name`).to.not.include('Gladys Plus Plus');
+          expect(html, `${name}.${language} does not name the product`).to.include('Gladys Plus');
+        });
+      });
+
+      it(`should name the Lite product "Gladys Plus Lite" (${language})`, () => {
+        Object.entries(renderBillingEmails('lite', language)).forEach(([name, html]) => {
+          expect(html, `${name}.${language} does not name the Lite product`).to.include('Gladys Plus Lite');
         });
       });
     });

@@ -188,6 +188,7 @@ function buildTrialWillEndScope({ subscription, customer, language, account }) {
     trialEndDate: formatBillingDate(subscription.trial_end, normalizedLanguage),
     amount: formatPrice(price?.unit_amount, price?.currency, price?.recurring?.interval, normalizedLanguage),
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
@@ -206,6 +207,7 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
       ? formatBillingDate(invoice.next_payment_attempt, normalizedLanguage)
       : '',
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     hostedInvoiceUrl: invoice.hosted_invoice_url || '',
@@ -302,6 +304,7 @@ function buildSubscriptionWillRenewScope({ invoice, customer, language, account 
     renewalDate: formatBillingDate(getRenewalDate(invoice), normalizedLanguage),
     amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     manageSubscriptionLink: buildUpdateCardLink(account),
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,

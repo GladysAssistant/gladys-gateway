@@ -1,0 +1,15 @@
+<%#
+  Plain URL shown under the call to action, for the clients (and the copy/paste
+  users) where the button doesn't work.
+  Locals: url (string).
+-%>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 0 22px;">
+                      <tr>
+                        <td class="gl-tile gl-tile-pad" bgcolor="<%= c.tile %>" style="padding: 18px 22px; background-color: <%= c.tile %>; border: 1px solid <%= c.tileBorder %>; border-radius: 18px;">
+                          <p class="gl-muted" style="margin: 0 0 4px; font-family: <%- s.font %>; font-size: 13px; line-height: 20px; color: <%= c.muted %>;">
+                            <%= lang === 'fr' ? 'Ou ouvre ce lien directement :' : 'Or open this link directly:' %>
+                          </p>
+                          <a href="<%= url %>" target="_blank" class="gl-url" style="<%- s.urlLink %>"><%= url %></a>
+                        </td>
+                      </tr>
+                    </table>

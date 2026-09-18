@@ -1,0 +1,17 @@
+<%#
+  Checklist of what the subscription includes. Locals: items (array of plain strings).
+-%>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="width: 100%; margin: 0 0 22px;">
+<% items.forEach(function (item) { -%>
+                      <tr>
+                        <td class="gl-badge-cell" valign="top" width="34" style="width: 34px; padding: 0 12px 10px 0;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="24" style="width: 24px;">
+                            <tr>
+                              <td class="gl-badge" align="center" height="24" bgcolor="#e9f8f0" style="width: 24px; height: 24px; border-radius: 12px; background-color: #e9f8f0; font-family: <%- s.font %>; font-size: 13px; line-height: 24px; font-weight: 700; color: #1f6b48;">&#10003;</td>
+                            </tr>
+                          </table>
+                        </td>
+                        <td valign="top" class="gl-p" style="padding: 0 0 10px; font-family: <%- s.font %>; font-size: 15px; line-height: 24px; color: <%= c.text %>;"><%= item %></td>
+                      </tr>
+<% }); -%>
+                    </table>

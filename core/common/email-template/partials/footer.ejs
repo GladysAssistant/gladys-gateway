@@ -1,0 +1,48 @@
+<%
+  const isFr = lang === 'fr';
+  const websiteUrl = isFr ? 'https://gladysassistant.com/fr' : 'https://gladysassistant.com';
+%>
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+                      <tr>
+                        <td class="gl-divider" style="<%- s.divider %> padding: 0;">&nbsp;</td>
+                      </tr>
+                      <tr>
+                        <td style="padding-top: 22px;">
+                          <p class="gl-signature-name" style="margin: 0 0 2px; font-family: <%- s.font %>; font-size: 15px; line-height: 22px; font-weight: 600; color: <%= c.heading %>;">
+                            Pierre-Gilles Leymarie
+                          </p>
+                          <p class="gl-signature-role" style="margin: 0; font-family: <%- s.font %>; font-size: 14px; line-height: 22px; color: <%= c.muted %>;">
+                            <%= isFr ? 'Fondateur de Gladys Assistant' : 'Founder of Gladys Assistant' %>
+                          </p>
+                        </td>
+                      </tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td align="center" class="gl-footer" style="padding: 26px 16px 0; font-family: <%- s.font %>; font-size: 13px; line-height: 21px; color: <%= c.muted %>;">
+              <a href="<%= websiteUrl %>" class="gl-link" style="color: <%= c.muted %>; text-decoration: underline;">gladysassistant.com</a>
+              &nbsp;·&nbsp;
+              <a href="mailto:hello@gladysassistant.com" class="gl-link" style="color: <%= c.muted %>; text-decoration: underline;">hello@gladysassistant.com</a>
+              <br />
+              <span style="color: <%= c.faint %>;">
+                <%= isFr
+                  ? 'Tu reçois cet email parce que tu as un compte Gladys Plus.'
+                  : 'You are receiving this email because you have a Gladys Plus account.' %>
+              </span>
+            </td>
+          </tr>
+
+        </table>
+        <!--[if mso]>
+        </td></tr></table>
+        <![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>

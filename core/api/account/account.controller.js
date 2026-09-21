@@ -205,11 +205,11 @@ module.exports = function AccountController(accountModel, socketModel) {
    * @api {patch} /accounts/instance-offline-alert Update the instance offline alert
    * @apiName Update instance offline alert
    * @apiGroup Account
-   * @apiDescription "Is my Gladys alive?": when enabled, the admins of the account receive
-   * an email once the Gladys instance of the account has been unreachable for longer than
-   * the delay, and another one when it is back online. Admin only; the current values are
-   * returned by GET /users/me (instance_offline_alert_enabled,
-   * instance_offline_alert_delay_in_minutes).
+   * @apiDescription "Is my Gladys alive?": the admins of the account receive an email once
+   * the Gladys instance of the account has been unreachable for longer than the delay, and
+   * another one when it is back online. Enabled by default with a delay of one hour: this
+   * route turns it off or changes the delay. Admin only; the current values are returned by
+   * GET /users/me (instance_offline_alert_enabled, instance_offline_alert_delay_in_minutes).
    *
    * @apiParam {Boolean} [enabled]
    * @apiParam {Number} [delay_in_minutes] Between 5 minutes and 7 days

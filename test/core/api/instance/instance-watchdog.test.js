@@ -92,30 +92,30 @@ async function waitFor(condition, timeoutInMs = 3000) {
 }
 
 describe('Instance offline alert settings (GET /users/me, PATCH /accounts/instance-offline-alert)', () => {
-  it('should be disabled by default with a delay of one hour', async () => {
+  it('should be enabled by default with a delay of one hour', async () => {
     const response = await getMe();
     expect(response.body).to.include({
-      instance_offline_alert_enabled: false,
+      instance_offline_alert_enabled: true,
       instance_offline_alert_delay_in_minutes: 60,
     });
   });
 
-  it('should enable the alert with a custom delay, as an admin', async () => {
-    const response = await updateAlert({ enabled: true, delay_in_minutes: 30 })
+  it('should disable the alert and change the delay, as an admin', async () => {
+    const response = await updateAlert({ enabled: false, delay_in_minutes: 30 })
       .expect('Content-Type', /json/)
       .expect(200);
-    expect(response.body).to.deep.equal({ enabled: true, delay_in_minutes: 30 });
+    expect(response.body).to.deep.equal({ enabled: false, delay_in_minutes: 30 });
     const account = await getAccount();
-    expect(account).to.include({ instance_offline_alert_enabled: true, instance_offline_alert_delay_in_minutes: 30 });
+    expect(account).to.include({ instance_offline_alert_enabled: false, instance_offline_alert_delay_in_minutes: 30 });
     // visible to every user of the account
     const me = await getMe();
-    expect(me.body).to.include({ instance_offline_alert_enabled: true, instance_offline_alert_delay_in_minutes: 30 });
+    expect(me.body).to.include({ instance_offline_alert_enabled: false, instance_offline_alert_delay_in_minutes: 30 });
   });
 
   it('should change one field only', async () => {
-    await enableAlert({ instance_offline_alert_delay_in_minutes: 120 });
-    const response = await updateAlert({ enabled: false }).expect(200);
-    expect(response.body).to.deep.equal({ enabled: false, delay_in_minutes: 120 });
+    await enableAlert({ instance_offline_alert_enabled: false, instance_offline_alert_delay_in_minutes: 120 });
+    const response = await updateAlert({ enabled: true }).expect(200);
+    expect(response.body).to.deep.equal({ enabled: true, delay_in_minutes: 120 });
   });
 
   it('should refuse a delay shorter than 5 minutes or longer than 7 days, and an empty body', async () => {
@@ -123,7 +123,7 @@ describe('Instance offline alert settings (GET /users/me, PATCH /accounts/instan
     await updateAlert({ delay_in_minutes: 8 * 24 * 60 }).expect(422);
     await updateAlert({}).expect(422);
     const account = await getAccount();
-    expect(account).to.include({ instance_offline_alert_enabled: false, instance_offline_alert_delay_in_minutes: 60 });
+    expect(account).to.include({ instance_offline_alert_enabled: true, instance_offline_alert_delay_in_minutes: 60 });
   });
 
   it('should answer 404 for a user that no longer exists', async () => {
@@ -134,9 +134,9 @@ describe('Instance offline alert settings (GET /users/me, PATCH /accounts/instan
 
   it('should refuse a user who is not admin of the account', async () => {
     await TEST_DATABASE_INSTANCE.t_user.update({ id: ADMIN_ID }, { role: 'user' });
-    await updateAlert({ enabled: true }).expect(403);
+    await updateAlert({ enabled: false }).expect(403);
     const account = await getAccount();
-    expect(account.instance_offline_alert_enabled).to.equal(false);
+    expect(account.instance_offline_alert_enabled).to.equal(true);
   });
 });
 
@@ -149,7 +149,8 @@ describe('POST /admin/api/instances/watchdog', () => {
     await adminRequest('post', '/admin/api/instances/watchdog').send({ execute: 'maybe' }).expect(422);
   });
 
-  it('should report an offline instance without listing it when the account did not opt in', async () => {
+  it('should report an offline instance without listing it when the account disabled the alert', async () => {
+    await enableAlert({ instance_offline_alert_enabled: false });
     await TEST_DATABASE_INSTANCE.t_instance.update({ id: INSTANCE_ID }, { last_seen_at: minutesAgo(120) });
     const response = await runWatchdog({});
     expect(response.body).to.deep.include({

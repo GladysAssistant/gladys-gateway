@@ -824,7 +824,7 @@ describe('GET /users/me', () => {
           plan: 'plus',
           status: 'active',
           profile_url: null,
-          instance_offline_alert_enabled: false,
+          instance_offline_alert_enabled: true,
           instance_offline_alert_delay_in_minutes: 60,
           gladys_user_id: null,
           gladys_4_user_id: null,

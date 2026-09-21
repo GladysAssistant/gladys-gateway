@@ -6,9 +6,9 @@
 -- disconnects and refreshed by the watchdog job for the instances still connected.
 ALTER TABLE t_instance ADD COLUMN last_seen_at timestamptz;
 
--- Opt-in of the account (changed by its admins), with the delay after which the
--- "instance offline" email is sent to the admins.
-ALTER TABLE t_account ADD COLUMN instance_offline_alert_enabled boolean NOT NULL DEFAULT false;
+-- Enabled by default for every account, an admin of the account can turn it off; with the
+-- delay after which the "instance offline" email is sent to the admins.
+ALTER TABLE t_account ADD COLUMN instance_offline_alert_enabled boolean NOT NULL DEFAULT true;
 ALTER TABLE t_account ADD COLUMN instance_offline_alert_delay_in_minutes integer NOT NULL DEFAULT 60;
 -- Date of the "instance offline" email of the outage in progress, null once the instance is
 -- back online (the "back online" email has been sent) or when no outage was reported.

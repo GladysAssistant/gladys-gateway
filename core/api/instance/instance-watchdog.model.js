@@ -28,7 +28,8 @@ function getFailClosedMinInstances() {
  * time it went away) and the job below, which refreshes the instances still connected (so
  * a gateway node crashing, where no disconnect event is emitted, does not leave a stale
  * date behind). The alert is a setting of the account (t_account.instance_offline_alert_*,
- * changed by its admins), the emails go to the admins of the account, and
+ * enabled by default, its admins turn it off or change the delay), the emails go to the
+ * admins of the account, and
  * t_account.instance_offline_alert_sent_at tracks the outage reported to them: set when
  * the "offline" email is sent, cleared when the "back online" one is.
  */

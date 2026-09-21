@@ -42,6 +42,7 @@ before(async function Before() {
   // The scheduled jobs are tested by calling them, never by waiting for the clock
   process.env.ACCOUNT_ACTIVATION_REMINDER_CRON = 'disabled';
   process.env.RECOVERY_CODES_REMINDER_CRON = 'disabled';
+  process.env.INSTANCE_WATCHDOG_CRON = 'disabled';
 
   // starting 2 backends to try multi-server socket exchange
   const { io, app, db, redisClient, legacyRedisClient, services } = await server(process.env.SERVER_PORT);

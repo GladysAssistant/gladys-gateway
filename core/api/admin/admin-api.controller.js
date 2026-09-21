@@ -282,16 +282,18 @@ module.exports = function AdminApiController(
    * @apiName adminRunInstanceWatchdog
    * @apiGroup Admin API
    * @apiDescription "Is my Gladys alive?": check every primary instance of the accounts
-   * having access to Gladys Plus against the websocket cluster. The accounts that opted in
-   * (PATCH /accounts/instance-offline-alert) whose instance has been unreachable for longer
-   * than their delay get the "instance offline" email sent to their confirmed admins
-   * ("alert"), once per outage; once the instance is connected again the admins receive
-   * the "back online" email ("back_online"). Also refreshes last_seen_at of the connected
-   * instances. Meant to be called every few minutes by a cron: the frequency only decides
-   * how late after the delay the email leaves, an instance is never reported offline while
-   * it is connected. Fails closed when none of the instances is connected while at least
-   * INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES (10 by default) are checked: the socket
-   * cluster is suspect, the run is aborted without any email ("aborted":
+   * having access to Gladys Plus against the websocket cluster. The accounts with the alert
+   * enabled (it is by default, an admin turns it off or changes the delay with PATCH
+   * /accounts/instance-offline-alert) whose instance has been unreachable for longer than
+   * their delay get the "instance offline" email sent to their confirmed admins ("alert"),
+   * once per outage; once the instance is connected again the admins receive the "back
+   * online" email ("back_online"). Also refreshes last_seen_at of the connected instances.
+   * The server runs it every few minutes by itself (INSTANCE_WATCHDOG_CRON): this route is
+   * there to review what it would do without "execute", or to run it by hand. The frequency
+   * only decides how late after the delay the email leaves, an instance is never reported
+   * offline while it is connected. Fails closed when none of the instances is connected
+   * while at least INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES (10 by default) are checked:
+   * the socket cluster is suspect, the run is aborted without any email ("aborted":
    * "no_instance_connected"). Read-only unless "execute" is true. Only the instances with
    * something to report are listed.
    *

@@ -1,0 +1,29 @@
+<%- include('../partials/head', { title: 'Pense à générer tes codes de récupération Gladys Plus', preheader: 'Une minute pour ne jamais rester bloqué dehors.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Tes codes de récupération t'attendent</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Tu as activé la double authentification sur ton compte Gladys Plus, bravo : c'est la meilleure protection pour ton compte.
+                      Par contre, tu n'as pas encore généré de <strong>codes de récupération</strong>.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'warning' }) %>
+                          Ces codes à usage unique sont ta porte de secours : si tu perds ton téléphone ou ton application d'authentification, ils sont le seul moyen de te reconnecter à ton compte Gladys Plus.
+                          Sans eux, tu risques de te retrouver bloqué dehors.
+<%- include('../partials/tile-end') %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Ça prend une minute : connecte-toi, saisis un code de ton application d'authentification, puis enregistre les codes générés dans un endroit sûr (gestionnaire de mots de passe, impression...). Ils ne seront affichés qu'une seule fois.
+                    </p>
+
+<%- include('../partials/button', { url: recoveryCodesUrl, label: 'Générer mes codes de récupération' }) %>
+<%- include('../partials/link-fallback', { url: recoveryCodesUrl }) %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Tant que tes codes ne sont pas générés, je te renverrai ce rappel de temps en temps.
+                      Une question ? Réponds simplement à cet email ou écris-moi à
+                      <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>.
+                    </p>
+
+<%- include('../partials/footer') %>

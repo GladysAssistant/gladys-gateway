@@ -1,0 +1,13 @@
+<%#
+  Primary call to action.
+  Locals: url (string), label (string).
+  Pill shaped and auto-width on desktop, full width and thumb sized on mobile.
+  `mso-padding-alt` gives Outlook the padding it drops from the <a>.
+-%>
+                    <table role="presentation" class="gl-btn-wrap" cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 22px;">
+                      <tr>
+                        <td align="center" bgcolor="<%= c.primary %>" style="border-radius: 999px; background-color: <%= c.primary %>; background-image: <%= c.primaryGradient %>; mso-padding-alt: 16px 34px;">
+                          <a href="<%= url %>" target="_blank" class="gl-btn" style="display: block; padding: 16px 34px; font-family: <%- s.font %>; font-size: 16px; line-height: 22px; font-weight: 600; letter-spacing: -0.01em; color: #ffffff; text-align: center; text-decoration: none; border-radius: 999px;"><%= label %></a>
+                        </td>
+                      </tr>
+                    </table>

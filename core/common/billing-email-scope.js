@@ -148,6 +148,31 @@ function buildWelcomeScope({ confirmationUrlGladys4, customer, subscription, pla
   };
 }
 
+/**
+ * Email sent by the activation reminder job (admin API) to a customer who subscribed but
+ * never activated the Gladys Plus account: the welcome email was the first call, this one
+ * is the reminder. The customer comes from Stripe (for the firstname) and may be missing.
+ */
+function buildWelcomeReminderScope({ confirmationUrlGladys4, customer, account, language }) {
+  const normalizedLanguage = normalizeLanguage(language);
+  const planName = account.plan === 'lite' ? 'Lite' : 'Plus';
+  const trialEnd =
+    account.status === 'trialing' && account.current_period_end ? new Date(account.current_period_end) : null;
+  const hasTrial = trialEnd !== null && trialEnd.getTime() > Date.now();
+
+  return {
+    confirmationUrlGladys4,
+    firstname: extractFirstname(customer?.name),
+    planName,
+    planProductName: getPlanProductName(planName),
+    signupDate: account.created_at
+      ? formatBillingDate(Math.floor(new Date(account.created_at).getTime() / 1000), normalizedLanguage)
+      : '',
+    hasTrial,
+    trialEndDate: hasTrial ? formatBillingDate(Math.floor(trialEnd.getTime() / 1000), normalizedLanguage) : '',
+  };
+}
+
 function buildUpdateCardLink(account) {
   return `${process.env.GLADYS_PLUS_BACKEND_URL}/accounts/stripe_customer_portal/${account.stripe_portal_key}`;
 }
@@ -163,6 +188,7 @@ function buildTrialWillEndScope({ subscription, customer, language, account }) {
     trialEndDate: formatBillingDate(subscription.trial_end, normalizedLanguage),
     amount: formatPrice(price?.unit_amount, price?.currency, price?.recurring?.interval, normalizedLanguage),
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
@@ -181,6 +207,7 @@ function buildPaymentFailedScope({ invoice, customer, language, account }) {
       ? formatBillingDate(invoice.next_payment_attempt, normalizedLanguage)
       : '',
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     updateCardLink: buildUpdateCardLink(account),
     hostedInvoiceUrl: invoice.hosted_invoice_url || '',
@@ -277,6 +304,7 @@ function buildSubscriptionWillRenewScope({ invoice, customer, language, account 
     renewalDate: formatBillingDate(getRenewalDate(invoice), normalizedLanguage),
     amount: formatInvoiceAmount(invoice.amount_due, invoice.currency, normalizedLanguage),
     planName,
+    planProductName: getPlanProductName(planName),
     planBenefits: getPlanBenefits(planName, normalizedLanguage),
     manageSubscriptionLink: buildUpdateCardLink(account),
     loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
@@ -324,6 +352,7 @@ module.exports = {
   buildPaymentFailedScope,
   buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
+  buildWelcomeReminderScope,
   buildWelcomeScope,
   extractFirstname,
   formatBillingDate,

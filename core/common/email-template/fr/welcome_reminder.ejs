@@ -1,0 +1,30 @@
+<%- include('../partials/head', { title: "Ton compte Gladys Plus n'est pas encore activé", preheader: "Deux minutes suffisent pour activer ton compte et en profiter." }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Ton compte <%= planProductName %> t'attend</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (signupDate) { %>Le <%= signupDate %>, tu<% } else { %>Tu<% } %> as souscrit à <%= planProductName %>, mais ton compte n'a pas encore été activé.
+                      Tant qu'il ne l'est pas, tu ne profites pas de ce que comprend ton abonnement : accès à distance chiffré à ton instance Gladys, sauvegardes, intégrations...
+                    </p>
+
+<% if (hasTrial) { %>
+<%- include('../partials/tile-start', { variant: 'warning' }) %>
+                          Ton <strong>essai gratuit</strong> se termine<% if (trialEndDate) { %> le <strong><%= trialEndDate %></strong><% } else { %> bientôt<% } %> : active ton compte dès maintenant pour en profiter pleinement.
+<%- include('../partials/tile-end') %>
+<% } %>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Il suffit de cliquer sur le bouton ci-dessous, de choisir un mot de passe, puis de connecter ton instance Gladys locale à Gladys Plus. Ça prend deux minutes.
+                    </p>
+
+<%- include('../partials/button', { url: confirmationUrlGladys4, label: 'Activer mon compte Gladys Plus' }) %>
+<%- include('../partials/link-fallback', { url: confirmationUrlGladys4 }) %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Un souci pour activer ton compte, ou une question ? Réponds simplement à cet email ou écris-moi à
+                      <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>, je suis là pour t'aider.
+                    </p>
+
+<%- include('../partials/footer') %>

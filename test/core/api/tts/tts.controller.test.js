@@ -49,9 +49,12 @@ describe('TTS API', () => {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
       .send()
+      // superagent does not buffer audio/* bodies by default, ask for the raw bytes
+      .responseType('arraybuffer')
       .expect('Content-Type', 'audio/mpeg')
       .expect(200);
-    expect(responseMp3File.text).to.deep.equal(voiceFile.toString());
+    expect(Buffer.isBuffer(responseMp3File.body)).to.equal(true);
+    expect(responseMp3File.body.equals(voiceFile)).to.equal(true);
   });
   it('should return 401', async () => {
     const response = await request(TEST_BACKEND_APP)

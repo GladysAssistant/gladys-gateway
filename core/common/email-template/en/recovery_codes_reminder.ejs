@@ -1,0 +1,29 @@
+<%- include('../partials/head', { title: 'Remember to generate your Gladys Plus recovery codes', preheader: 'One minute so you never get locked out.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your recovery codes are waiting for you</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      You enabled two-factor authentication on your Gladys Plus account, well done: it is the best protection for your account.
+                      However, you have not generated your <strong>recovery codes</strong> yet.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'warning' }) %>
+                          These single-use codes are your emergency exit: if you lose your phone or your authenticator app, they are the only way to sign in to your Gladys Plus account again.
+                          Without them, you may end up locked out.
+<%- include('../partials/tile-end') %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      It takes a minute: sign in, enter a code from your authenticator app, then save the generated codes somewhere safe (a password manager, a printout...). They are displayed only once.
+                    </p>
+
+<%- include('../partials/button', { url: recoveryCodesUrl, label: 'Generate my recovery codes' }) %>
+<%- include('../partials/link-fallback', { url: recoveryCodesUrl }) %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Until your codes are generated, I will send you this reminder from time to time.
+                      A question? Simply reply to this email or write to me at
+                      <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>.
+                    </p>
+
+<%- include('../partials/footer') %>

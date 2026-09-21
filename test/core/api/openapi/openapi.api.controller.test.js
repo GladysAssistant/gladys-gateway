@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
 
 describe('POST /v1/api/event/:open-api-key', () => {
@@ -85,7 +86,7 @@ describe('POST /v1/api/external-integration/:open-api-key/:selector/:webhook-key
       .send({ test: true })
       .expect(200)
       .then((response) => {
-        response.text.should.equal('');
+        expect(response.text).to.equal('');
       }));
 
   it('should return 200 empty when account has no primary instance', async () => {
@@ -101,7 +102,7 @@ describe('POST /v1/api/external-integration/:open-api-key/:selector/:webhook-key
       .send({ test: true })
       .expect(200)
       .then((response) => {
-        response.text.should.equal('');
+        expect(response.text).to.equal('');
       });
   });
 });
@@ -122,7 +123,7 @@ describe('GET /v1/api/external-integration/:open-api-key/:selector/:webhook-key'
       .set('Accept', 'application/json')
       .expect(200)
       .then((response) => {
-        response.text.should.equal('');
+        expect(response.text).to.equal('');
       }));
 });
 

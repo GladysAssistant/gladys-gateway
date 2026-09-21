@@ -1,0 +1,30 @@
+<%- include('../partials/head', { title: 'Your Gladys Plus account is not activated yet', preheader: 'Two minutes is all it takes to activate your account.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your <%= planProductName %> account is waiting for you</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi there,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (signupDate) { %>On <%= signupDate %>, you<% } else { %>You<% } %> subscribed to <%= planProductName %>, but your account has not been activated yet.
+                      Until it is, you are not getting what your subscription includes: end-to-end encrypted remote access to your Gladys instance, backups, integrations...
+                    </p>
+
+<% if (hasTrial) { %>
+<%- include('../partials/tile-start', { variant: 'warning' }) %>
+                          Your <strong>free trial</strong> ends<% if (trialEndDate) { %> on <strong><%= trialEndDate %></strong><% } else { %> soon<% } %>: activate your account now to make the most of it.
+<%- include('../partials/tile-end') %>
+<% } %>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Just click the button below, choose a password, then connect your local Gladys instance to Gladys Plus. It takes two minutes.
+                    </p>
+
+<%- include('../partials/button', { url: confirmationUrlGladys4, label: 'Activate my Gladys Plus account' }) %>
+<%- include('../partials/link-fallback', { url: confirmationUrlGladys4 }) %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Trouble activating your account, or any question? Just reply to this email or write to me at
+                      <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>, I'm here to help.
+                    </p>
+
+<%- include('../partials/footer') %>

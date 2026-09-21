@@ -1,10 +1,20 @@
+const Joi = require('joi');
 const Promise = require('bluebird');
-const { ValidationError } = require('../../common/error');
+const crypto = require('crypto');
+const randomBytes = Promise.promisify(require('crypto').randomBytes);
+const { NotFoundError, ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
-const { buildAccountDeletionWarningScope } = require('../../common/billing-email-scope');
+const { normalizeEmail } = require('../../common/normalize-email');
+const {
+  buildAccountDeletionWarningScope,
+  buildWelcomeReminderScope,
+  extractFirstname,
+} = require('../../common/billing-email-scope');
 
 // Statuses under which the customer has access to Gladys Plus (see checkUserPlan middleware)
 const ACTIVE_STATUSES = ['active', 'trialing'];
+
+const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 // Stripe calls in parallel while reconciling: low enough to stay far from the rate limit
@@ -13,6 +23,21 @@ const STRIPE_CONCURRENCY = 4;
 function readPositiveIntegerEnv(name, defaultValue) {
   const parsed = parseInt(process.env[name], 10);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+// How long after the welcome email a customer who never activated the account is reminded.
+function getActivationReminderPolicy() {
+  return {
+    delay_in_days: readPositiveIntegerEnv('ACCOUNT_ACTIVATION_REMINDER_DELAY_IN_DAYS', 7),
+  };
+}
+
+// How often a user having two factor authentication enabled without recovery codes is reminded
+// to generate them. Reminded again and again, every interval, until the codes exist.
+function getRecoveryCodesReminderPolicy() {
+  return {
+    interval_in_days: readPositiveIntegerEnv('RECOVERY_CODES_REMINDER_INTERVAL_IN_DAYS', 90),
+  };
 }
 
 // How long an account whose subscription is over is kept before being warned, then deleted.
@@ -174,9 +199,10 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
       { account_id: account.id, is_deleted: false },
       { fields: ['id', 'email', 'name', 'language'] },
     );
-    // An account that was never activated has no user: the billing email is warned instead
-    // (in the default language of the mail service)
-    const recipients = users.length > 0 ? users : [{ email: account.name, name: null, language: null }];
+    // An account that was never activated has no user: the billing email is warned instead,
+    // in the language of the checkout when known
+    const recipients =
+      users.length > 0 ? users : [{ email: account.name, name: null, language: account.language || null }];
     await Promise.mapSeries(recipients, (recipient) =>
       mailService.send(
         { email: recipient.email, language: recipient.language },
@@ -260,8 +286,8 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     // An account that never subscribed has no end of access: its creation date is used
     const candidates = await db.query(
       `
-        SELECT id, name, plan, status, stripe_customer_id, stripe_subscription_id, current_period_end,
-          created_at, deletion_warning_sent_at,
+        SELECT id, name, plan, status, language, stripe_customer_id, stripe_subscription_id,
+          current_period_end, created_at, deletion_warning_sent_at,
           COALESCE(current_period_end, created_at) AS access_ended_at
         FROM t_account
         WHERE is_internal = false
@@ -287,8 +313,239 @@ module.exports = function AdminAccountLifecycleModel(logger, db, stripeService, 
     };
   }
 
+  async function sendActivationReminder(account, now) {
+    const email = normalizeEmail(account.name);
+    // The firstname is only on the Stripe customer: without it the email is still sent
+    let customer = null;
+    try {
+      customer = await stripeService.getCustomer(account.stripe_customer_id);
+    } catch (e) {
+      logger.warn(`activationReminder: unable to fetch customer ${account.stripe_customer_id} of ${account.id}`);
+      logger.warn(e);
+    }
+    // A fresh invitation, like the welcome email: the previous one stays valid too
+    const token = (await randomBytes(64)).toString('hex');
+    // we hash the token in DB so it's not possible to get the token if the DB is compromised in read-only
+    // (due to SQL injection for example)
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    await db.t_invitation.insert({
+      email,
+      role: 'admin',
+      token_hash: tokenHash,
+      account_id: account.id,
+    });
+    await mailService.send(
+      { email, language: account.language },
+      'welcome_reminder',
+      buildWelcomeReminderScope({
+        confirmationUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/signup-gateway?token=${encodeURI(token)}`,
+        customer,
+        account,
+        language: account.language,
+      }),
+    );
+    await db.t_account.update(account.id, { activation_reminder_sent_at: now }, { fields: ['id'] });
+  }
+
+  async function remindOneAccount(account, execute, now) {
+    const result = {
+      id: account.id,
+      name: account.name,
+      status: account.status,
+      language: account.language,
+      created_at: toIsoString(account.created_at),
+    };
+    try {
+      // The status in database is the copy of the webhooks and may lag behind Stripe (a
+      // missed customer.subscription.deleted leaves the account "active"): a customer whose
+      // subscription is actually over is not reminded, syncWithStripe repairs the account.
+      // Stripe unreachable is an error: the customer is not reminded either, next run will.
+      const [runningSubscription] = await stripeService.getRunningSubscriptions(account);
+      if (!runningSubscription) {
+        return { ...result, action: 'skip', reason: 'subscription_not_running_on_stripe' };
+      }
+      if (execute) {
+        await sendActivationReminder(account, now);
+        logger.info(`activationReminder: reminder sent for account ${account.id}`);
+      }
+      return { ...result, action: 'remind' };
+    } catch (e) {
+      logger.warn(`activationReminder: failed to remind account ${account.id}`);
+      logger.warn(e);
+      return { ...result, action: 'error', error: e.message || 'error' };
+    }
+  }
+
+  /**
+   * Reminder for the customers who subscribed through Stripe Checkout but never activated
+   * their Gladys Plus account: the welcome email invited them to, nobody clicked. Once the
+   * delay has elapsed since the account was created (the welcome email is sent at that
+   * moment), the billing email receives one reminder with a fresh activation link, in the
+   * language of the checkout. Sent once per account: an account is a candidate only while
+   * it has a running subscription (Stripe is asked, the status in database is not trusted),
+   * no user and no reminder yet. Internal accounts are never touched. Read-only unless
+   * execute is true. Scheduled daily by the scheduler service, the admin API is there to
+   * review the candidates and to run it by hand.
+   */
+  async function sendActivationReminders(body) {
+    const { execute } = validateJobBody(body);
+    const policy = getActivationReminderPolicy();
+    const now = new Date();
+    const createdBefore = new Date(now.getTime() - policy.delay_in_days * ONE_DAY_IN_MS);
+    const candidates = await db.query(
+      `
+        SELECT id, name, plan, status, language, stripe_customer_id, current_period_end, created_at
+        FROM t_account
+        WHERE is_internal = false
+          AND is_deleted = false
+          AND stripe_subscription_id IS NOT NULL
+          AND status IN ('active', 'trialing')
+          AND activation_reminder_sent_at IS NULL
+          AND created_at < $1
+          AND NOT EXISTS (
+            SELECT 1 FROM t_user WHERE t_user.account_id = t_account.id AND t_user.is_deleted = false
+          )
+        ORDER BY created_at ASC;
+      `,
+      [createdBefore],
+    );
+    logger.info(`activationReminder: ${candidates.length} accounts not activated (execute=${execute})`);
+    const results = await Promise.mapSeries(candidates, (account) => remindOneAccount(account, execute, now));
+    const countByAction = (action) => results.filter((result) => result.action === action).length;
+    return {
+      execute,
+      ...policy,
+      total: results.length,
+      reminded: countByAction('remind'),
+      skipped: countByAction('skip'),
+      errors: countByAction('error'),
+      accounts: results,
+    };
+  }
+
+  /**
+   * Send the recovery codes reminder to one user and record the date: the user is not
+   * reminded again by the job before the interval has elapsed.
+   */
+  async function sendRecoveryCodesReminder(user, now) {
+    // The recovery codes are generated from the security settings of the Gladys Plus dashboard
+    await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_reminder', {
+      firstname: extractFirstname(user.name),
+      recoveryCodesUrl: `${process.env.GLADYS_PLUS_FRONTEND_URL}/dashboard/settings/security`,
+    });
+    await db.t_user.update(user.id, { recovery_codes_reminder_sent_at: now }, { fields: ['id'] });
+    logger.info(`recoveryCodesReminder: reminder sent to user ${user.id}`);
+  }
+
+  /**
+   * Remind one candidate of the job (see sendRecoveryCodesReminders), unless execute is
+   * false. Never throws: a failed email is reported as an error, the next run will retry.
+   */
+  async function remindOneUser(user, execute, now) {
+    const result = {
+      id: user.id,
+      email: user.email,
+      account_id: user.account_id,
+      language: user.language,
+      last_reminder_sent_at: toIsoString(user.recovery_codes_reminder_sent_at),
+    };
+    try {
+      if (execute) {
+        await sendRecoveryCodesReminder(user, now);
+      }
+      return { ...result, action: 'remind' };
+    } catch (e) {
+      logger.warn(`recoveryCodesReminder: failed to remind user ${user.id}`);
+      logger.warn(e);
+      return { ...result, action: 'error', error: e.message || 'error' };
+    }
+  }
+
+  /**
+   * Reminder for the users who enabled two factor authentication but never generated their
+   * recovery codes (or used them all): without codes, losing the authenticator app means
+   * losing the account. Every user having two factor enabled, no recovery codes and no
+   * reminder in the last RECOVERY_CODES_REMINDER_INTERVAL_IN_DAYS receives an email, in the
+   * language of the user, linking to the page of the dashboard generating the codes. Sent
+   * again every interval until the codes exist. Only the confirmed users of an account whose
+   * subscription is running in database are candidates: the dashboard refuses the others
+   * anyway. Internal accounts are never touched. Read-only unless execute is true. Scheduled
+   * daily by the scheduler service, the admin API is there to review the candidates and to
+   * run it by hand.
+   */
+  async function sendRecoveryCodesReminders(body) {
+    const { execute } = validateJobBody(body);
+    const policy = getRecoveryCodesReminderPolicy();
+    const now = new Date();
+    const remindedBefore = new Date(now.getTime() - policy.interval_in_days * ONE_DAY_IN_MS);
+    // A user who used every recovery code is left with an empty array, not NULL
+    const candidates = await db.query(
+      `
+        SELECT t_user.id, t_user.email, t_user.name, t_user.language, t_user.account_id,
+          t_user.recovery_codes_reminder_sent_at
+        FROM t_user
+        INNER JOIN t_account ON t_account.id = t_user.account_id
+        WHERE t_user.is_deleted = false
+          AND t_user.email_confirmed = true
+          AND t_user.two_factor_enabled = true
+          AND COALESCE(cardinality(t_user.two_factor_recovery_codes), 0) = 0
+          AND (t_user.recovery_codes_reminder_sent_at IS NULL OR t_user.recovery_codes_reminder_sent_at < $1)
+          AND t_account.is_deleted = false
+          AND t_account.is_internal = false
+          AND t_account.status IN ('active', 'trialing')
+        ORDER BY t_user.created_at ASC;
+      `,
+      [remindedBefore],
+    );
+    logger.info(`recoveryCodesReminder: ${candidates.length} users without recovery codes (execute=${execute})`);
+    const results = await Promise.mapSeries(candidates, (user) => remindOneUser(user, execute, now));
+    const countByAction = (action) => results.filter((result) => result.action === action).length;
+    return {
+      execute,
+      ...policy,
+      total: results.length,
+      reminded: countByAction('remind'),
+      errors: countByAction('error'),
+      users: results,
+    };
+  }
+
+  /**
+   * Send the recovery codes reminder to one user right away, whatever the interval, the
+   * recovery codes or the account: a manual action of the admin, to test the email or to
+   * chase a user by hand. The date is recorded like for the job. 404 for an unknown or
+   * deleted user.
+   */
+  async function sendRecoveryCodesReminderToUser(userId) {
+    const { error } = uuidSchema.validate(userId);
+    if (error) {
+      throw new NotFoundError('User not found');
+    }
+    const user = await db.t_user.findOne(
+      { id: userId, is_deleted: false },
+      { fields: ['id', 'email', 'name', 'language', 'account_id', 'two_factor_enabled', 'two_factor_recovery_codes'] },
+    );
+    if (user === null) {
+      throw new NotFoundError('User not found');
+    }
+    const now = new Date();
+    await sendRecoveryCodesReminder(user, now);
+    return {
+      id: user.id,
+      email: user.email,
+      account_id: user.account_id,
+      language: user.language,
+      two_factor_enabled: user.two_factor_enabled,
+      has_recovery_codes: (user.two_factor_recovery_codes || []).length > 0,
+      reminder_sent_at: now.toISOString(),
+    };
+  }
+
   return {
     syncWithStripe,
     applyRetentionPolicy,
+    sendActivationReminders,
+    sendRecoveryCodesReminders,
+    sendRecoveryCodesReminderToUser,
   };
 };

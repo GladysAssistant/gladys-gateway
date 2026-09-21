@@ -330,6 +330,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.adminApiController.applyRetentionPolicy),
   );
   app.post(
+    '/admin/api/accounts/activation-reminders',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendActivationReminders),
+  );
+  app.post(
     '/admin/api/instances/watchdog',
     adminAuth,
     asyncMiddleware(controllers.adminApiController.runInstanceWatchdog),
@@ -341,6 +346,16 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/admin/api/accounts/:id/enedis/refresh',
     adminAuth,
     asyncMiddleware(controllers.adminApiController.refreshEnedisData),
+  );
+  app.post(
+    '/admin/api/users/recovery-codes-reminders',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminders),
+  );
+  app.post(
+    '/admin/api/users/:id/recovery-codes-reminder',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.sendRecoveryCodesReminderToUser),
   );
   app.post(
     '/admin/api/users/:id/reset_two_factor',

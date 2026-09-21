@@ -1,125 +1,98 @@
 const ejs = require('ejs');
 const fs = require('fs');
+const path = require('path');
 
-module.exports = {
+const { colors, styles, tone } = require('./email-theme');
+const { LOGO_CONTENT_ID } = require('./email-logo');
+
+const TEMPLATE_DIR = path.join(__dirname, 'email-template');
+
+/**
+ * Subject line of every transactional email, per template and per language.
+ * The body lives in email-template/<language>/<template>.ejs.
+ */
+const SUBJECTS = {
   account_deletion_warning: {
-    en: {
-      subject: 'Your Gladys Plus account and backups will be deleted soon',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/account_deletion_warning.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Ton compte Gladys Plus et tes sauvegardes seront bientôt supprimés',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/account_deletion_warning.ejs`, 'utf8')),
-    },
+    en: 'Your Gladys Plus account and backups will be deleted soon',
+    fr: 'Ton compte Gladys Plus et tes sauvegardes seront bientôt supprimés',
   },
   confirmation: {
-    en: {
-      subject: 'Confirm your Gladys Plus email address',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/confirmation.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Confirme ton adresse email Gladys Plus',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/confirmation.ejs`, 'utf8')),
-    },
+    en: 'Confirm your Gladys Plus email address',
+    fr: 'Confirme ton adresse email Gladys Plus',
   },
   instance_offline: {
-    en: {
-      subject: 'Your Gladys is not responding',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/instance_offline.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Ta Gladys ne répond plus',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/instance_offline.ejs`, 'utf8')),
-    },
+    en: 'Your Gladys is not responding',
+    fr: 'Ta Gladys ne répond plus',
   },
   instance_back_online: {
-    en: {
-      subject: 'Your Gladys is back online',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/instance_back_online.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Ta Gladys est de nouveau en ligne',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/instance_back_online.ejs`, 'utf8')),
-    },
+    en: 'Your Gladys is back online',
+    fr: 'Ta Gladys est de nouveau en ligne',
   },
   invitation: {
-    en: {
-      subject: "You're invited to Gladys Plus",
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/invitation.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Tu es invité sur Gladys Plus',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/invitation.ejs`, 'utf8')),
-    },
+    en: "You're invited to Gladys Plus",
+    fr: 'Tu es invité sur Gladys Plus',
   },
   password_reset: {
-    en: {
-      subject: 'Gladys Plus - Reset your password',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/password_reset.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Gladys Plus - Réinitialise ton mot de passe',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/password_reset.ejs`, 'utf8')),
-    },
+    en: 'Gladys Plus - Reset your password',
+    fr: 'Gladys Plus - Réinitialise ton mot de passe',
   },
   email_changed: {
-    en: {
-      subject: 'Gladys Plus - Your email address was changed',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/email_changed.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Gladys Plus - Ton adresse email a été modifiée',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/email_changed.ejs`, 'utf8')),
-    },
+    en: 'Gladys Plus - Your email address was changed',
+    fr: 'Gladys Plus - Ton adresse email a été modifiée',
   },
   payment_failed: {
-    en: {
-      subject: 'Action needed: update your card to keep Gladys Plus',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/payment_failed.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Mets à jour ta carte pour garder Gladys Plus',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/payment_failed.ejs`, 'utf8')),
-    },
+    en: 'Action needed: update your card to keep Gladys Plus',
+    fr: 'Mets à jour ta carte pour garder Gladys Plus',
+  },
+  recovery_codes_reminder: {
+    en: 'Remember to generate your Gladys Plus recovery codes',
+    fr: 'Pense à générer tes codes de récupération Gladys Plus',
   },
   welcome: {
-    en: {
-      subject: 'Welcome to Gladys Plus: activate your account',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/welcome.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Bienvenue sur Gladys Plus : active ton compte',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome.ejs`, 'utf8')),
-    },
+    en: 'Welcome to Gladys Plus: activate your account',
+    fr: 'Bienvenue sur Gladys Plus : active ton compte',
+  },
+  welcome_reminder: {
+    en: 'Your Gladys Plus account is not activated yet',
+    fr: "Ton compte Gladys Plus n'est pas encore activé",
   },
   welcome_back: {
-    en: {
-      subject: 'Gladys Plus - Welcome back!',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/welcome_back.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Gladys Plus - Bon retour !',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/welcome_back.ejs`, 'utf8')),
-    },
+    en: 'Gladys Plus - Welcome back!',
+    fr: 'Gladys Plus - Bon retour !',
   },
   subscription_will_renew: {
-    en: {
-      subject: 'Your Gladys Plus subscription renews soon',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/subscription_will_renew.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Ton abonnement Gladys Plus se renouvelle bientôt',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/subscription_will_renew.ejs`, 'utf8')),
-    },
+    en: 'Your Gladys Plus subscription renews soon',
+    fr: 'Ton abonnement Gladys Plus se renouvelle bientôt',
   },
   trial_will_end: {
-    en: {
-      subject: 'Your Gladys Plus trial is ending soon, keep your backups running',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/en/trial_will_end.ejs`, 'utf8')),
-    },
-    fr: {
-      subject: 'Ton essai Gladys Plus se termine bientôt',
-      ejs: ejs.compile(fs.readFileSync(`${__dirname}/email-template/fr/trial_will_end.ejs`, 'utf8')),
-    },
+    en: 'Your Gladys Plus trial is ending soon, keep your backups running',
+    fr: 'Ton essai Gladys Plus se termine bientôt',
   },
 };
+
+/**
+ * Compiles a template and wraps it so that every render gets the Horizon design scope:
+ * `s` (inline style atoms), `c` (colors), `tone` (tile variants) and `logoContentId`
+ * (the CID of the attached header logo), plus the language.
+ * Templates and shared partials rely on those, so callers only ever pass their own data.
+ *
+ * `filename` is what lets EJS resolve the `include('../partials/...')` calls.
+ */
+function compileTemplate(templateName, language) {
+  const filename = path.join(TEMPLATE_DIR, language, `${templateName}.ejs`);
+  const render = ejs.compile(fs.readFileSync(filename, 'utf8'), { filename });
+
+  return (scope) => render({ ...scope, lang: language, s: styles, c: colors, tone, logoContentId: LOGO_CONTENT_ID });
+}
+
+module.exports = Object.fromEntries(
+  Object.entries(SUBJECTS).map(([templateName, subjectsByLanguage]) => [
+    templateName,
+    Object.fromEntries(
+      Object.entries(subjectsByLanguage).map(([language, subject]) => [
+        language,
+        { subject, ejs: compileTemplate(templateName, language) },
+      ]),
+    ),
+  ]),
+);

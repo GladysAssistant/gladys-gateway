@@ -4,6 +4,7 @@ const {
   buildPaymentFailedScope,
   buildSubscriptionWillRenewScope,
   buildTrialWillEndScope,
+  buildWelcomeReminderScope,
   buildWelcomeScope,
   extractFirstname,
   formatBillingDate,
@@ -78,6 +79,7 @@ describe('billing-email-scope', () => {
 
     expect(scope.firstname).to.equal('Marie');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
     expect(scope.amount).to.equal('9,99\u00a0€/mois');
     expect(scope.planBenefits).to.deep.equal(getPlanBenefits('Plus', 'fr'));
     expect(scope.updateCardLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
@@ -99,6 +101,7 @@ describe('billing-email-scope', () => {
 
     expect(scope.firstname).to.equal('John');
     expect(scope.planName).to.equal('Lite');
+    expect(scope.planProductName).to.equal('Gladys Plus Lite');
     expect(scope.amount).to.equal('€6.99');
     expect(scope.hostedInvoiceUrl).to.equal('https://invoice.stripe.com/example');
     expect(scope.nextRetryDate).to.equal('25 June 2026');
@@ -136,6 +139,50 @@ describe('billing-email-scope', () => {
     expect(scope.hasTrial).to.equal(true);
     expect(scope.trialEndDate).to.equal(formatBillingDate(trialEnd, 'fr'));
     expect(scope.welcomeSteps).to.have.lengthOf(8);
+  });
+
+  it('should build the welcome_reminder scope of a trialing account', () => {
+    const createdAt = new Date('2026-09-08T08:10:00.000Z');
+    const trialEnd = new Date(Date.now() + 20 * 24 * 60 * 60 * 1000);
+    const scope = buildWelcomeReminderScope({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup-gateway?token=abc',
+      customer: { name: 'Marie Dupont' },
+      account: { plan: 'plus', status: 'trialing', created_at: createdAt, current_period_end: trialEnd },
+      language: 'fr',
+    });
+
+    expect(scope).to.deep.equal({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup-gateway?token=abc',
+      firstname: 'Marie',
+      planName: 'Plus',
+      planProductName: 'Gladys Plus',
+      signupDate: '8 septembre 2026',
+      hasTrial: true,
+      trialEndDate: formatBillingDate(Math.floor(trialEnd.getTime() / 1000), 'fr'),
+    });
+  });
+
+  it('should build the welcome_reminder scope of a paying lite account without Stripe customer', () => {
+    const scope = buildWelcomeReminderScope({
+      confirmationUrlGladys4: 'https://plus.gladysassistant.com/signup-gateway?token=abc',
+      customer: null,
+      account: {
+        plan: 'lite',
+        status: 'active',
+        created_at: '2026-09-08T08:10:00.000Z',
+        current_period_end: new Date(Date.now() + 300 * 24 * 60 * 60 * 1000),
+      },
+      language: 'en',
+    });
+
+    expect(scope).to.include({
+      firstname: '',
+      planName: 'Lite',
+      planProductName: 'Gladys Plus Lite',
+      signupDate: '8 September 2026',
+      hasTrial: false,
+      trialEndDate: '',
+    });
   });
 
   it('should treat Stripe auto locale as French in welcome scope', () => {
@@ -201,6 +248,7 @@ describe('billing-email-scope', () => {
     expect(scope.nextRetryDate).to.equal('');
     expect(scope.hostedInvoiceUrl).to.equal('');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
   });
 
   it('should read the billing interval of an upcoming invoice', () => {
@@ -261,6 +309,7 @@ describe('billing-email-scope', () => {
     expect(scope.renewalDate).to.equal('1 janvier 2026');
     expect(scope.amount).to.equal('99,99\u00a0€');
     expect(scope.planName).to.equal('Plus');
+    expect(scope.planProductName).to.equal('Gladys Plus');
     expect(scope.planBenefits).to.have.length.above(0);
     expect(scope.manageSubscriptionLink).to.equal('https://api.gladys.plus/accounts/stripe_customer_portal/portal-key');
   });

@@ -2,6 +2,7 @@ const { expect } = require('chai');
 const tracer = require('tracer');
 const nodemailer = require('nodemailer');
 const Mail = require('../../../core/service/mail');
+const { LOGO_CONTENT_ID, LOGO_PATH } = require('../../../core/common/email-logo');
 
 const silentLogger = tracer.colorConsole({ level: 'error' });
 
@@ -53,6 +54,22 @@ describe('mail service', () => {
     expect(sentMails[0].to).to.equal('user@example.com');
     expect(sentMails[0]).to.not.have.property('bcc');
     expect(sentMails[0]).to.not.have.property('cc');
+  });
+
+  it('should attach the header logo inline, so it shows without hosting it', async () => {
+    process.env.DISABLE_EMAIL = 'false';
+    const mail = Mail(silentLogger, telegramService);
+
+    await mail.send({ email: 'user@example.com', language: 'en' }, 'confirmation', {
+      confirmationUrlGladys4: 'https://gladysassistant.com',
+    });
+
+    expect(sentMails[0].attachments).to.have.lengthOf(1);
+    expect(sentMails[0].attachments[0].cid).to.equal(LOGO_CONTENT_ID);
+    expect(sentMails[0].attachments[0].path).to.equal(LOGO_PATH);
+    expect(sentMails[0].attachments[0].contentDisposition).to.equal('inline');
+    // The <img> in the email has to point at that very attachment
+    expect(sentMails[0].html).to.include(`src="cid:${LOGO_CONTENT_ID}"`);
   });
 
   it('should notify Telegram with metadata only, never the email content', async () => {

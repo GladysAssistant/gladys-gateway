@@ -611,8 +611,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     // we only store a hash of the codes so it's not possible to use them
     // if the DB is compromised in read-only (due to SQL injection for example)
+    // the reminder date is reset too: a user who later uses every code is reminded at once
     await db.t_user.update(user.id, {
       two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
+      recovery_codes_reminder_sent_at: null,
     });
 
     return {

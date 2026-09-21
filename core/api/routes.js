@@ -277,6 +277,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.revokeUser),
   );
+  app.patch(
+    '/accounts/instance-offline-alert',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.updateInstanceOfflineAlert),
+  );
   app.get(
     '/accounts/invoices',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),
@@ -328,6 +333,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/admin/api/accounts/activation-reminders',
     adminAuth,
     asyncMiddleware(controllers.adminApiController.sendActivationReminders),
+  );
+  app.post(
+    '/admin/api/instances/watchdog',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.runInstanceWatchdog),
   );
   app.patch('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateAccount));
   app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));

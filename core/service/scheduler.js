@@ -4,6 +4,9 @@ const cron = require('node-cron');
 // the first one to take the lock runs the job, the others find it taken. It expires by
 // itself, so a replica that dies mid-job never blocks the next run.
 const LOCK_TTL_IN_SECONDS = 60 * 60;
+// The watchdog runs every few minutes: its lock only has to cover the replicas firing at
+// the same minute, and must be gone before the next tick.
+const INSTANCE_WATCHDOG_LOCK_TTL_IN_SECONDS = 4 * 60;
 const DISABLED_VALUES = ['', 'false', 'disabled', 'off'];
 
 /**
@@ -12,7 +15,7 @@ const DISABLED_VALUES = ['', 'false', 'disabled', 'off'];
  * A job is configured by a cron expression in an environment variable; set it to "disabled"
  * to turn the job off (tests, a replica that must not send emails...).
  */
-module.exports = function SchedulerService(logger, redisClient, adminAccountLifecycleModel) {
+module.exports = function SchedulerService(logger, redisClient, adminAccountLifecycleModel, instanceWatchdogModel) {
   const tasks = [];
 
   function getSchedule(envName, defaultSchedule) {
@@ -27,14 +30,14 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
   }
 
   /**
-   * Run a job once, unless another replica did in the last hour. Never throws: a failing job
-   * is logged and retried at the next tick.
+   * Run a job once, unless another replica did while the lock lives (an hour by default).
+   * Never throws: a failing job is logged and retried at the next tick.
    */
-  async function runWithLock(name, job) {
+  async function runWithLock(name, job, lockTtlInSeconds = LOCK_TTL_IN_SECONDS) {
     const lockKey = `scheduler:${name}:lock`;
     let locked;
     try {
-      locked = await redisClient.set(lockKey, new Date().toISOString(), { NX: true, EX: LOCK_TTL_IN_SECONDS });
+      locked = await redisClient.set(lockKey, new Date().toISOString(), { NX: true, EX: lockTtlInSeconds });
     } catch (e) {
       logger.warn(`scheduler: unable to take the lock of ${name}, skipping this run`);
       logger.warn(e);
@@ -76,6 +79,24 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     });
   }
 
+  function runInstanceWatchdog() {
+    return runWithLock(
+      'instance-watchdog',
+      async () => {
+        const report = await instanceWatchdogModel.run({ execute: true });
+        if (report.aborted) {
+          logger.error(`scheduler: instance watchdog aborted (${report.aborted}, total=${report.total})`);
+        } else {
+          logger.info(
+            `scheduler: instance watchdog done (total=${report.total}, connected=${report.connected}, offline=${report.offline}, alerts=${report.alerts}, back_online=${report.back_online}, errors=${report.errors})`,
+          );
+        }
+        return report;
+      },
+      INSTANCE_WATCHDOG_LOCK_TTL_IN_SECONDS,
+    );
+  }
+
   function scheduleJob(name, envName, defaultSchedule, job) {
     const schedule = getSchedule(envName, defaultSchedule);
     if (schedule === null) {
@@ -106,6 +127,7 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
         '30 9 * * *',
         sendRecoveryCodesReminders,
       ),
+      instanceWatchdog: scheduleJob('instance-watchdog', 'INSTANCE_WATCHDOG_CRON', '*/5 * * * *', runInstanceWatchdog),
     };
   }
 
@@ -119,5 +141,6 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     runWithLock,
     sendActivationReminders,
     sendRecoveryCodesReminders,
+    runInstanceWatchdog,
   };
 };

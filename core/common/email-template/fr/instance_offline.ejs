@@ -1,0 +1,37 @@
+<%- include('../partials/head', { title: 'Ta Gladys ne répond plus', preheader: `Plus de contact avec « ${instanceName} » depuis ${offlineFor}.` }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Ta Gladys « <%= instanceName %> » ne répond plus</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          Ton instance Gladys « <strong><%= instanceName %></strong> » n'est plus connectée à Gladys Plus depuis <strong><%= offlineFor %></strong>.
+                          Le dernier contact avec ta Gladys date du <%= lastSeenDate %>.
+<%- include('../partials/tile-end') %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Tu reçois cet email parce que tu es administrateur de ce compte Gladys Plus : je te préviens quand ta Gladys est injoignable pendant plus de <%= alertDelay %>.
+                      Pendant ce temps, l'accès à distance, les sauvegardes et les intégrations Gladys Plus ne fonctionnent pas.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.pTight %>">
+                      Quelques pistes, de la plus fréquente à la plus rare :
+                    </p>
+                    <ul class="gl-p" style="<%- s.p %> padding-left: 22px;">
+                      <li style="margin: 0 0 6px;"><strong>La box internet</strong> a planté ou est en train de redémarrer : c'est la cause la plus courante.</li>
+                      <li style="margin: 0 0 6px;"><strong>Une coupure de courant</strong> chez toi : la machine qui fait tourner Gladys est éteinte.</li>
+                      <li style="margin: 0;"><strong>La carte SD ou le disque</strong> de la machine a lâché, ou Gladys ne redémarre plus après une mise à jour.</li>
+                    </ul>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Si tu peux, demande à quelqu'un sur place de vérifier que la box et la machine sont bien allumées.
+                      Dès que ta Gladys sera de nouveau connectée, tu recevras un email pour te le confirmer.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Tu peux modifier ce délai ou désactiver ces alertes dans Gladys, dans <strong>Paramètres → Gladys Plus</strong>.
+                      Une question ? La communauté est là pour t'aider sur
+                      <a href="https://community.gladysassistant.com/" target="_blank" class="gl-link" style="<%- s.link %>">le forum Gladys</a>.
+                    </p>
+
+<%- include('../partials/footer') %>

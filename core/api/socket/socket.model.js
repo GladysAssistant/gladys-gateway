@@ -3,6 +3,7 @@ const sizeof = require('object-sizeof');
 const { NotFoundError } = require('../../common/error');
 
 const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
+const INSTANCE_ROOM_PREFIX = 'instance:';
 
 module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {
   function sendMessage(socket, data, cb) {
@@ -128,6 +129,23 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     }
 
     return instance;
+  }
+
+  /**
+   * Ids of the instances connected right now, on any node of the cluster. Every instance
+   * socket joins the room "instance:<id>" once authenticated (see the socket controller).
+   */
+  async function getConnectedInstanceIds() {
+    const sockets = await io.fetchSockets();
+    const instanceIds = new Set();
+    sockets.forEach((socket) => {
+      socket.rooms.forEach((room) => {
+        if (room.startsWith(INSTANCE_ROOM_PREFIX)) {
+          instanceIds.add(room.slice(INSTANCE_ROOM_PREFIX.length));
+        }
+      });
+    });
+    return instanceIds;
   }
 
   function askInstanceToRefreshConnectedUsers(accountId) {
@@ -270,5 +288,6 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     isUserConnected,
     sendMessageOpenApi,
     askInstanceToRefreshConnectedUsers,
+    getConnectedInstanceIds,
   };
 };

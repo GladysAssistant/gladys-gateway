@@ -23,6 +23,7 @@ const Ping = require('./api/ping/ping.model');
 const User = require('./api/user/user.model');
 const Socket = require('./api/socket/socket.model');
 const Instance = require('./api/instance/instance.model');
+const InstanceWatchdog = require('./api/instance/instance-watchdog.model');
 const Invitation = require('./api/invitation/invitation.model');
 const Account = require('./api/account/account.model');
 const Device = require('./api/device/device.model');
@@ -216,11 +217,18 @@ module.exports = async (port) => {
     models.adminModel,
   );
   models.adminVersionModel = AdminVersionModel(logger, db);
+  models.instanceWatchdogModel = InstanceWatchdog(logger, db, models.socketModel, services.mailService);
 
   const controllers = {
     pingController: PingController(models.pingModel),
     userController: UserController(models.userModel, services.mailService, models.socketModel, models.instanceModel),
-    socketController: SocketController(logger, models.socketModel, io, models.instanceModel),
+    socketController: SocketController(
+      logger,
+      models.socketModel,
+      io,
+      models.instanceModel,
+      models.instanceWatchdogModel,
+    ),
     instanceController: InstanceController(models.instanceModel, models.socketModel),
     invitationController: InvitationController(models.invitationModel),
     accountController: AccountController(models.accountModel, models.socketModel),
@@ -232,6 +240,7 @@ module.exports = async (port) => {
       models.adminVersionModel,
       models.adminModel,
       models.adminAccountLifecycleModel,
+      models.instanceWatchdogModel,
     ),
     openAIController: OpenAIController(models.openAIModel),
     openApiController: OpenApiController(models.openApiModel, models.socketModel),
@@ -302,9 +311,9 @@ module.exports = async (port) => {
 
   routes.load(app, io, controllers, middlewares);
 
-  // Recurring jobs (activation reminders, recovery codes reminders...): every replica
-  // schedules them, a Redis lock makes sure only one runs each of them
-  const scheduler = Scheduler(logger, redisClient, models.adminAccountLifecycleModel);
+  // Recurring jobs (activation reminders, recovery codes reminders, instance watchdog...):
+  // every replica schedules them, a Redis lock makes sure only one runs each of them
+  const scheduler = Scheduler(logger, redisClient, models.adminAccountLifecycleModel, models.instanceWatchdogModel);
   scheduler.start();
 
   server.listen(port);

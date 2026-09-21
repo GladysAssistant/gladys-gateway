@@ -1,0 +1,23 @@
+<%- include('../partials/head', { title: 'Your Gladys is back online', preheader: `"${instanceName}" is back after ${downtime} without contact.` }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your Gladys "<%= instanceName %>" is back online</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'success' }) %>
+                          Good news: your Gladys instance "<strong><%= instanceName %></strong>" is connected to Gladys Plus again, after <strong><%= downtime %></strong> without contact
+                          (last contact before the outage: <%= lastSeenDate %>).
+<%- include('../partials/tile-end') %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Remote access, backups and the Gladys Plus integrations are working normally again.
+                      If your Gladys restarts often for no reason, have a look at the power supply of the machine and at the health of its SD card.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      You can change the delay of these alerts or disable them in Gladys, under <strong>Settings → Gladys Plus</strong>.
+                      A question? The community is there to help you on
+                      <a href="https://community.gladysassistant.com/" target="_blank" class="gl-link" style="<%- s.link %>">the Gladys forum</a>.
+                    </p>
+
+<%- include('../partials/footer') %>

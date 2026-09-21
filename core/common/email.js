@@ -20,6 +20,14 @@ const SUBJECTS = {
     en: 'Confirm your Gladys Plus email address',
     fr: 'Confirme ton adresse email Gladys Plus',
   },
+  instance_offline: {
+    en: 'Your Gladys is not responding',
+    fr: 'Ta Gladys ne répond plus',
+  },
+  instance_back_online: {
+    en: 'Your Gladys is back online',
+    fr: 'Ta Gladys est de nouveau en ligne',
+  },
   invitation: {
     en: "You're invited to Gladys Plus",
     fr: 'Tu es invité sur Gladys Plus',

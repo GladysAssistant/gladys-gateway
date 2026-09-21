@@ -1,4 +1,4 @@
-module.exports = function SocketController(logger, socketModel, io, instanceModel) {
+module.exports = function SocketController(logger, socketModel, io, instanceModel, instanceWatchdogModel) {
   async function authenticateUser(socket, accessToken) {
     try {
       // we first authenticate the user thanks to his access token
@@ -60,6 +60,12 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
 
       // we send a message to all users saying the instance is connected
       socketModel.hello(instance);
+
+      socket.on('disconnect', () => {
+        logger.info(`Instance ${instance.id} disconnected from websockets`);
+        // the instance watchdog needs to know until when the instance was reachable
+        instanceWatchdogModel.markInstanceDisconnected(instance.id);
+      });
 
       return { isAuthenticated: true, instance };
     } catch (e) {

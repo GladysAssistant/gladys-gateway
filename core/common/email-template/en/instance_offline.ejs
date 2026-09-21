@@ -1,0 +1,37 @@
+<%- include('../partials/head', { title: 'Your Gladys is not responding', preheader: `No contact with "${instanceName}" for ${offlineFor}.` }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your Gladys "<%= instanceName %>" is not responding</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          Your Gladys instance "<strong><%= instanceName %></strong>" has been disconnected from Gladys Plus for <strong><%= offlineFor %></strong>.
+                          The last contact with your Gladys was on <%= lastSeenDate %>.
+<%- include('../partials/tile-end') %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      You receive this email because you are an admin of this Gladys Plus account: I warn you when your Gladys is unreachable for more than <%= alertDelay %>.
+                      In the meantime, remote access, backups and the Gladys Plus integrations do not work.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.pTight %>">
+                      A few things to check, from the most common to the rarest:
+                    </p>
+                    <ul class="gl-p" style="<%- s.p %> padding-left: 22px;">
+                      <li style="margin: 0 0 6px;"><strong>Your internet box</strong> crashed or is rebooting: this is the most frequent cause.</li>
+                      <li style="margin: 0 0 6px;"><strong>A power outage</strong> at home: the machine running Gladys is off.</li>
+                      <li style="margin: 0;"><strong>The SD card or the disk</strong> of the machine died, or Gladys does not start anymore after an update.</li>
+                    </ul>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      If you can, ask someone at home to check that the internet box and the machine are powered on.
+                      As soon as your Gladys is connected again, you will receive an email to confirm it.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      You can change this delay or disable these alerts in Gladys, under <strong>Settings → Gladys Plus</strong>.
+                      A question? The community is there to help you on
+                      <a href="https://community.gladysassistant.com/" target="_blank" class="gl-link" style="<%- s.link %>">the Gladys forum</a>.
+                    </p>
+
+<%- include('../partials/footer') %>

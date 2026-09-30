@@ -1,38 +1,100 @@
 const jwt = require('jsonwebtoken');
-const sizeof = require('object-sizeof');
-const { NotFoundError } = require('../../common/error');
+const { NotFoundError, GatewayTimeoutError } = require('../../common/error');
 
+// Relays a message to an instance connected to another node of the cluster
 const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
+// Asks every node of the cluster for the ids of the instances connected to it
+const SERVER_TO_SERVER_GET_CONNECTED_INSTANCES = 'get-connected-instance-ids';
 const INSTANCE_ROOM_PREFIX = 'instance:';
 
+// An instance that never acknowledges a message (handler crashed, Raspberry Pi frozen...)
+// must not hold the caller forever: without a timeout the ack callback stays in memory until
+// the socket disconnects, and the HTTP request of an Open API / Google Home / Alexa call hangs.
+// Messages of the dashboard can legitimately be long (a Zigbee2mqtt setup pulls containers),
+// the Open API ones answer third parties that give up after a few seconds anyway.
+const DEFAULT_USER_MESSAGE_TIMEOUT_IN_MS = 5 * 60 * 1000;
+const DEFAULT_OPEN_API_MESSAGE_TIMEOUT_IN_MS = 30 * 1000;
+
+function getTimeoutInMs(envName, defaultValue) {
+  const parsed = parseInt(process.env[envName], 10);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
+}
+
+function isOpenApiMessage(message) {
+  return message.type === 'gladys-open-api';
+}
+
+function getMessageTimeoutInMs(message) {
+  if (isOpenApiMessage(message)) {
+    return getTimeoutInMs('INSTANCE_OPEN_API_MESSAGE_TIMEOUT_IN_MS', DEFAULT_OPEN_API_MESSAGE_TIMEOUT_IN_MS);
+  }
+  return getTimeoutInMs('INSTANCE_MESSAGE_TIMEOUT_IN_MS', DEFAULT_USER_MESSAGE_TIMEOUT_IN_MS);
+}
+
+// Approximate size of a relayed message, for the analytics only. A message can weigh up to
+// maxHttpBufferSize (25 MB): JSON.stringify is native, far cheaper than walking the object.
+function getMessageSize(message) {
+  try {
+    const serialized = JSON.stringify(message);
+    return serialized === undefined ? 0 : serialized.length;
+  } catch (e) {
+    return 0;
+  }
+}
+
 module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {
-  function sendMessage(socket, data, cb) {
-    if (data.disconnect === true) {
-      // if message is a disconnect instruction
-      socket.disconnect();
-      cb(true);
-    } else if (data.message && data.message.type === 'gladys-open-api') {
-      // if message is an open API message
-      socket.emit('open-api-message', data.message, cb);
-    } else {
-      // else, we emit the message
-      socket.emit('message', data.message, cb);
+  const instanceTimeoutError = () => new GatewayTimeoutError('INSTANCE_TIMEOUT').jsonError();
+  const instanceNotFoundError = () => new NotFoundError('NO_INSTANCE_FOUND').jsonError();
+
+  /**
+   * The socket of the instance in this room, if it is connected to this node. When an instance
+   * reconnects before the server noticed its previous connection died, both sockets are in the
+   * room for a while (up to pingInterval + pingTimeout): the last one to join is the live one.
+   */
+  function getLocalSocketInRoom(room) {
+    const socketIds = typeof room === 'string' ? io.of('/').adapter.rooms.get(room) : undefined;
+    if (!socketIds || socketIds.size === 0) {
+      return null;
     }
+    const lastSocketId = Array.from(socketIds).pop();
+    return io.of('/').sockets.get(lastSocketId) || null;
   }
 
-  // handle messages from different nodes
-  io.on(SERVER_TO_SERVER_COMMUNICATION, (data, cb) => {
-    // we look if we have the socket here
-    const socket = io.of('/').sockets.get(data.socket_id);
+  function emitToInstanceSocket(socket, message, timeoutInMs, callback) {
+    const event = isOpenApiMessage(message) ? 'open-api-message' : 'message';
+    socket.timeout(timeoutInMs).emit(event, message, (err, response) => {
+      callback(err ? instanceTimeoutError() : response);
+    });
+  }
 
-    // if no, we return null
+  // Ids of the instances connected to this node: every authenticated instance socket is
+  // alone in its room "instance:<id>" (see the socket controller), and the adapter drops the
+  // rooms left empty. Reading the room names is enough, no socket is serialized.
+  function getLocalConnectedInstanceIds() {
+    const instanceIds = [];
+    io.of('/').adapter.rooms.forEach((socketIds, room) => {
+      if (room.startsWith(INSTANCE_ROOM_PREFIX)) {
+        instanceIds.push(room.slice(INSTANCE_ROOM_PREFIX.length));
+      }
+    });
+    return instanceIds;
+  }
+
+  // handle messages from different nodes: only the node holding the socket of the instance
+  // relays the message, the others answer null
+  io.on(SERVER_TO_SERVER_COMMUNICATION, (data, cb) => {
+    const socket = data && data.message ? getLocalSocketInRoom(data.room) : null;
     if (!socket) {
       return cb(null);
     }
 
-    sendMessage(socket, data, cb);
+    emitToInstanceSocket(socket, data.message, getMessageTimeoutInMs(data.message), cb);
 
     return null;
+  });
+
+  io.on(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (cb) => {
+    cb(getLocalConnectedInstanceIds());
   });
 
   // Rooms are scoped by account so a user can only reach the instances of his own
@@ -45,35 +107,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     return `account:${accountId}:user:${userId}`;
   }
 
-  async function getInstanceSocketId(accountId, instanceId) {
-    if (typeof instanceId !== 'string') {
-      throw new Error('INSTANCE_NOT_FOUND');
-    }
-    const sockets = await io.in(getInstanceRoom(accountId, instanceId)).fetchSockets();
-
-    if (sockets.length === 0) {
-      throw new Error('INSTANCE_NOT_FOUND');
-    }
-
-    const [firstInstance] = sockets;
-    return firstInstance;
-  }
-
-  async function getUserSocketId(userId) {
-    const sockets = await io.in(`user:${userId}`).fetchSockets();
-
-    if (sockets.length === 0) {
-      throw new Error('USER_NOT_FOUND');
-    }
-
-    const [firstUser] = sockets;
-    return firstUser;
-  }
-
   async function isUserConnected(userId) {
     try {
-      await getUserSocketId(userId);
-      return true;
+      const sockets = await io.in(`user:${userId}`).fetchSockets();
+      return sockets.length > 0;
     } catch (e) {
       return false;
     }
@@ -121,7 +158,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       {
         id: decoded.instance_id,
       },
-      { fields: ['id', 'account_id', 'rsa_public_key', 'ecdsa_public_key'] },
+      { fields: ['id', 'account_id', 'primary_instance', 'rsa_public_key', 'ecdsa_public_key'] },
     );
 
     if (!instance) {
@@ -132,31 +169,43 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   }
 
   /**
-   * Ids of the instances connected right now, on any node of the cluster. Every instance
-   * socket joins the room "instance:<id>" once authenticated (see the socket controller).
+   * Ids of the instances connected right now, on any node of the cluster. Each node answers
+   * with the ids of its own instances only: fetching every socket of the cluster would
+   * serialize all of them (handshake included) through Redis. Throws when a node does not
+   * answer: a partial list would make the watchdog report its instances offline.
    */
   async function getConnectedInstanceIds() {
-    const sockets = await io.fetchSockets();
-    const instanceIds = new Set();
-    sockets.forEach((socket) => {
-      socket.rooms.forEach((room) => {
-        if (room.startsWith(INSTANCE_ROOM_PREFIX)) {
-          instanceIds.add(room.slice(INSTANCE_ROOM_PREFIX.length));
+    const remoteInstanceIds = await new Promise((resolve, reject) => {
+      io.serverSideEmit(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (err, replies) => {
+        if (err) {
+          reject(err);
+          return;
         }
+        resolve(replies.flat());
       });
     });
-    return instanceIds;
+    return new Set([...getLocalConnectedInstanceIds(), ...remoteInstanceIds]);
   }
 
   function askInstanceToRefreshConnectedUsers(accountId) {
     io.to(`account:instances:${accountId}`).emit('clear-connected-users-list');
   }
 
-  async function handleNewMessageFromUser(user, messageParam, callback) {
+  function handleNewMessageFromUser(user, messageParam, callback) {
+    // a client can emit a message without waiting for an answer
+    const answer = typeof callback === 'function' ? callback : () => {};
+
+    if (messageParam === null || typeof messageParam !== 'object' || typeof messageParam.instance_id !== 'string') {
+      logger.warn(`INSTANCE_NOT_FOUND (invalid message) user_id=${user.id}`);
+      answer(instanceNotFoundError());
+      return;
+    }
+
     logger.debug(`Received message from user ${user.id}`);
 
-    const messageSize = sizeof(messageParam);
-    analyticsService.sendMetric('message-to-instance', messageSize, user.id);
+    if (analyticsService.isEnabled()) {
+      analyticsService.sendMetric('message-to-instance', getMessageSize(messageParam), user.id);
+    }
 
     const message = messageParam;
 
@@ -166,59 +215,48 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // add local gladys id
     message.local_user_id = user.gladys_4_user_id;
 
-    try {
-      const socket = await getInstanceSocketId(user.account_id, message.instance_id);
+    const room = getInstanceRoom(user.account_id, message.instance_id);
 
-      // If the socket was found on a remote server
-      if (socket.constructor.name === 'RemoteSocket') {
-        io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socket.id, message }, (err, replies) => {
-          if (err) {
-            logger.warn(`NO_INSTANCE_FOUND (error) user_id=${user.id}`);
-            const notFound = new NotFoundError('NO_INSTANCE_FOUND');
-            return callback(notFound.jsonError());
-          }
-
-          // remove null response from other instances
-          const filteredReplies = replies.filter((reply) => reply !== null);
-
-          if (filteredReplies.length === 0) {
-            logger.warn(`NO_INSTANCE_FOUND (no replies) user_id=${user.id}`);
-            const notFound = new NotFoundError('NO_INSTANCE_FOUND');
-            return callback(notFound.jsonError());
-          }
-
-          const replySize = sizeof(filteredReplies[0]);
-
-          analyticsService.sendMetric('message-to-instance-response', replySize, user.id);
-
-          return callback(filteredReplies[0]);
-        });
-      } else {
-        // if the socket was found on the same server
-        sendMessage(socket, { message }, callback);
-      }
-
-      return null;
-    } catch (e) {
-      if (e.message === 'INSTANCE_NOT_FOUND') {
-        // Expected when the instance is offline — compact warn, no stack
-        logger.warn(`INSTANCE_NOT_FOUND user_id=${user.id}`);
-      } else {
-        logger.error(`HANDLE_NEW_MESSAGE_FROM_USER_ERROR user_id=${user.id}: ${e.message}`);
-        if (e.stack) {
-          logger.error(e.stack);
-        }
-      }
-      const notFound = new NotFoundError('NO_INSTANCE_FOUND');
-      return callback(notFound.jsonError());
+    // The instance is connected to this node (always the case with a single node): the
+    // message goes straight to its socket, without any round-trip to Redis
+    const localSocket = getLocalSocketInRoom(room);
+    if (localSocket) {
+      emitToInstanceSocket(localSocket, message, getMessageTimeoutInMs(message), answer);
+      return;
     }
+
+    // Else, the other nodes are asked in a single round-trip: the one holding the socket
+    // relays the message and answers with the response of the instance, the others answer null.
+    // Across nodes, the requestsTimeout of the Redis adapter caps the timeout of the message.
+    io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { room, message }, (err, replies) => {
+      const response = (replies || []).find((reply) => reply !== null && reply !== undefined);
+
+      if (response !== undefined) {
+        if (analyticsService.isEnabled()) {
+          analyticsService.sendMetric('message-to-instance-response', getMessageSize(response), user.id);
+        }
+        answer(response);
+        return;
+      }
+
+      if (err) {
+        logger.warn(`INSTANCE_TIMEOUT (no answer from the cluster) user_id=${user.id}`);
+        answer(instanceTimeoutError());
+        return;
+      }
+
+      // Expected when the instance is offline — compact warn, no stack
+      logger.warn(`INSTANCE_NOT_FOUND user_id=${user.id}`);
+      answer(instanceNotFoundError());
+    });
   }
 
   async function handleNewMessageFromInstance(instance, messageParam) {
     logger.debug(`New message from instance ${instance.id}`);
 
-    const messageSize = sizeof(messageParam);
-    analyticsService.sendMetric('message-to-user', messageSize, instance.id);
+    if (analyticsService.isEnabled()) {
+      analyticsService.sendMetric('message-to-user', getMessageSize(messageParam), instance.id);
+    }
 
     const message = messageParam;
 
@@ -249,18 +287,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     io.to(`account:instances:${accountId}`).emit('clear-key-cache');
   }
 
+  // Disconnects every socket of the user, on every node of the cluster
   async function disconnectUser(userId) {
-    try {
-      const socketId = await getUserSocketId(userId);
-
-      io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { socket_id: socketId, disconnect: true }, (err, replies) => {
-        if (err) {
-          logger.debug(`socketModel.disconnectUser : error while trying to disconnect user ${userId}`);
-        }
-      });
-    } catch (e) {
-      // user not connected
-    }
+    io.in(`user:${userId}`).disconnectSockets(true);
   }
 
   async function sendMessageOpenApi(user, message) {
@@ -268,6 +297,8 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       handleNewMessageFromUser(user, message, (response) => {
         if (response && response.error_code === 'NOT_FOUND') {
           reject(new NotFoundError('NO_INSTANCE_FOUND'));
+        } else if (response && response.error_code === 'GATEWAY_TIMEOUT') {
+          reject(new GatewayTimeoutError('INSTANCE_TIMEOUT'));
         } else {
           resolve(response);
         }

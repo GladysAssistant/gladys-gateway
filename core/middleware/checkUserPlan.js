@@ -3,9 +3,30 @@ const asyncMiddleware = require('./asyncMiddleware');
 
 const ALLOWED_ACCOUNT_STATUS = ['active', 'trialing'];
 
-module.exports = function checkUserPlan(userModel, instanceModel, logger) {
+// A granted access is cached for a few minutes: these routes come in bursts (TTS, STT,
+// OpenAI...) and the answer only changes with the subscription. Only a granted access is
+// cached, never a refusal: an account that just subscribed or upgraded gets in right away,
+// a canceled or unpaid one keeps its access for this long at most.
+const GRANTED_ACCESS_CACHE_TTL_IN_SECONDS = 5 * 60;
+const GRANTED_ACCESS_CACHE_PREFIX = 'check_user_plan_granted';
+
+function getGrantedAccessCacheKey(req, plan) {
+  // the instance wins over the user, as below
+  if (req.instance) {
+    return `${GRANTED_ACCESS_CACHE_PREFIX}:${plan}:instance:${req.instance.id}`;
+  }
+  return `${GRANTED_ACCESS_CACHE_PREFIX}:${plan}:user:${req.user.id}`;
+}
+
+module.exports = function checkUserPlan(userModel, instanceModel, redisClient, logger) {
   return function checkUserPlanByPlan(plan) {
     return asyncMiddleware(async (req, res, next) => {
+      const cacheKey = getGrantedAccessCacheKey(req, plan);
+      if (await redisClient.get(cacheKey)) {
+        next();
+        return;
+      }
+
       let account;
       // This middleware serves user
       if (req.user) {
@@ -34,6 +55,8 @@ module.exports = function checkUserPlan(userModel, instanceModel, logger) {
       if (ALLOWED_ACCOUNT_STATUS.indexOf(account.status) === -1) {
         throw new PaymentRequiredError(`Account is not active`);
       }
+
+      await redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS });
 
       next();
     });

@@ -45,7 +45,7 @@ before(async function Before() {
   process.env.INSTANCE_WATCHDOG_CRON = 'disabled';
 
   // starting 2 backends to try multi-server socket exchange
-  const { io, app, db, redisClient, legacyRedisClient, services } = await server(process.env.SERVER_PORT);
+  const { io, app, db, redisClient, legacyRedisClient, services, models } = await server(process.env.SERVER_PORT);
   const { io: iosServer2, app: appServer2 } = await server(process.env.SERVER_PORT + 1);
   databaseTask = DatabaseTask(db);
   redisTask = RedisTask(redisClient);
@@ -57,6 +57,7 @@ before(async function Before() {
   global.TEST_LEGACY_REDIS_CLIENT = legacyRedisClient;
   global.TEST_REDIS_CLIENT = redisClient;
   global.TEST_SERVICES = services;
+  global.TEST_MODELS = models;
 });
 
 beforeEach(async function BeforeEach() {

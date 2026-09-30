@@ -304,7 +304,7 @@ module.exports = async (port) => {
     adminAuth: AdminAuth(logger, legacyRedisClient, AccessTokenAuthMiddleware(logger)),
     openAIAuthAndRateLimit: OpenAIAuthAndRateLimit(logger, legacyRedisClient, db),
     cameraStreamAccessKeyAuth: CameraStreamAccessKeyAuth(redisClient, logger),
-    checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, logger),
+    checkUserPlan: CheckUserPlan(models.userModel, models.instanceModel, redisClient, logger),
     ttsRateLimit: TTSRateLimit(logger, legacyRedisClient, db),
     sttRateLimit: STTRateLimit(logger, legacyRedisClient, db),
   };

@@ -33,6 +33,10 @@ Docker images are only published from a Git tag, so a release can be rolled back
 
 Merging a regular pull request to `master` no longer publishes an image.
 
+## Websocket relay
+
+A message from a user (dashboard, Open API, Google Home, Alexa) is relayed to the socket of the instance on the same node when it is connected there, without any round-trip to Redis; otherwise the other nodes of the cluster are asked once, and the one holding the socket relays it. An instance that never acknowledges a message is answered with a `504 GATEWAY_TIMEOUT` after `INSTANCE_MESSAGE_TIMEOUT_IN_MS` (5 minutes by default, some dashboard calls are long, like a Zigbee2mqtt setup) or `INSTANCE_OPEN_API_MESSAGE_TIMEOUT_IN_MS` for the Open API, Google Home and Alexa messages (30 seconds by default). Across nodes, the `requestsTimeout` of the Redis adapter (15 seconds) caps both.
+
 ## Admin API
 
 The routes under `/admin/api/` are used to administrate Gladys Plus accounts (list and inspect accounts, reset the two factor authentication of a user, delete a user or an account, check the Enedis synchronization, publish Gladys versions). They are documented with apidoc (`npm run apidoc`, group "Admin API").

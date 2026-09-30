@@ -66,6 +66,28 @@ describe('POST /instances', () => {
         expect(response.body).to.have.property('id');
       }));
 
+  it('should clear the primary instance cache of the users of the account', async () => {
+    const cacheKey = 'primary_instance_per_user:a139e4a6-ec6c-442d-9730-0499155d38d4';
+    await TEST_REDIS_CLIENT.set(cacheKey, '0bc53f3c-1e11-40d3-99a4-bd392a666eaf');
+
+    const response = await request(TEST_BACKEND_APP)
+      .post('/instances')
+      .send({
+        name: 'rasp',
+        rsa_public_key: 'hey',
+        ecdsa_public_key: 'hey',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(201);
+
+    // the new instance is primary right away, it is not promoted again when it connects
+    expect(await TEST_REDIS_CLIENT.get(cacheKey)).to.equal(null);
+    const instance = await TEST_DATABASE_INSTANCE.t_instance.findOne({ id: response.body.id });
+    expect(instance).to.have.property('primary_instance', true);
+  });
+
   it('should not create an instance with a read-only token', () =>
     request(TEST_BACKEND_APP)
       .post('/instances')

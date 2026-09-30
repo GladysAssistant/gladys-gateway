@@ -38,8 +38,12 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
     try {
       // we first authenticate the instance thanks to his access token
       const instance = await socketModel.authenticateInstance(accessToken, socket.id);
-      // This instance is the primary instance
-      await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
+      // The last instance to connect is the primary instance of the account. When it already
+      // is (every reconnection of a single instance), there is nothing to write: this spares a
+      // transaction on each reconnection, all instances reconnecting at once after a deploy.
+      if (!instance.primary_instance) {
+        await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
+      }
 
       // then he can join its rooms
       socket.join(`instance:${instance.id}`);

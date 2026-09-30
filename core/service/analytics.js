@@ -21,7 +21,14 @@ module.exports = function AnalyticsService(logger) {
       }
     }
   });
+  // The metrics are only collected when an analytics backend is configured
+  function isEnabled() {
+    return Boolean(process.env.ANALYTICS_URL && process.env.ANALYTICS_API_TOKEN);
+  }
   async function sendMetric(type, value, userId) {
+    if (!isEnabled()) {
+      return;
+    }
     try {
       batcher.add({
         user_id: userId,
@@ -35,6 +42,7 @@ module.exports = function AnalyticsService(logger) {
     }
   }
   return {
+    isEnabled,
     sendMetric,
   };
 };

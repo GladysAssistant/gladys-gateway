@@ -142,6 +142,38 @@ describe('socket message routing', function Describe() {
     expect(messagesReceivedByPreviousConnection).to.equal(0);
   });
 
+  it('should return an empty acknowledgement of an instance on another node, not NO_INSTANCE_FOUND', async () => {
+    const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+    socketInstance.on('message', (data, cb) => cb());
+    const socketUser = await connectUser(process.env.SERVER_PORT);
+
+    const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+    expect(response).to.equal(null);
+  });
+
+  it('should relay a request from another node only once, whatever the number of nodes holding the instance', async () => {
+    const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+    let messagesReceivedByInstance = 0;
+    socketInstance.on('message', (data, cb) => {
+      messagesReceivedByInstance += 1;
+      cb({ response: 'response' });
+    });
+    // the same request reaching the node twice, as it would reach two nodes holding the instance
+    const relayRequest = {
+      request_id: 'a8a4b0e2-3f5c-4c55-9d0f-2b0e7d0c9e11',
+      room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+      message: { data: 'test-data', instance_id: INSTANCE_ID },
+    };
+    const relay = () =>
+      new Promise((resolve) => {
+        TEST_IO.serverSideEmit('find-socket-and-send-message', relayRequest, (err, replies) => resolve(replies));
+      });
+
+    expect(await relay()).to.deep.equal([{ found: true, response: { response: 'response' } }]);
+    expect(await relay()).to.deep.equal([null]);
+    expect(messagesReceivedByInstance).to.equal(1);
+  });
+
   it('should list the instances connected to every node, and only the instances', async () => {
     await TEST_DATABASE_INSTANCE.t_instance.insert({
       id: OTHER_INSTANCE_ID,

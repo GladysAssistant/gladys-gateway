@@ -11,14 +11,21 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     ecdsa_public_key: Joi.string().required(),
   });
 
-  // clean the user -> primary instance cache of every user of the account
+  // Clean the user -> primary instance cache of every user of the account. Best effort: the
+  // primary instance is already saved when this runs, a failure must not fail the request
+  // (the cache expires by itself within 5 minutes).
   async function clearPrimaryInstanceCache(accountId) {
-    const users = await db.t_user.find({ account_id: accountId }, { fields: ['id'] });
-    if (users.length === 0) {
-      return;
+    try {
+      const users = await db.t_user.find({ account_id: accountId }, { fields: ['id'] });
+      if (users.length === 0) {
+        return;
+      }
+      logger.debug(`Cleaning primary instance cache, account = ${accountId}`);
+      await redisClient.del(users.map((user) => `${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${user.id}`));
+    } catch (e) {
+      logger.warn(`Unable to clean the primary instance cache of account ${accountId}`);
+      logger.warn(e);
     }
-    logger.debug(`Cleaning primary instance cache, account = ${accountId}`);
-    await redisClient.del(users.map((user) => `${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${user.id}`));
   }
 
   async function createInstance(user, newInstance) {

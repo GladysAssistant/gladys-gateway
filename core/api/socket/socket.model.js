@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { NotFoundError, GatewayTimeoutError } = require('../../common/error');
 
@@ -6,6 +7,11 @@ const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
 // Asks every node of the cluster for the ids of the instances connected to it
 const SERVER_TO_SERVER_GET_CONNECTED_INSTANCES = 'get-connected-instance-ids';
 const INSTANCE_ROOM_PREFIX = 'instance:';
+// Claimed by the node relaying a message to another node's instance: when the instance is
+// connected to several nodes (a dead connection not detected yet, two Gladys sharing the same
+// credentials), only one of them relays it, a command never runs twice
+const RELAY_CLAIM_PREFIX = 'instance_message_relay';
+const RELAY_CLAIM_TTL_IN_SECONDS = 60;
 
 // An instance that never acknowledges a message (handler crashed, Raspberry Pi frozen...)
 // must not hold the caller forever: without a timeout the ack callback stays in memory until
@@ -80,17 +86,36 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     return instanceIds;
   }
 
+  // Whether this node is the one relaying the message: the first node holding a socket of
+  // the instance to claim the request relays it. Relays anyway when Redis fails, a message
+  // relayed twice in that rare case is better than a message lost.
+  async function claimRelay(requestId) {
+    try {
+      const claimed = await redisClient.set(`${RELAY_CLAIM_PREFIX}:${requestId}`, '1', {
+        NX: true,
+        EX: RELAY_CLAIM_TTL_IN_SECONDS,
+      });
+      return claimed === 'OK';
+    } catch (e) {
+      logger.warn(`Unable to claim the relay of request ${requestId}, relaying it anyway`);
+      logger.warn(e);
+      return true;
+    }
+  }
+
   // handle messages from different nodes: only the node holding the socket of the instance
-  // relays the message, the others answer null
-  io.on(SERVER_TO_SERVER_COMMUNICATION, (data, cb) => {
+  // relays the message and answers { found: true, response }, the others answer null. The
+  // response is wrapped: an instance can acknowledge with nothing, that is not "not here".
+  io.on(SERVER_TO_SERVER_COMMUNICATION, async (data, cb) => {
     const socket = data && data.message ? getLocalSocketInRoom(data.room) : null;
-    if (!socket) {
-      return cb(null);
+    if (!socket || !(await claimRelay(data.request_id))) {
+      cb(null);
+      return;
     }
 
-    emitToInstanceSocket(socket, data.message, getMessageTimeoutInMs(data.message), cb);
-
-    return null;
+    emitToInstanceSocket(socket, data.message, getMessageTimeoutInMs(data.message), (response) => {
+      cb({ found: true, response });
+    });
   });
 
   io.on(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (cb) => {
@@ -228,14 +253,15 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // Else, the other nodes are asked in a single round-trip: the one holding the socket
     // relays the message and answers with the response of the instance, the others answer null.
     // Across nodes, the requestsTimeout of the Redis adapter caps the timeout of the message.
-    io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, { room, message }, (err, replies) => {
-      const response = (replies || []).find((reply) => reply !== null && reply !== undefined);
+    const request = { request_id: crypto.randomUUID(), room, message };
+    io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, request, (err, replies) => {
+      const relayed = (replies || []).find((reply) => reply && reply.found === true);
 
-      if (response !== undefined) {
+      if (relayed) {
         if (analyticsService.isEnabled()) {
-          analyticsService.sendMetric('message-to-instance-response', getMessageSize(response), user.id);
+          analyticsService.sendMetric('message-to-instance-response', getMessageSize(relayed.response), user.id);
         }
-        answer(response);
+        answer(relayed.response);
         return;
       }
 

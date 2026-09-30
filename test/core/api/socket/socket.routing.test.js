@@ -252,4 +252,126 @@ describe('socket message routing', function Describe() {
       expect(await TEST_REDIS_CLIENT.get(PRIMARY_INSTANCE_CACHE_KEY)).to.equal(null);
     });
   });
+
+  describe('analytics', () => {
+    let analyticsService;
+    let originalIsEnabled;
+    let originalSendMetric;
+    let metrics;
+
+    beforeEach(() => {
+      ({ analyticsService } = TEST_SERVICES);
+      originalIsEnabled = analyticsService.isEnabled;
+      originalSendMetric = analyticsService.sendMetric;
+      metrics = [];
+      analyticsService.isEnabled = () => true;
+      analyticsService.sendMetric = (type, value) => metrics.push({ type, value });
+    });
+
+    afterEach(() => {
+      analyticsService.isEnabled = originalIsEnabled;
+      analyticsService.sendMetric = originalSendMetric;
+    });
+
+    it('should measure the messages relayed in both directions when enabled', async () => {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+      socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      const socketUser = await connectUser(process.env.SERVER_PORT);
+      const received = new Promise((resolve) => {
+        socketUser.on('message', resolve);
+      });
+
+      await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+      // the user is on this node: its message is relayed by this node
+      const socketInstanceOnThisNode = await connectInstance(process.env.SERVER_PORT);
+      socketInstanceOnThisNode.emit('message', { data: 'to-user', user_id: USER_ID });
+      await received;
+
+      expect(metrics.map((metric) => metric.type)).to.deep.equal([
+        'message-to-instance',
+        'message-to-instance-response',
+        'message-to-user',
+      ]);
+      expect(metrics[1].value).to.equal(JSON.stringify({ response: 'response' }).length);
+    });
+  });
+
+  describe('failures', () => {
+    let originalServerSideEmit;
+    let originalIn;
+    let originalRedisSet;
+    let originalRedisDel;
+
+    beforeEach(() => {
+      originalServerSideEmit = TEST_IO.serverSideEmit;
+      originalIn = TEST_IO.in;
+      originalRedisSet = TEST_REDIS_CLIENT.set;
+      originalRedisDel = TEST_REDIS_CLIENT.del;
+    });
+
+    afterEach(() => {
+      TEST_IO.serverSideEmit = originalServerSideEmit;
+      TEST_IO.in = originalIn;
+      TEST_REDIS_CLIENT.set = originalRedisSet;
+      TEST_REDIS_CLIENT.del = originalRedisDel;
+    });
+
+    // a node of the cluster that does not answer in time
+    const failClusterRequests = () => {
+      TEST_IO.serverSideEmit = (event, ...args) => {
+        const cb = args[args.length - 1];
+        cb(new Error('timeout reached: only 0 responses received out of 1'), []);
+      };
+    };
+
+    it('should answer a timeout when a node of the cluster does not answer', async () => {
+      failClusterRequests();
+      const socketUser = await connectUser(process.env.SERVER_PORT);
+
+      const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+      expect(response).to.deep.equal(INSTANCE_TIMEOUT_RESPONSE);
+    });
+
+    it('should fail to list the connected instances when a node of the cluster does not answer', async () => {
+      failClusterRequests();
+
+      await expect(TEST_MODELS.socketModel.getConnectedInstanceIds()).to.be.rejectedWith('timeout reached');
+    });
+
+    it('should consider a user disconnected when the cluster cannot be asked', async () => {
+      TEST_IO.in = () => ({ fetchSockets: () => Promise.reject(new Error('timeout reached')) });
+
+      expect(await TEST_MODELS.socketModel.isUserConnected(USER_ID)).to.equal(false);
+    });
+
+    it('should relay a message anyway when the relay cannot be claimed in Redis', async () => {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT);
+      socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      TEST_REDIS_CLIENT.set = () => Promise.reject(new Error('Redis is down'));
+
+      // the request comes from the other node, it is relayed by this one
+      const replies = await new Promise((resolve) => {
+        TEST_IO_SERVER_2.serverSideEmit(
+          'find-socket-and-send-message',
+          {
+            request_id: '5d0c7f6e-9b1a-4f3e-8c2d-7a6b5c4d3e2f',
+            room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+            message: { data: 'test-data', instance_id: INSTANCE_ID },
+          },
+          (err, result) => resolve(result),
+        );
+      });
+      expect(replies).to.deep.equal([{ found: true, response: { response: 'response' } }]);
+    });
+
+    it('should not fail the promotion of a primary instance when the cache cannot be cleared', async () => {
+      TEST_REDIS_CLIENT.del = () => Promise.reject(new Error('Redis is down'));
+
+      await TEST_MODELS.instanceModel.setInstanceAsPrimaryInstance(ACCOUNT_ID, INSTANCE_ID);
+    });
+
+    it('should promote a primary instance in an account without any user', async () => {
+      await TEST_MODELS.instanceModel.setInstanceAsPrimaryInstance('d3b07384-d9a0-4c5e-8f1a-2b3c4d5e6f70', INSTANCE_ID);
+    });
+  });
 });

@@ -39,13 +39,9 @@ function getMessageTimeoutInMs(message) {
 
 // Approximate size of a relayed message, for the analytics only. A message can weigh up to
 // maxHttpBufferSize (25 MB): JSON.stringify is native, far cheaper than walking the object.
+// A message decoded from a socket has no cycle, so it always serializes.
 function getMessageSize(message) {
-  try {
-    const serialized = JSON.stringify(message);
-    return serialized === undefined ? 0 : serialized.length;
-  } catch (e) {
-    return 0;
-  }
+  return (JSON.stringify(message) || '').length;
 }
 
 module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {

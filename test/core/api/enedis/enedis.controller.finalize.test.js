@@ -28,17 +28,25 @@ describe('POST /enedis/finalize', () => {
         const serviceTypeValid = body.serviceType === 'ACCES';
         return autorisationIdValid && serviceTypeValid;
       })
+      // Response shape of the Enedis swagger (ServiceSouscritReponsePaginee)
       .reply(200, {
         nbTotalServices: 2,
-        services: [
+        serviceSouscrit: [
           {
             id: 1,
             pointId: '16401220101758',
             serviceCode: 'ACCES',
             etatCode: 'ACTIF',
+            etatLibelle: 'Actif',
             soutirage: true,
             injection: false,
             mesuresTypeCode: 'ENERGIE',
+            mesuresPas: 'P1D',
+            autorisation: {
+              autorisationId: 123456789,
+              autorisationLibelle: 'GLADYS PLUS',
+              autorisationType: 'EXPLICITE',
+            },
           },
           {
             id: 2,
@@ -65,7 +73,8 @@ describe('POST /enedis/finalize', () => {
       usage_points_id: ['16401220101758'],
     });
     // The customer consents for a second meter: the new flow only allows one PRM
-    // per consent, so finalize must return all the usage points of the account
+    // per consent, so finalize must return all the usage points of the account.
+    // The services nested under a "services" key are accepted too.
     mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .post('/subscribed_services/v1', (body) => body.autorisationId === 'someOtherAutorisationId')
@@ -170,7 +179,7 @@ describe('POST /enedis/finalize', () => {
       .post('/subscribed_services/v1', (body) => body.autorisationId === 'notAListAutorisationId')
       .reply(200, {
         nbTotalServices: 1,
-        services: { pointId: '16401220101758' },
+        serviceSouscrit: { pointId: '16401220101758' },
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
@@ -188,7 +197,7 @@ describe('POST /enedis/finalize', () => {
       .post('/subscribed_services/v1', (body) => body.autorisationId === 'emptyAutorisationId')
       .reply(200, {
         nbTotalServices: 0,
-        services: [],
+        serviceSouscrit: [],
       });
     await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')

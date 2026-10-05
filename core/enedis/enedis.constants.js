@@ -4,6 +4,18 @@ const CONSTANTS = {
   ENEDIS_GET_CONSUMPTION_LOAD_CURVE_JOB_KEY: 'consumption-load-curve',
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY: 'refresh-all-data',
   ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY: 'daily-refresh-all-users',
+  // Enedis allows each application 5 calls per second and 1000 calls per hour per API
+  // (a 429 means "L'application a dépassé son quota d'appels"). Every call to Enedis is made
+  // from a job of this queue, and a job calls a given API about once, so one job every
+  // 4 seconds (900 jobs per hour) stays under both quotas. BullMQ applies the limiter
+  // to the whole queue, whatever the number of worker replicas.
+  ENEDIS_WORKER_LIMITER: {
+    max: 1,
+    duration: 4 * 1000,
+  },
+  // When Enedis answers 429 anyway, the queue is paused for the Retry-After delay,
+  // or for this long when Enedis does not send one.
+  ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS: 10 * 60 * 1000,
   BULLMQ_PUBLISH_JOB_OPTIONS: {
     removeOnComplete: {
       age: 24 * 60 * 60, // Keep 24 hours

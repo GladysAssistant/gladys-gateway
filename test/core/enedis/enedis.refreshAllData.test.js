@@ -155,8 +155,14 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       .expect(200);
     mockAccessTokenRefresh();
     await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
+    // The meter was activated one week ago: one slice of 7 days. The slice that would
+    // start and end on the activation day is empty, and Enedis rejects it, so it is skipped.
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 4, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
+    const jobs = await enedisModel.queue.getJobs(['wait']);
+    jobs.forEach((job) => {
+      expect(job.data.start).to.not.equal(job.data.end);
+    });
     const syncs = await db.t_enedis_sync.find(
       {},
       {
@@ -167,7 +173,7 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       {
         usage_point_id: '16401220101758',
         jobs_done: 0,
-        jobs_total: 4,
+        jobs_total: 2,
       },
     ]);
   });

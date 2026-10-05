@@ -430,10 +430,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         if (startDate < oldestDate) {
           startDate = oldestDate;
         }
-        syncTasksArray.push({
-          start: startDate.format('YYYY-MM-DD'),
-          end: currendEndDate.format('YYYY-MM-DD'),
-        });
+        const start = startDate.format('YYYY-MM-DD');
+        const end = currendEndDate.format('YYYY-MM-DD');
+        // The last slice can start and end the same day: the end day being excluded, it is
+        // empty, and Enedis rejects it ("La date de fin ne peut être égale à la date de début")
+        if (start !== end) {
+          syncTasksArray.push({ start, end });
+        }
         currendEndDate = startDate;
       }
       syncTasksArray.reverse();
@@ -464,14 +467,17 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         AND t_device.client_id = $1;
     `;
     const usersToRefresh = await db.query(getAllUsersWithEnedisSql, [ENEDIS_GRANT_CLIENT_ID]);
-    const oneWeekAgo = dayjs().subtract(6, 'day');
+    const oneWeekAgo = dayjs().subtract(6, 'day').toISOString();
     logger.info(`Enedis: Daily refresh of all users. Refreshing ${usersToRefresh.length} users`);
+    // One job per user rather than refreshing every user here: the calls each refresh makes
+    // (token, contract) then go through the queue limiter, like the metering calls,
+    // and a failing user is retried on its own.
     await Promise.each(usersToRefresh, async (userToRefresh) => {
-      try {
-        await refreshAllData({ userId: userToRefresh.id, start: oneWeekAgo });
-      } catch (e) {
-        logger.error(`Failed to refresh user = ${userToRefresh.id}`);
-      }
+      await queue.add(
+        ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+        { userId: userToRefresh.id, start: oneWeekAgo },
+        BULLMQ_PUBLISH_JOB_OPTIONS,
+      );
     });
   }
   async function enedisSyncData(job) {

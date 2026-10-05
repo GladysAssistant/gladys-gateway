@@ -155,8 +155,14 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       .expect(200);
     mockAccessTokenRefresh();
     await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
+    // The meter was activated one week ago: one slice of 7 days. The slice that would
+    // start and end on the activation day is empty, and Enedis rejects it, so it is skipped.
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 4, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
+    const jobs = await enedisModel.queue.getJobs(['wait']);
+    jobs.forEach((job) => {
+      expect(job.data.start).to.not.equal(job.data.end);
+    });
     const syncs = await db.t_enedis_sync.find(
       {},
       {
@@ -167,9 +173,80 @@ describe('EnedisWorker.refreshAllData', function Describe() {
       {
         usage_point_id: '16401220101758',
         jobs_done: 0,
-        jobs_total: 4,
+        jobs_total: 2,
       },
     ]);
+  });
+  it('should space the contract calls of an account with several usage points', async () => {
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .post('/oauth2/v3/token', (body) => body.grant_type === 'authorization_code')
+      .reply(200, {
+        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
+        token_type: 'Bearer',
+        expires_in: 12600,
+        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
+      });
+    await request(TEST_BACKEND_APP)
+      .post('/enedis/finalize')
+      .send({
+        code: 'someAuthCode',
+        usage_points_id: ['16401220101758', '16401220101710'],
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    mockAccessTokenRefresh();
+    const contractCallTimes = [];
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(true)
+      .times(2)
+      .reply(() => {
+        contractCallTimes.push(Date.now());
+        return [200, contractData];
+      });
+    await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
+    expect(contractCallTimes).to.have.lengthOf(2);
+    expect(contractCallTimes[1] - contractCallTimes[0]).to.be.at.least(240);
+    // Both usage points are synced
+    const syncs = await db.t_enedis_sync.find({}, { fields: ['usage_point_id'] });
+    expect(syncs.map((sync) => sync.usage_point_id)).to.have.members(['16401220101758', '16401220101710']);
+  });
+  it('should fail without publishing anything when the contract call is rate limited', async () => {
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .post('/oauth2/v3/token', (body) => body.grant_type === 'authorization_code')
+      .reply(200, {
+        access_token: 'ba42fe5a-0eaa-11e5-9813-4dd05b3a25f3',
+        token_type: 'Bearer',
+        expires_in: 12600,
+        refresh_token: '7dnCbf8P0ypCyxbnX7tUKjcSveE2Nu8w',
+      });
+    await request(TEST_BACKEND_APP)
+      .post('/enedis/finalize')
+      .send({
+        code: 'someAuthCode',
+        usage_points_id: ['16401220101758'],
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    mockAccessTokenRefresh();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/customers_upc/v5/usage_points/contracts')
+      .query(contractQueryParams)
+      .reply(429, { code: 'SLA', message: 'SLA dépassé' });
+    let error;
+    try {
+      await enedisModel.refreshAllData({ userId: '29770e0d-26a9-444e-91a1-f175c99a5218' });
+    } catch (e) {
+      error = e;
+    }
+    // The 429 reaches the job processor, which pauses the queue, and nothing was published
+    expect(error.response.status).to.equal(429);
+    const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
+    expect(counts).to.deep.equal({ wait: 0, completed: 0, failed: 0 });
+    const syncs = await db.t_enedis_sync.find({});
+    expect(syncs).to.have.lengthOf(0);
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process

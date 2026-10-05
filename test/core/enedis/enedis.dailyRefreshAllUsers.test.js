@@ -1,5 +1,6 @@
 const request = require('supertest');
 const { expect } = require('chai');
+const dayjs = require('dayjs');
 const nock = require('nock');
 const configTest = require('../../tasks/config');
 const { mockAccessTokenRefresh } = require('./utils.test');
@@ -42,7 +43,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     ({ enedisModel, shutdown } = await initEnedisListener());
     await shutdown();
   });
-  it('should publish 4 jobs', async () => {
+  it('should publish one refresh job per user, each publishing the metering jobs of the last week', async () => {
     // Insert broken enedis user data
     await TEST_DATABASE_INSTANCE.t_account.insert({
       id: 'ab9c205a-d090-4c97-84b5-d2a9eb932201',
@@ -121,8 +122,26 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     mockAccessTokenRefresh();
     mockAccessTokenRefresh();
     await enedisModel.dailyRefreshOfAllUsers();
+    // The daily refresh only publishes one job per user, the calls to Enedis are made
+    // by these jobs, through the queue limiter
+    const refreshJobs = await enedisModel.queue.getJobs(['wait']);
+    expect(refreshJobs.map((job) => job.name)).to.deep.equal(['refresh-all-data', 'refresh-all-data']);
+    expect(refreshJobs.map((job) => job.data.userId)).to.have.members([
+      'a139e4a6-ec6c-442d-9730-0499155d38d4',
+      '1258b0b1-4f5a-4ea6-926b-755ab725eeb3',
+    ]);
+    refreshJobs.forEach((job) => {
+      expect(job.data.start).to.be.a('string');
+      expect(job.id).to.equal(`daily-refresh-${job.data.userId}-${dayjs().format('YYYY-MM-DD')}`);
+    });
+    // A second run the same day (a retry of the daily job) does not publish duplicates
+    await enedisModel.dailyRefreshOfAllUsers();
+    expect(await enedisModel.queue.getJobCounts('wait')).to.deep.equal({ wait: 2 });
+    // Each refresh job publishes the metering jobs of its user, the broken usage point
+    // (contract in 403) included
+    await Promise.all(refreshJobs.map((job) => enedisModel.enedisSyncData(job)));
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 4, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 6, completed: 0, failed: 0 });
   });
   it('should play job', async () => {
     // First, finalize Enedis Oauth process
@@ -164,7 +183,11 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
       name: 'daily-refresh-all-users',
       data: {},
     });
+    const refreshJobs = await enedisModel.queue.getJobs(['wait']);
+    expect(refreshJobs.map((job) => job.name)).to.deep.equal(['refresh-all-data']);
+    // Playing the refresh job publishes the 2 metering jobs of the last week
+    await enedisModel.enedisSyncData(refreshJobs[0]);
     const counts = await enedisModel.queue.getJobCounts('wait', 'completed', 'failed');
-    expect(counts).to.deep.equal({ wait: 2, completed: 0, failed: 0 });
+    expect(counts).to.deep.equal({ wait: 3, completed: 0, failed: 0 });
   });
 });

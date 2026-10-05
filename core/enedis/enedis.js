@@ -20,6 +20,7 @@ const {
   ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
   BULLMQ_PUBLISH_JOB_OPTIONS,
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+  ENEDIS_DELAY_BETWEEN_CONTRACT_CALLS_IN_MS,
 } = require('./enedis.constants');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
@@ -400,16 +401,29 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     // Find all usage points
     const usagePointIds = await getUsagePoints(account.id);
     logger.info(`Enedis: Found ${usagePointIds.length} usage points for user ${job.userId}`);
-    // Foreach usage points, we generate one job per request to make
-    await Promise.each(usagePointIds, async (usagePointId) => {
-      let contract;
+    // Get every contract before publishing anything: when Enedis answers 429, the job fails
+    // before any sync is published, so its retry does not publish the same slices twice.
+    const contracts = await Promise.mapSeries(usagePointIds, async (usagePointId, index) => {
+      // Space the contract calls of an account with several usage points (5 calls per second max)
+      if (index > 0) {
+        await Promise.delay(ENEDIS_DELAY_BETWEEN_CONTRACT_CALLS_IN_MS);
+      }
       try {
-        contract = await getContract(account.id, usagePointId);
+        return await getContract(account.id, usagePointId);
       } catch (e) {
+        // A quota exceeded must reach the job processor, which pauses the queue
+        if (get(e, 'response.status') === 429) {
+          throw e;
+        }
         logger.warn(
           `Failed to get contract for usage_point ${usagePointId}. Will continue with a default value for last activation date.`,
         );
+        return null;
       }
+    });
+    // Foreach usage points, we generate one job per request to make
+    await Promise.each(usagePointIds, async (usagePointId, index) => {
+      const contract = contracts[index];
 
       let oldestDate = job.start ? dayjs(job.start) : dayjs().subtract(2, 'years');
 
@@ -430,10 +444,13 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         if (startDate < oldestDate) {
           startDate = oldestDate;
         }
-        syncTasksArray.push({
-          start: startDate.format('YYYY-MM-DD'),
-          end: currendEndDate.format('YYYY-MM-DD'),
-        });
+        const start = startDate.format('YYYY-MM-DD');
+        const end = currendEndDate.format('YYYY-MM-DD');
+        // The last slice can start and end the same day: the end day being excluded, it is
+        // empty, and Enedis rejects it ("La date de fin ne peut être égale à la date de début")
+        if (start !== end) {
+          syncTasksArray.push({ start, end });
+        }
         currendEndDate = startDate;
       }
       syncTasksArray.reverse();
@@ -464,14 +481,20 @@ module.exports = function EnedisModel(logger, db, redisClient) {
         AND t_device.client_id = $1;
     `;
     const usersToRefresh = await db.query(getAllUsersWithEnedisSql, [ENEDIS_GRANT_CLIENT_ID]);
-    const oneWeekAgo = dayjs().subtract(6, 'day');
+    const oneWeekAgo = dayjs().subtract(6, 'day').toISOString();
+    const runDate = dayjs().format('YYYY-MM-DD');
     logger.info(`Enedis: Daily refresh of all users. Refreshing ${usersToRefresh.length} users`);
+    // One job per user rather than refreshing every user here: the calls each refresh makes
+    // (token, contract) then go through the queue limiter, like the metering calls,
+    // and a failing user is retried on its own.
+    // The job id is stable for a user and a day: BullMQ ignores the job when it already exists,
+    // so a retry of this job (or a second run the same day) does not publish duplicates.
     await Promise.each(usersToRefresh, async (userToRefresh) => {
-      try {
-        await refreshAllData({ userId: userToRefresh.id, start: oneWeekAgo });
-      } catch (e) {
-        logger.error(`Failed to refresh user = ${userToRefresh.id}`);
-      }
+      await queue.add(
+        ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
+        { userId: userToRefresh.id, start: oneWeekAgo },
+        { ...BULLMQ_PUBLISH_JOB_OPTIONS, jobId: `daily-refresh-${userToRefresh.id}-${runDate}` },
+      );
     });
   }
   async function enedisSyncData(job) {

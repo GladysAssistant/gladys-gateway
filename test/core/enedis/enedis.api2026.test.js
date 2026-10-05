@@ -173,12 +173,12 @@ describe('EnedisWorker with ENEDIS_USE_2026_APIS enabled', function Describe() {
       { value: 200, created_at: '2022-07-31T23:00:00.000Z' },
     ]);
   });
-  it('should save nothing and count the job as done when the daily consumption has no grandeur', async () => {
+  it('should save nothing and count the job as done when the daily consumption has an empty grandeur', async () => {
     await finalizeOauthProcess();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
       .get('/mesure_synchrone_auto/v2/consommation_quotidienne')
       .query({ ...queryParamsV2, dateDebut: '2022-09-01', dateFin: '2022-09-03' })
-      .reply(200, { idPrm: queryParams.usage_point_id, periode: { dateDebut: '2022-09-01', dateFin: '2022-09-03' } });
+      .reply(200, { ...dailyConsumptionData, grandeur: [] });
     const createdSync = await db.t_enedis_sync.insert({
       usage_point_id: queryParams.usage_point_id,
       jobs_total: 1,
@@ -198,6 +198,33 @@ describe('EnedisWorker with ENEDIS_USE_2026_APIS enabled', function Describe() {
     expect(rows).to.have.lengthOf(0);
     const sync = await db.t_enedis_sync.findOne({ id: createdSync.id });
     expect(sync.jobs_done).to.equal(1);
+  });
+  it('should fail without counting the job as done when the response has no grandeur', async () => {
+    await finalizeOauthProcess();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/mesure_synchrone_auto/v2/consommation_quotidienne')
+      .query({ ...queryParamsV2, dateDebut: '2022-09-01', dateFin: '2022-09-03' })
+      .reply(200, { idPrm: queryParams.usage_point_id, unexpected: [] });
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 1,
+    });
+    let error;
+    try {
+      await enedisModel.getDataDailyConsumption(
+        ACCOUNT_ID,
+        queryParams.usage_point_id,
+        '2022-09-01',
+        '2022-09-03',
+        createdSync.id,
+      );
+    } catch (e) {
+      error = e;
+    }
+    expect(error).to.be.instanceOf(Error);
+    expect(error.message).to.equal('Enedis - unexpected Mesures V2 response. Response keys: idPrm, unexpected');
+    const sync = await db.t_enedis_sync.findOne({ id: createdSync.id });
+    expect(sync.jobs_done).to.equal(0);
   });
   it('should save nothing and count the job as done when the load curve has no consumption series', async () => {
     await finalizeOauthProcess();

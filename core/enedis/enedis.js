@@ -61,7 +61,11 @@ const getMeteringReadings = (v2026, response) => {
   }
   const grandeurs = get(response, 'grandeur');
   if (!Array.isArray(grandeurs)) {
-    return [];
+    // Enedis answers 404 when there is no measure for the period, so a 200 without
+    // grandeur is a schema mismatch: fail (and let the job be retried) rather than
+    // counting the period as synced. Only the keys are reported, never the payload.
+    const responseKeys = response && typeof response === 'object' ? Object.keys(response) : [];
+    throw new Error(`Enedis - unexpected Mesures V2 response. Response keys: ${responseKeys.join(', ')}`);
   }
   return grandeurs
     .filter((grandeur) => !grandeur.grandeurMetier || grandeur.grandeurMetier === 'CONS')

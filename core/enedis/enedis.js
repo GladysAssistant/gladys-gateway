@@ -35,13 +35,44 @@ const ENDPOINTS = {
     dailyConsumption: '/metering_data_dc/v5/daily_consumption',
     consumptionLoadCurve: '/metering_data_clc/v5/consumption_load_curve',
   },
+  // Mesures V2 (swagger_mesure_synchrone_auto_v2.yaml on the Enedis DataHub)
   v2026: {
-    dailyConsumption: '/mesure_synchrone_auto/v1/metering_data/daily_consumption',
-    consumptionLoadCurve: '/mesure_synchrone_auto/v1/metering_data/consumption_load_curve',
+    dailyConsumption: '/mesure_synchrone_auto/v2/consommation_quotidienne',
+    consumptionLoadCurve: '/mesure_synchrone_auto/v2/courbe_de_charge_consommation',
   },
 };
 
-const getEndpoint = (name) => (use2026Apis() ? ENDPOINTS.v2026[name] : ENDPOINTS.legacy[name]);
+const getEndpoint = (v2026, name) => (v2026 ? ENDPOINTS.v2026[name] : ENDPOINTS.legacy[name]);
+
+// Mesures V2 renamed the query params (same values: PRM, start included, end excluded)
+const buildMeteringQuery = (v2026, usagePointId, start, end) => {
+  if (v2026) {
+    return { pointId: usagePointId, dateDebut: start, dateFin: end };
+  }
+  return { usage_point_id: usagePointId, start, end };
+};
+
+// Returns the readings as { value, date } whatever the API generation.
+// Mesures V2 lists them as { v, d } under grandeur[].points[], the consumption
+// series being flagged with grandeurMetier "CONS".
+const getMeteringReadings = (v2026, response) => {
+  if (!v2026) {
+    return response.meter_reading.interval_reading;
+  }
+  const grandeurs = get(response, 'grandeur');
+  if (!Array.isArray(grandeurs)) {
+    return [];
+  }
+  return grandeurs
+    .filter((grandeur) => !grandeur.grandeurMetier || grandeur.grandeurMetier === 'CONS')
+    .flatMap((grandeur) => (Array.isArray(grandeur.points) ? grandeur.points : []))
+    .map((point) => ({ value: point.v, date: point.d }));
+};
+
+// Enedis integration is for french users: a date without offset is a french local time.
+// A date carrying its offset (or Z) is already absolute and is parsed as is.
+const DATE_WITH_OFFSET_REGEX = /(Z|[+-]\d{2}:?\d{2})$/;
+const parseLoadCurveDate = (date) => (DATE_WITH_OFFSET_REGEX.test(date) ? dayjs(date) : dayjs.tz(date, 'Europe/Paris'));
 
 const getDevicesWithEnedisActivated = `
         SELECT DISTINCT t_user.id, t_user.account_id, 
@@ -179,25 +210,37 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       },
       accessToken,
     );
-    // The services list can be at the root of the response or nested under "services".
-    // Anything else is treated as an empty list so a schema mismatch surfaces as the
-    // warning below rather than a TypeError.
-    const nestedServices = get(response, 'services');
+    // Per the Enedis swagger (ServiceSouscritReponsePaginee), the services are listed
+    // under "serviceSouscrit", next to "nbTotalServices". A bare array or a "services"
+    // key are still accepted. Anything else is treated as an empty list so a schema
+    // mismatch surfaces as the warning below rather than a TypeError.
     let services = [];
     if (Array.isArray(response)) {
       services = response;
-    } else if (Array.isArray(nestedServices)) {
-      services = nestedServices;
+    } else {
+      const nestedServices = [get(response, 'serviceSouscrit'), get(response, 'services')].find((value) =>
+        Array.isArray(value),
+      );
+      services = nestedServices || [];
     }
-    const usagePointsIds = [...new Set(services.map((service) => service.pointId).filter(Boolean))];
+    const usagePointsIds = [
+      ...new Set(
+        services
+          .map((service) => get(service, 'pointId'))
+          .filter(Boolean)
+          .map(String),
+      ),
+    ];
     if (usagePointsIds.length === 0) {
-      // The subscribed services schema is not published by Enedis, so a wrapping or
-      // field mismatch would silently look like a consent without any meter.
-      // Log the response keys (never the payload) to be able to spot the mismatch.
+      // A wrapping or field mismatch would silently look like a consent without any meter.
+      // Log the keys and the count (never the payload) to be able to spot the mismatch.
       const responseKeys = response && typeof response === 'object' ? Object.keys(response) : [];
+      const firstService = services[0];
+      const serviceKeys = firstService && typeof firstService === 'object' ? Object.keys(firstService) : [];
       logger.warn(
         `Enedis - no usage point found in the subscribed services response for account ${accountId}. ` +
-          `Response keys: ${responseKeys.join(', ')}`,
+          `Response keys: ${responseKeys.join(', ')}. nbTotalServices: ${get(response, 'nbTotalServices')}. ` +
+          `Services: ${services.length}. First service keys: ${serviceKeys.join(', ')}`,
       );
     }
     return usagePointsIds;
@@ -214,14 +257,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   async function getDataDailyConsumption(accountId, usagePointId, start, end, syncId) {
     logger.info(`Enedis - get data daily consumption for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
     const accessToken = await getAccessToken(accountId);
-    const data = {
-      usage_point_id: usagePointId,
-      start,
-      end,
-    };
+    const v2026 = use2026Apis();
+    const data = buildMeteringQuery(v2026, usagePointId, start, end);
     let response;
     try {
-      response = await makeRequest(getEndpoint('dailyConsumption'), data, accessToken);
+      response = await makeRequest(getEndpoint(v2026, 'dailyConsumption'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -235,13 +275,18 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       throw e;
     }
 
+    const readings = getMeteringReadings(v2026, response);
+    if (v2026 && readings.length === 0) {
+      logger.warn(`Enedis - no daily consumption reading in the Mesures V2 response for usagePoint = ${usagePointId}`);
+    }
     // Foreach data points, we insert in DB if not exist
-    await Promise.each(response.meter_reading.interval_reading, async (reading) => {
+    await Promise.each(readings, async (reading) => {
       await db.t_enedis_daily_consumption.insert(
         {
           usage_point_id: usagePointId,
           value: reading.value,
-          created_at: reading.date,
+          // The column is a date: keep the day only, in case the API returns a full timestamp
+          created_at: v2026 ? String(reading.date).substring(0, 10) : reading.date,
         },
         {
           onConflict: {
@@ -257,14 +302,11 @@ module.exports = function EnedisModel(logger, db, redisClient) {
   async function getConsumptionLoadCurve(accountId, usagePointId, start, end, syncId) {
     logger.info(`Enedis - get consumption load curve for usagePoint = ${usagePointId} from start = ${start} to ${end}`);
     const accessToken = await getAccessToken(accountId);
-    const data = {
-      usage_point_id: usagePointId,
-      start,
-      end,
-    };
+    const v2026 = use2026Apis();
+    const data = buildMeteringQuery(v2026, usagePointId, start, end);
     let response;
     try {
-      response = await makeRequest(getEndpoint('consumptionLoadCurve'), data, accessToken);
+      response = await makeRequest(getEndpoint(v2026, 'consumptionLoadCurve'), data, accessToken);
     } catch (e) {
       // if the response is 404 not found
       // It just mean the user has no data at this period so it's fine
@@ -277,14 +319,17 @@ module.exports = function EnedisModel(logger, db, redisClient) {
       throw e;
     }
 
+    const readings = getMeteringReadings(v2026, response);
+    if (v2026 && readings.length === 0) {
+      logger.warn(`Enedis - no load curve reading in the Mesures V2 response for usagePoint = ${usagePointId}`);
+    }
     // Foreach data points, we insert in DB if not exist
-    await Promise.each(response.meter_reading.interval_reading, async (reading) => {
+    await Promise.each(readings, async (reading) => {
       await db.t_enedis_consumption_load_curve.insert(
         {
           usage_point_id: usagePointId,
           value: reading.value,
-          // Enedis integration is for french users, so timezone is always french one
-          created_at: dayjs.tz(reading.date, 'Europe/Paris'),
+          created_at: parseLoadCurveDate(reading.date),
         },
         {
           onConflict: {

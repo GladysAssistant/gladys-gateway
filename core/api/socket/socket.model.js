@@ -12,8 +12,9 @@ const INSTANCE_ROOM_PREFIX = 'instance:';
 // instance is connected to several nodes (it reconnected to another node before the previous
 // connection was detected dead, two Gladys sharing the same credentials), only the node
 // holding this socket relays a message: a command never runs twice, nor on a dead connection.
+// No expiry: an instance stays connected for weeks. The record is removed when that socket
+// disconnects; after a node crash, it points to a dead socket until the instance reconnects.
 const INSTANCE_SOCKET_PREFIX = 'instance_socket';
-const INSTANCE_SOCKET_TTL_IN_SECONDS = 24 * 60 * 60;
 // Without a last socket known (expired, Redis failure), the first node holding a socket of
 // the instance to claim the request relays it
 const RELAY_CLAIM_PREFIX = 'instance_message_relay';
@@ -196,7 +197,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
    */
   async function setLastInstanceSocket(instanceId, socket) {
     try {
-      await redisClient.set(getInstanceSocketKey(instanceId), socket.id, { EX: INSTANCE_SOCKET_TTL_IN_SECONDS });
+      await redisClient.set(getInstanceSocketKey(instanceId), socket.id);
     } catch (e) {
       logger.warn(`Unable to record the socket of instance ${instanceId}`);
       logger.warn(e);
@@ -204,7 +205,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     }
     // The socket can close while the instance is authenticated (database, Redis): its
     // disconnect handler then ran before the socket was recorded, and a dead socket would
-    // stay recorded for a whole day
+    // stay recorded until the instance reconnects
     if (socket.disconnected) {
       await clearLastInstanceSocket(instanceId, socket.id);
     }
@@ -249,7 +250,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       // the room is scoped by account: the last socket must be in the room asked for
       return lastSocket && lastSocket.rooms.has(data.room) ? lastSocket : null;
     }
-    return (await claimRelay(data.request_id)) ? localSocket : null;
+    const claimed = await claimRelay(data.request_id);
+    // the socket may have disconnected while Redis answered: it can no longer relay anything
+    return claimed && localSocket.connected ? localSocket : null;
   }
 
   // handle messages from different nodes: only the node holding the socket of the instance
@@ -266,7 +269,18 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // the request after the requestsTimeout of the adapter: waiting longer here would only
     // hold the message for an answer nobody reads.
     const timeoutInMs = Math.min(getMessageTimeoutInMs(data.message), getClusterRequestsTimeoutInMs());
-    const answer = answerOnce((response) => cb({ found: true, response }));
+    const answer = answerOnce((response) => {
+      // The adapter counts the reply as sent before serializing it: a response it cannot
+      // serialize would leave the origin waiting for its timeout. It is checked here instead.
+      try {
+        JSON.stringify(response);
+      } catch (e) {
+        logger.error(`INVALID_INSTANCE_RESPONSE: unable to relay the answer of an instance (${e.message})`);
+        cb({ found: true, response: invalidInstanceResponseError() });
+        return;
+      }
+      cb({ found: true, response });
+    });
     emitToInstanceSocket(socket, data.message, timeoutInMs, answer);
   });
 
@@ -396,7 +410,6 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       const relayed = (replies || []).find((reply) => reply && reply.found === true);
 
       if (relayed) {
-        analyticsService.sendMessageSizeMetric('message-to-instance-response', relayed.response, user.id);
         answer(relayed.response);
         return;
       }
@@ -415,7 +428,12 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
   function handleNewMessageFromUser(user, message, callback) {
     // a client can emit a message without waiting for an answer
-    const answer = answerOnce(typeof callback === 'function' ? callback : () => {});
+    const reply = typeof callback === 'function' ? callback : () => {};
+    // the size of the answer is measured here, whichever path it took
+    const answer = answerOnce((response) => {
+      analyticsService.sendMessageSizeMetric('message-to-instance-response', response, user.id);
+      reply(response);
+    });
 
     if (message === null || typeof message !== 'object' || typeof message.instance_id !== 'string') {
       logger.warn(`INSTANCE_NOT_FOUND (invalid message) user_id=${user.id}`);

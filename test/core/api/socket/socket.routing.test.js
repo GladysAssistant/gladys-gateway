@@ -62,6 +62,20 @@ describe('socket message routing', function Describe() {
 
   const lastInstanceSocketKey = (instanceId = INSTANCE_ID) => `instance_socket:${instanceId}`;
 
+  // The last socket is recorded without delaying the authentication: wait until it is
+  async function waitForLastInstanceSocket(expectedSocketId, attemptsLeft = 50) {
+    if ((await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())) === expectedSocketId) {
+      return;
+    }
+    if (attemptsLeft === 0) {
+      throw new Error(`the last socket of the instance is not ${expectedSocketId}`);
+    }
+    await new Promise((resolve) => {
+      setTimeout(resolve, 10);
+    });
+    await waitForLastInstanceSocket(expectedSocketId, attemptsLeft - 1);
+  }
+
   function connectInstance(port = process.env.SERVER_PORT, instanceId = INSTANCE_ID) {
     return connect(
       port,
@@ -202,7 +216,8 @@ describe('socket message routing', function Describe() {
 
   it('should relay a request from another node only once when the last socket of the instance is unknown', async () => {
     const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
-    // the last socket expired: the first node to claim the request relays it
+    // the last socket is unknown (lost by Redis): the first node to claim the request relays it
+    await waitForLastInstanceSocket(socketInstance.id);
     await TEST_REDIS_CLIENT.del(lastInstanceSocketKey());
     let messagesReceivedByInstance = 0;
     socketInstance.on('message', (data, cb) => {
@@ -235,7 +250,7 @@ describe('socket message routing', function Describe() {
     });
     const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
     socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
-    expect(await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())).to.equal(socketInstance.id);
+    await waitForLastInstanceSocket(socketInstance.id);
 
     // the request of a third node reaches both nodes
     const relayRequest = {
@@ -258,6 +273,7 @@ describe('socket message routing', function Describe() {
   it('should forget the last socket of an instance when it disconnects, unless a newer one replaced it', async () => {
     const previousSocketInstance = await connectInstance();
     const socketInstance = await connectInstance();
+    await waitForLastInstanceSocket(socketInstance.id);
 
     previousSocketInstance.disconnect();
     await new Promise((resolve) => {
@@ -292,17 +308,21 @@ describe('socket message routing', function Describe() {
     expect(response).to.deep.equal(INVALID_INSTANCE_RESPONSE);
   });
 
-  it('should survive an answer too deeply nested to be relayed across nodes', async () => {
+  it('should answer an error at once when the answer of the instance cannot be relayed across nodes', async () => {
     const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
-    TEST_IO.of('/').adapter.requestsTimeout = 300;
+    // waiting for this timeout would fail the test
+    TEST_IO.of('/').adapter.requestsTimeout = 3000;
     try {
       const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
       acknowledgeNextMessageDeeplyNested(socketInstance);
       const socketUser = await connectUser(process.env.SERVER_PORT);
 
-      // the node holding the instance cannot serialize its answer: the origin times out
+      // the node holding the instance cannot serialize its answer: it relays an error at once,
+      // the origin does not wait for the timeout of the cluster
+      const startedAt = Date.now();
       const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
-      expect(response).to.deep.equal(INSTANCE_TIMEOUT_RESPONSE);
+      expect(response).to.deep.equal(INVALID_INSTANCE_RESPONSE);
+      expect(Date.now() - startedAt).to.be.below(1000);
     } finally {
       TEST_IO.of('/').adapter.requestsTimeout = originalRequestsTimeout;
     }
@@ -494,6 +514,20 @@ describe('socket message routing', function Describe() {
       ]);
       expect(metrics[1].message).to.deep.equal({ response: 'response' });
     });
+
+    it('should measure the answer of an instance connected to the same node', async () => {
+      const socketInstance = await connectInstance();
+      socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      const socketUser = await connectUser();
+
+      await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+
+      expect(metrics.map((metric) => metric.type)).to.deep.equal([
+        'message-to-instance',
+        'message-to-instance-response',
+      ]);
+      expect(metrics[1].message).to.deep.equal({ response: 'response' });
+    });
   });
 
   describe('failures', () => {
@@ -595,6 +629,32 @@ describe('socket message routing', function Describe() {
         );
       });
       expect(replies).to.deep.equal([{ found: true, response: { response: 'response' } }]);
+    });
+
+    it('should not relay on a socket that disconnected while the relay was claimed', async () => {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT);
+      await waitForLastInstanceSocket(socketInstance.id);
+      await TEST_REDIS_CLIENT.del(lastInstanceSocketKey());
+      const { get } = TEST_REDIS_CLIENT;
+      // the instance disconnects while this node reads the last socket in Redis
+      TEST_REDIS_CLIENT.get = async (key) => {
+        TEST_IO.in(`instance:${INSTANCE_ID}`).disconnectSockets(true);
+        return get.call(TEST_REDIS_CLIENT, key);
+      };
+
+      // the request comes from the other node, the socket was on this one
+      const replies = await new Promise((resolve) => {
+        TEST_IO_SERVER_2.serverSideEmit(
+          'find-socket-and-send-message',
+          {
+            request_id: '6b1e2c3d-4e5f-4a6b-9c7d-8e9f0a1b2c3d',
+            room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+            message: { data: 'test-data', instance_id: INSTANCE_ID },
+          },
+          (err, result) => resolve(result),
+        );
+      });
+      expect(replies).to.deep.equal([null]);
     });
 
     it('should not record as last socket a socket that closed while the instance authenticated', async () => {

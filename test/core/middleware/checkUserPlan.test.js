@@ -101,4 +101,21 @@ describe('checkUserPlan middleware', () => {
       process.removeListener('unhandledRejection', onUnhandledRejection);
     }
   });
+  it('should not queue any Redis command while Redis reconnects', async () => {
+    const originalGet = TEST_REDIS_CLIENT.get;
+    const originalSet = TEST_REDIS_CLIENT.set;
+    const commands = [];
+    TEST_REDIS_CLIENT.get = (...args) => commands.push(['get', ...args]);
+    TEST_REDIS_CLIENT.set = (...args) => commands.push(['set', ...args]);
+    Object.defineProperty(TEST_REDIS_CLIENT, 'isReady', { value: false, configurable: true });
+    try {
+      await updateAccount({ plan: 'plus', status: 'active' });
+      await getQuota(200);
+      expect(commands).to.deep.equal([]);
+    } finally {
+      delete TEST_REDIS_CLIENT.isReady;
+      TEST_REDIS_CLIENT.get = originalGet;
+      TEST_REDIS_CLIENT.set = originalSet;
+    }
+  });
 });

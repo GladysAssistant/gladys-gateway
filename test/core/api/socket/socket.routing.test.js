@@ -63,7 +63,7 @@ describe('socket message routing', function Describe() {
   const lastInstanceSocketKey = (instanceId = INSTANCE_ID) => `instance_socket:${instanceId}`;
 
   // The last socket is recorded without delaying the authentication: wait until it is
-  async function waitForLastInstanceSocket(expectedSocketId, attemptsLeft = 50) {
+  async function waitForLastInstanceSocket(expectedSocketId, attemptsLeft = 200) {
     if ((await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())) === expectedSocketId) {
       return;
     }
@@ -328,6 +328,22 @@ describe('socket message routing', function Describe() {
     }
   });
 
+  it('should answer 502 to an Open API call whose answer could not be relayed across nodes', async () => {
+    const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+    acknowledgeNextMessageDeeplyNested(socketInstance);
+
+    // the MCP route relays the answer of the instance as is: an error not mapped by
+    // sendMessageOpenApi would be sent as an answer of the instance
+    const response = await request(TEST_BACKEND_APP)
+      .post(`/v1/api/mcp/${OPEN_API_KEY}`)
+      .send({ jsonrpc: '2.0', id: 1, method: 'tools/list' })
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(502);
+
+    expect(response.body).to.deep.equal(INVALID_INSTANCE_RESPONSE);
+  });
+
   it('should not wait on the relaying node longer than the origin waits for the cluster', async () => {
     const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
     // this node relays, and its requestsTimeout is the one of the whole cluster
@@ -556,7 +572,9 @@ describe('socket message routing', function Describe() {
       TEST_IO.of('/').adapter.requestsTimeout = 100;
     };
 
-    it('should answer a timeout when the request to the cluster could not be sent', async () => {
+    it('should answer a timeout when the request to the cluster could not be sent', async function Test() {
+      // requestsTimeout + the 5 s margin left to the adapter
+      this.timeout(10000);
       const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
       dropClusterRequests();
       try {
@@ -569,7 +587,9 @@ describe('socket message routing', function Describe() {
       }
     });
 
-    it('should fail to list the connected instances when the request to the cluster could not be sent', async () => {
+    it('should fail to list the connected instances when the request to the cluster could not be sent', async function Test() {
+      // requestsTimeout + the 5 s margin left to the adapter
+      this.timeout(10000);
       const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
       dropClusterRequests();
       try {
@@ -655,6 +675,65 @@ describe('socket message routing', function Describe() {
         );
       });
       expect(replies).to.deep.equal([null]);
+    });
+
+    // the instance socket held by this node, as the server sees it
+    const getServerSocketOfInstance = () => {
+      const [socketId] = TEST_IO.of('/').adapter.rooms.get(`instance:${INSTANCE_ID}`);
+      return TEST_IO.of('/').sockets.get(socketId);
+    };
+    const relayFromOtherNode = (requestId) =>
+      new Promise((resolve) => {
+        TEST_IO_SERVER_2.serverSideEmit(
+          'find-socket-and-send-message',
+          {
+            request_id: requestId,
+            room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+            message: { data: 'test-data', instance_id: INSTANCE_ID },
+          },
+          (err, result) => resolve(result),
+        );
+      });
+
+    it('should relay a message without waiting for Redis while it reconnects', async () => {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT);
+      socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      await waitForLastInstanceSocket(socketInstance.id);
+      // node-redis queues the commands until Redis is back: they never answer meanwhile
+      Object.defineProperty(TEST_REDIS_CLIENT, 'isReady', { value: false, configurable: true });
+      TEST_REDIS_CLIENT.get = () => new Promise(() => {});
+      TEST_REDIS_CLIENT.set = () => new Promise(() => {});
+      try {
+        expect(await relayFromOtherNode('2f3a4b5c-6d7e-4f8a-9b0c-1d2e3f4a5b6c')).to.deep.equal([
+          { found: true, response: { response: 'response' } },
+        ]);
+      } finally {
+        delete TEST_REDIS_CLIENT.isReady;
+      }
+    });
+
+    it('should not wait for a slow Redis to relay a message', async () => {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT);
+      socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      await waitForLastInstanceSocket(socketInstance.id);
+      TEST_REDIS_CLIENT.get = () => new Promise(() => {});
+
+      const startedAt = Date.now();
+      expect(await relayFromOtherNode('3a4b5c6d-7e8f-4a9b-8c1d-2e3f4a5b6c7d')).to.deep.equal([
+        { found: true, response: { response: 'response' } },
+      ]);
+      expect(Date.now() - startedAt).to.be.below(1000);
+    });
+
+    it('should answer an error instead of crashing when the relayed message cannot be emitted', async () => {
+      await connectInstance(process.env.SERVER_PORT);
+      getServerSocketOfInstance().timeout = () => {
+        throw new RangeError('Maximum call stack size exceeded');
+      };
+
+      expect(await relayFromOtherNode('4b5c6d7e-8f9a-4b1c-9d2e-3f4a5b6c7d8e')).to.deep.equal([
+        { found: true, response: NO_INSTANCE_FOUND_RESPONSE },
+      ]);
     });
 
     it('should not record as last socket a socket that closed while the instance authenticated', async () => {

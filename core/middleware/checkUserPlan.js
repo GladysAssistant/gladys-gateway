@@ -1,5 +1,6 @@
 const { ForbiddenError, PaymentRequiredError } = require('../common/error');
 const asyncMiddleware = require('./asyncMiddleware');
+const { callOptionalRedisCommand } = require('../common/redis');
 
 const ALLOWED_ACCOUNT_STATUS = ['active', 'trialing'];
 
@@ -9,23 +10,15 @@ const ALLOWED_ACCOUNT_STATUS = ['active', 'trialing'];
 // a canceled or unpaid one keeps its access for this long at most.
 const GRANTED_ACCESS_CACHE_TTL_IN_SECONDS = 5 * 60;
 const GRANTED_ACCESS_CACHE_PREFIX = 'check_user_plan_granted';
-// While Redis reconnects, node-redis queues the commands instead of failing them: the cache
-// is only read for this long, then the access is checked in database
-const GRANTED_ACCESS_CACHE_READ_TIMEOUT_IN_MS = 200;
 
-// The cached access, or null when it is not cached, Redis failed or did not answer in time
+// The cached access, or null when it is not cached, or Redis is not ready, failed or did not
+// answer in time: the access is then checked in database
 async function readGrantedAccessCache(redisClient, cacheKey, logger) {
-  let timer;
-  const timeout = new Promise((resolve) => {
-    timer = setTimeout(() => resolve(null), GRANTED_ACCESS_CACHE_READ_TIMEOUT_IN_MS);
-  });
   try {
-    return await Promise.race([redisClient.get(cacheKey), timeout]);
+    return await callOptionalRedisCommand(redisClient, () => redisClient.get(cacheKey));
   } catch (e) {
     logger.warn(`checkUserPlan: unable to read the access cache (${e.message})`);
     return null;
-  } finally {
-    clearTimeout(timer);
   }
 }
 
@@ -77,7 +70,9 @@ module.exports = function checkUserPlan(userModel, instanceModel, redisClient, l
       }
 
       // not awaited: the request does not wait for Redis to cache the access
-      redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS }).catch((e) => {
+      callOptionalRedisCommand(redisClient, () =>
+        redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS }),
+      ).catch((e) => {
         logger.warn(`checkUserPlan: unable to cache the access (${e.message})`);
       });
 

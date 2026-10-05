@@ -2,6 +2,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { NotFoundError, GatewayTimeoutError, BadGatewayError } = require('../../common/error');
 const { readPositiveIntegerEnv } = require('../../common/env');
+const { callOptionalRedisCommand } = require('../../common/redis');
 
 // Relays a message to an instance connected to another node of the cluster
 const SERVER_TO_SERVER_COMMUNICATION = 'find-socket-and-send-message';
@@ -33,8 +34,10 @@ const DEFAULT_OPEN_API_MESSAGE_TIMEOUT_IN_MS = 30 * 1000;
 // The Redis adapter drops a request to the cluster after its requestsTimeout, but never calls
 // back when the request could not be sent (Redis down, payload that cannot be serialized):
 // the gateway arms its own timer, a little longer than the adapter's
+// The adapter arms its own timer only after a PUBSUB NUMSUB round-trip to Redis: the margin
+// leaves it room, so a reply that arrives in time is not dropped
 const DEFAULT_CLUSTER_REQUESTS_TIMEOUT_IN_MS = 5000;
-const CLUSTER_REQUEST_TIMEOUT_MARGIN_IN_MS = 1000;
+const CLUSTER_REQUEST_TIMEOUT_MARGIN_IN_MS = 5000;
 
 function isOpenApiMessage(message) {
   return message.type === 'gladys-open-api';
@@ -216,10 +219,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
   // relayed twice in that rare case is better than a message lost.
   async function claimRelay(requestId) {
     try {
-      const claimed = await redisClient.set(`${RELAY_CLAIM_PREFIX}:${requestId}`, '1', {
-        NX: true,
-        EX: RELAY_CLAIM_TTL_IN_SECONDS,
-      });
+      const claimed = await callOptionalRedisCommand(redisClient, () =>
+        redisClient.set(`${RELAY_CLAIM_PREFIX}:${requestId}`, '1', { NX: true, EX: RELAY_CLAIM_TTL_IN_SECONDS }),
+      );
       return claimed === 'OK';
     } catch (e) {
       logger.warn(`Unable to claim the relay of request ${requestId}, relaying it anyway`);
@@ -240,7 +242,10 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     }
     let lastSocketId = null;
     try {
-      lastSocketId = await redisClient.get(getInstanceSocketKey(data.message.instance_id));
+      // a routing hint only: while Redis reconnects or is slow, the relay falls back to the claim
+      lastSocketId = await callOptionalRedisCommand(redisClient, () =>
+        redisClient.get(getInstanceSocketKey(data.message.instance_id)),
+      );
     } catch (e) {
       logger.warn(`Unable to read the last socket of instance ${data.message.instance_id}`);
       logger.warn(e);
@@ -264,10 +269,8 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       cb(null);
       return;
     }
-    // No try/catch around the emit: a message socket.io could not emit again could not have
-    // been serialized by the origin node either, it never reaches this node. The origin drops
-    // the request after the requestsTimeout of the adapter: waiting longer here would only
-    // hold the message for an answer nobody reads.
+    // The origin drops the request after the requestsTimeout of the adapter: waiting longer
+    // here would only hold the message for an answer nobody reads.
     const timeoutInMs = Math.min(getMessageTimeoutInMs(data.message), getClusterRequestsTimeoutInMs());
     const answer = answerOnce((response) => {
       // The adapter counts the reply as sent before serializing it: a response it cannot
@@ -281,7 +284,15 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       }
       cb({ found: true, response });
     });
-    emitToInstanceSocket(socket, data.message, timeoutInMs, answer);
+    // This handler is async: an exception would become an unhandled rejection and crash the
+    // process. A message too deep for socket.io to emit again is normally too deep for the
+    // origin to serialize, but the margin between the two depends on the stack.
+    try {
+      emitToInstanceSocket(socket, data.message, timeoutInMs, answer);
+    } catch (e) {
+      logger.error(`RELAY_MESSAGE_TO_INSTANCE_ERROR: ${e.message}`);
+      answer(instanceNotFoundError());
+    }
   });
 
   io.on(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (cb) => {
@@ -504,6 +515,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
           reject(new NotFoundError('NO_INSTANCE_FOUND'));
         } else if (response && response.error_code === 'GATEWAY_TIMEOUT') {
           reject(new GatewayTimeoutError('INSTANCE_TIMEOUT'));
+        } else if (response && response.error_code === 'BAD_GATEWAY') {
+          // relayed by another node when the answer of the instance could not be serialized
+          reject(new BadGatewayError('INVALID_INSTANCE_RESPONSE'));
         } else {
           resolve(response);
         }

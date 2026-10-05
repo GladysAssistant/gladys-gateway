@@ -78,4 +78,27 @@ describe('checkUserPlan middleware', () => {
       TEST_REDIS_CLIENT.get = originalGet;
     }
   });
+  it('should ignore a cache read that fails after the database answered', async () => {
+    const originalGet = TEST_REDIS_CLIENT.get;
+    const unhandledRejections = [];
+    const onUnhandledRejection = (reason) => unhandledRejections.push(reason);
+    process.on('unhandledRejection', onUnhandledRejection);
+    // Redis reconnects: the read is queued, then fails once the connection is lost for good
+    TEST_REDIS_CLIENT.get = () =>
+      new Promise((resolve, reject) => {
+        setTimeout(() => reject(new Error('Connection lost')), 300);
+      });
+    try {
+      await updateAccount({ plan: 'plus', status: 'active' });
+      await getQuota(200);
+      await new Promise((resolve) => {
+        setTimeout(resolve, 400);
+      });
+      // Promise.race already handles the late rejection: it never reaches the process
+      expect(unhandledRejections).to.deep.equal([]);
+    } finally {
+      TEST_REDIS_CLIENT.get = originalGet;
+      process.removeListener('unhandledRejection', onUnhandledRejection);
+    }
+  });
 });

@@ -13,9 +13,13 @@ const CONSTANTS = {
     max: 1,
     duration: 4 * 1000,
   },
-  // When Enedis answers 429 anyway, the queue is paused for the Retry-After delay,
-  // or for this long when Enedis does not send one.
+  // A job refreshing an account with several usage points makes one contract call per
+  // usage point: they are spaced to stay under 5 calls per second.
+  ENEDIS_DELAY_BETWEEN_CONTRACT_CALLS_IN_MS: 250,
+  // When Enedis answers 429 anyway, the queue is paused for the Retry-After delay (bounded,
+  // the quota being hourly), or for the default pause when Enedis does not send a usable one.
   ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS: 10 * 60 * 1000,
+  ENEDIS_RATE_LIMITED_MAX_PAUSE_IN_MS: 60 * 60 * 1000,
   BULLMQ_PUBLISH_JOB_OPTIONS: {
     removeOnComplete: {
       age: 24 * 60 * 60, // Keep 24 hours

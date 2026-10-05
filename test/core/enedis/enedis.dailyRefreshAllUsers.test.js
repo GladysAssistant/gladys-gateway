@@ -1,5 +1,6 @@
 const request = require('supertest');
 const { expect } = require('chai');
+const dayjs = require('dayjs');
 const nock = require('nock');
 const configTest = require('../../tasks/config');
 const { mockAccessTokenRefresh } = require('./utils.test');
@@ -131,7 +132,11 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
     ]);
     refreshJobs.forEach((job) => {
       expect(job.data.start).to.be.a('string');
+      expect(job.id).to.equal(`daily-refresh-${job.data.userId}-${dayjs().format('YYYY-MM-DD')}`);
     });
+    // A second run the same day (a retry of the daily job) does not publish duplicates
+    await enedisModel.dailyRefreshOfAllUsers();
+    expect(await enedisModel.queue.getJobCounts('wait')).to.deep.equal({ wait: 2 });
     // Each refresh job publishes the metering jobs of its user, the broken usage point
     // (contract in 403) included
     await Promise.all(refreshJobs.map((job) => enedisModel.enedisSyncData(job)));

@@ -9,7 +9,31 @@ const {
   ENEDIS_WORKER_KEY,
   ENEDIS_WORKER_LIMITER,
   ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS,
+  ENEDIS_RATE_LIMITED_MAX_PAUSE_IN_MS,
 } = require('./enedis.constants');
+
+/**
+ * Returns how long to pause the queue after a 429, from the Retry-After header,
+ * which holds either a number of seconds or an HTTP-date (RFC 9110).
+ */
+const getRateLimitPauseInMs = (retryAfter, now = Date.now()) => {
+  let pauseInMs = null;
+  if (typeof retryAfter === 'string' && retryAfter.trim() !== '') {
+    const retryAfterInSeconds = Number(retryAfter);
+    if (Number.isFinite(retryAfterInSeconds)) {
+      pauseInMs = retryAfterInSeconds * 1000;
+    } else {
+      const retryAfterDate = Date.parse(retryAfter);
+      if (Number.isFinite(retryAfterDate)) {
+        pauseInMs = retryAfterDate - now;
+      }
+    }
+  }
+  if (pauseInMs === null || pauseInMs <= 0) {
+    return ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS;
+  }
+  return Math.min(pauseInMs, ENEDIS_RATE_LIMITED_MAX_PAUSE_IN_MS);
+};
 
 /**
  * Wraps the Enedis job handler: when Enedis answers 429 (quota exceeded), the whole queue
@@ -24,11 +48,7 @@ const createEnedisJobProcessor = (logger, enedisModel) => async (job) => {
       throw e;
     }
     const headers = get(e, 'response.headers') || {};
-    const retryAfterInSeconds = Number(headers['retry-after']);
-    const pauseInMs =
-      Number.isFinite(retryAfterInSeconds) && retryAfterInSeconds > 0
-        ? retryAfterInSeconds * 1000
-        : ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS;
+    const pauseInMs = getRateLimitPauseInMs(headers['retry-after']);
     logger.warn(`Enedis: quota exceeded (429) on job ${job.name}, pausing the queue for ${pauseInMs / 1000}s`);
     await enedisModel.queue.rateLimit(pauseInMs);
     throw Worker.RateLimitError();
@@ -94,4 +114,5 @@ const initEnedisListener = async () => {
 module.exports = {
   initEnedisListener,
   createEnedisJobProcessor,
+  getRateLimitPauseInMs,
 };

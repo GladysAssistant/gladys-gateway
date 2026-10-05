@@ -1,6 +1,6 @@
 const { expect } = require('chai');
 const { RateLimitError } = require('bullmq');
-const { createEnedisJobProcessor } = require('../../../core/enedis/enedisListener');
+const { createEnedisJobProcessor, getRateLimitPauseInMs } = require('../../../core/enedis/enedisListener');
 
 const logger = {
   warn: () => {},
@@ -60,12 +60,34 @@ describe('EnedisWorker job processor', () => {
   });
   it('should pause the queue for 10 minutes on a 429 without a usable Retry-After', async () => {
     const error = new Error('Request failed with status code 429');
-    error.response = { status: 429, headers: { 'retry-after': 'Wed, 21 Oct 2026 07:28:00 GMT' } };
+    error.response = { status: 429, headers: { 'retry-after': 'soon' } };
     const enedisModel = buildEnedisModel(async () => {
       throw error;
     });
     const thrown = await getError(createEnedisJobProcessor(logger, enedisModel)(job));
     expect(thrown).to.be.instanceOf(RateLimitError);
     expect(enedisModel.rateLimitCalls).to.deep.equal([10 * 60 * 1000]);
+  });
+});
+
+describe('EnedisWorker rate limit pause', () => {
+  const now = Date.parse('2026-10-05T15:00:00Z');
+  it('should read a Retry-After in seconds', () => {
+    expect(getRateLimitPauseInMs('120', now)).to.equal(120 * 1000);
+  });
+  it('should read a Retry-After HTTP-date', () => {
+    expect(getRateLimitPauseInMs('Mon, 05 Oct 2026 15:30:00 GMT', now)).to.equal(30 * 60 * 1000);
+  });
+  it('should bound the pause to one hour', () => {
+    expect(getRateLimitPauseInMs('Tue, 06 Oct 2026 15:00:00 GMT', now)).to.equal(60 * 60 * 1000);
+    expect(getRateLimitPauseInMs('86400', now)).to.equal(60 * 60 * 1000);
+  });
+  it('should use the default pause without a usable Retry-After', () => {
+    expect(getRateLimitPauseInMs(undefined, now)).to.equal(10 * 60 * 1000);
+    expect(getRateLimitPauseInMs('', now)).to.equal(10 * 60 * 1000);
+    expect(getRateLimitPauseInMs('soon', now)).to.equal(10 * 60 * 1000);
+    expect(getRateLimitPauseInMs('0', now)).to.equal(10 * 60 * 1000);
+    // A date in the past
+    expect(getRateLimitPauseInMs('Mon, 05 Oct 2026 14:00:00 GMT', now)).to.equal(10 * 60 * 1000);
   });
 });

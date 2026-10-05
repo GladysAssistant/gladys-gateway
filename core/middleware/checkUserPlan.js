@@ -22,7 +22,14 @@ module.exports = function checkUserPlan(userModel, instanceModel, redisClient, l
   return function checkUserPlanByPlan(plan) {
     return asyncMiddleware(async (req, res, next) => {
       const cacheKey = getGrantedAccessCacheKey(req, plan);
-      if (await redisClient.get(cacheKey)) {
+      // the cache is only a shortcut: when Redis fails, the access is checked in database
+      let cachedAccess = null;
+      try {
+        cachedAccess = await redisClient.get(cacheKey);
+      } catch (e) {
+        logger.warn(`checkUserPlan: unable to read the access cache (${e.message})`);
+      }
+      if (cachedAccess) {
         next();
         return;
       }
@@ -56,7 +63,11 @@ module.exports = function checkUserPlan(userModel, instanceModel, redisClient, l
         throw new PaymentRequiredError(`Account is not active`);
       }
 
-      await redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS });
+      try {
+        await redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS });
+      } catch (e) {
+        logger.warn(`checkUserPlan: unable to cache the access (${e.message})`);
+      }
 
       next();
     });

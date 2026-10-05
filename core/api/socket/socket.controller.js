@@ -69,7 +69,12 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
         logger.info(`Instance ${instance.id} disconnected from websockets`);
         // the instance watchdog needs to know until when the instance was reachable
         instanceWatchdogModel.markInstanceDisconnected(instance.id);
+        socketModel.clearLastInstanceSocket(instance.id, socket.id);
       });
+
+      // the messages relayed from other nodes go to this connection, the most recent one.
+      // Recorded once the handlers above are registered: nothing is lost while it is saved.
+      await socketModel.setLastInstanceSocket(instance.id, socket.id);
 
       return { isAuthenticated: true, instance };
     } catch (e) {

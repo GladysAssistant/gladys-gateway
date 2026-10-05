@@ -5,6 +5,7 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { NotFoundError, ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { readPositiveIntegerEnv } = require('../../common/env');
 const {
   buildAccountDeletionWarningScope,
   buildWelcomeReminderScope,
@@ -19,11 +20,6 @@ const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 const ONE_DAY_IN_MS = 24 * 60 * 60 * 1000;
 // Stripe calls in parallel while reconciling: low enough to stay far from the rate limit
 const STRIPE_CONCURRENCY = 4;
-
-function readPositiveIntegerEnv(name, defaultValue) {
-  const parsed = parseInt(process.env[name], 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
-}
 
 // How long after the welcome email a customer who never activated the account is reminded.
 function getActivationReminderPolicy() {

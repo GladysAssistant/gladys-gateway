@@ -24,10 +24,26 @@ describe('socket message routing', function Describe() {
   function connect(port, auth, authenticatedEvent) {
     const socket = io(`http://localhost:${port}`, { auth });
     sockets.push(socket);
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       socket.on(authenticatedEvent, () => resolve(socket));
+      // fail with the reason instead of waiting for the timeout of the test
+      socket.on(`${auth.auth_type}-authentication-failed`, ({ reason }) =>
+        reject(new Error(`${auth.auth_type} authentication failed: ${reason}`)),
+      );
+      socket.on('connect_error', reject);
     });
   }
+
+  // Sends an event written by hand: socket.io-client cannot encode a payload nested so deeply
+  // that its recursive binary check overflows the stack, the server must survive receiving it
+  function sendDeeplyNestedEvent(socket, event, fields) {
+    // deep enough to overflow the stack when emitted, shallow enough to be decoded
+    const depth = 20000;
+    const nested = `${'['.repeat(depth)}${']'.repeat(depth)}`;
+    socket.io.engine.send(`2["${event}",{${fields},"data":${nested}}]`);
+  }
+
+  const lastInstanceSocketKey = (instanceId = INSTANCE_ID) => `instance_socket:${instanceId}`;
 
   function connectInstance(port = process.env.SERVER_PORT, instanceId = INSTANCE_ID) {
     return connect(
@@ -151,8 +167,10 @@ describe('socket message routing', function Describe() {
     expect(response).to.equal(null);
   });
 
-  it('should relay a request from another node only once, whatever the number of nodes holding the instance', async () => {
+  it('should relay a request from another node only once when the last socket of the instance is unknown', async () => {
     const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+    // the last socket expired: the first node to claim the request relays it
+    await TEST_REDIS_CLIENT.del(lastInstanceSocketKey());
     let messagesReceivedByInstance = 0;
     socketInstance.on('message', (data, cb) => {
       messagesReceivedByInstance += 1;
@@ -172,6 +190,106 @@ describe('socket message routing', function Describe() {
     expect(await relay()).to.deep.equal([{ found: true, response: { response: 'response' } }]);
     expect(await relay()).to.deep.equal([null]);
     expect(messagesReceivedByInstance).to.equal(1);
+  });
+
+  it('should only relay a request from another node on the last connection of the instance', async () => {
+    // the instance lost its connection to the first node and reconnected to the second one,
+    // before the first node noticed the previous connection was dead
+    const previousSocketInstance = await connectInstance(process.env.SERVER_PORT);
+    let messagesReceivedByPreviousConnection = 0;
+    previousSocketInstance.on('message', () => {
+      messagesReceivedByPreviousConnection += 1;
+    });
+    const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+    socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+    expect(await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())).to.equal(socketInstance.id);
+
+    // the request of a third node reaches both nodes
+    const relayRequest = {
+      request_id: '0e6f1d3c-8a7b-4c2d-9e1f-3a4b5c6d7e8f',
+      room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+      message: { data: 'test-data', instance_id: INSTANCE_ID },
+    };
+    const relayFrom = (server) =>
+      new Promise((resolve) => {
+        server.serverSideEmit('find-socket-and-send-message', relayRequest, (err, replies) => resolve(replies));
+      });
+
+    // handled by the first node, holding the previous connection
+    expect(await relayFrom(TEST_IO_SERVER_2)).to.deep.equal([null]);
+    // handled by the second node, holding the last connection
+    expect(await relayFrom(TEST_IO)).to.deep.equal([{ found: true, response: { response: 'response' } }]);
+    expect(messagesReceivedByPreviousConnection).to.equal(0);
+  });
+
+  it('should forget the last socket of an instance when it disconnects, unless a newer one replaced it', async () => {
+    const previousSocketInstance = await connectInstance();
+    const socketInstance = await connectInstance();
+
+    previousSocketInstance.disconnect();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+    expect(await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())).to.equal(socketInstance.id);
+
+    socketInstance.disconnect();
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
+    expect(await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())).to.equal(null);
+  });
+
+  it('should answer at once when the instance disconnects before acknowledging the message', async () => {
+    const socketInstance = await connectInstance();
+    // the Raspberry Pi reboots while handling the message
+    socketInstance.on('message', () => socketInstance.disconnect());
+    const socketUser = await connectUser();
+
+    // the default timeout is 5 minutes, far longer than the timeout of this test
+    const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+    expect(response).to.deep.equal(NO_INSTANCE_FOUND_RESPONSE);
+  });
+
+  it('should not relay a message of an instance without a valid user_id', async () => {
+    const socketInstance = await connectInstance();
+    const socketUser = await connectUser();
+    let messagesReceivedByUser = 0;
+    socketUser.on('message', () => {
+      messagesReceivedByUser += 1;
+    });
+
+    socketInstance.emit('message', null);
+    socketInstance.emit('message', { data: 'to-nobody' });
+    socketInstance.emit('message', { data: 'to-user', user_id: USER_ID });
+
+    await new Promise((resolve) => {
+      socketUser.on('message', resolve);
+    });
+    expect(messagesReceivedByUser).to.equal(1);
+  });
+
+  it('should survive messages too deeply nested to be relayed, in both directions', async () => {
+    const socketInstance = await connectInstance();
+    let messagesReceivedByInstance = 0;
+    socketInstance.on('message', () => {
+      messagesReceivedByInstance += 1;
+    });
+    const socketUser = await connectUser();
+
+    sendDeeplyNestedEvent(socketUser, 'message', `"instance_id":"${INSTANCE_ID}"`);
+    sendDeeplyNestedEvent(socketInstance, 'message', `"user_id":"${USER_ID}"`);
+
+    // both nodes still answer
+    const latencies = await Promise.all(
+      [socketUser, socketInstance].map(
+        (socket) =>
+          new Promise((resolve) => {
+            socket.emit('latency', Date.now(), resolve);
+          }),
+      ),
+    );
+    latencies.forEach((latency) => expect(latency).to.be.greaterThan(0));
+    expect(messagesReceivedByInstance).to.equal(0);
   });
 
   it('should list the instances connected to every node, and only the instances', async () => {
@@ -255,25 +373,21 @@ describe('socket message routing', function Describe() {
 
   describe('analytics', () => {
     let analyticsService;
-    let originalIsEnabled;
-    let originalSendMetric;
+    let originalSendMessageSizeMetric;
     let metrics;
 
     beforeEach(() => {
       ({ analyticsService } = TEST_SERVICES);
-      originalIsEnabled = analyticsService.isEnabled;
-      originalSendMetric = analyticsService.sendMetric;
+      originalSendMessageSizeMetric = analyticsService.sendMessageSizeMetric;
       metrics = [];
-      analyticsService.isEnabled = () => true;
-      analyticsService.sendMetric = (type, value) => metrics.push({ type, value });
+      analyticsService.sendMessageSizeMetric = (type, message) => metrics.push({ type, message });
     });
 
     afterEach(() => {
-      analyticsService.isEnabled = originalIsEnabled;
-      analyticsService.sendMetric = originalSendMetric;
+      analyticsService.sendMessageSizeMetric = originalSendMessageSizeMetric;
     });
 
-    it('should measure the messages relayed in both directions when enabled', async () => {
+    it('should measure the messages relayed in both directions', async () => {
       const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
       socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
       const socketUser = await connectUser(process.env.SERVER_PORT);
@@ -292,28 +406,28 @@ describe('socket message routing', function Describe() {
         'message-to-instance-response',
         'message-to-user',
       ]);
-      expect(metrics[1].value).to.equal(JSON.stringify({ response: 'response' }).length);
+      expect(metrics[1].message).to.deep.equal({ response: 'response' });
     });
   });
 
   describe('failures', () => {
+    const REDIS_METHODS = ['get', 'set', 'del', 'eval'];
     let originalServerSideEmit;
     let originalIn;
-    let originalRedisSet;
-    let originalRedisDel;
+    let originalRedisMethods;
 
     beforeEach(() => {
       originalServerSideEmit = TEST_IO.serverSideEmit;
       originalIn = TEST_IO.in;
-      originalRedisSet = TEST_REDIS_CLIENT.set;
-      originalRedisDel = TEST_REDIS_CLIENT.del;
+      originalRedisMethods = REDIS_METHODS.map((method) => TEST_REDIS_CLIENT[method]);
     });
 
     afterEach(() => {
       TEST_IO.serverSideEmit = originalServerSideEmit;
       TEST_IO.in = originalIn;
-      TEST_REDIS_CLIENT.set = originalRedisSet;
-      TEST_REDIS_CLIENT.del = originalRedisDel;
+      REDIS_METHODS.forEach((method, index) => {
+        TEST_REDIS_CLIENT[method] = originalRedisMethods[index];
+      });
     });
 
     // a node of the cluster that does not answer in time
@@ -344,9 +458,11 @@ describe('socket message routing', function Describe() {
       expect(await TEST_MODELS.socketModel.isUserConnected(USER_ID)).to.equal(false);
     });
 
-    it('should relay a message anyway when the relay cannot be claimed in Redis', async () => {
+    it('should relay a message anyway when Redis cannot tell which node relays it', async () => {
       const socketInstance = await connectInstance(process.env.SERVER_PORT);
       socketInstance.on('message', (data, cb) => cb({ response: 'response' }));
+      // neither the last socket of the instance nor the claim of the request can be read
+      TEST_REDIS_CLIENT.get = () => Promise.reject(new Error('Redis is down'));
       TEST_REDIS_CLIENT.set = () => Promise.reject(new Error('Redis is down'));
 
       // the request comes from the other node, it is relayed by this one
@@ -362,6 +478,14 @@ describe('socket message routing', function Describe() {
         );
       });
       expect(replies).to.deep.equal([{ found: true, response: { response: 'response' } }]);
+    });
+
+    it('should not fail when the last socket of an instance cannot be recorded or forgotten', async () => {
+      TEST_REDIS_CLIENT.set = () => Promise.reject(new Error('Redis is down'));
+      TEST_REDIS_CLIENT.eval = () => Promise.reject(new Error('Redis is down'));
+
+      await TEST_MODELS.socketModel.setLastInstanceSocket(INSTANCE_ID, 'socket-id');
+      await TEST_MODELS.socketModel.clearLastInstanceSocket(INSTANCE_ID, 'socket-id');
     });
 
     it('should not fail the promotion of a primary instance when the cache cannot be cleared', async () => {

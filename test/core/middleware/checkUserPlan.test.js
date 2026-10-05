@@ -50,4 +50,19 @@ describe('checkUserPlan middleware', () => {
     await updateAccount({ plan: 'plus' });
     await getQuota(200);
   });
+  it('should check the access in database when Redis fails', async () => {
+    const originalGet = TEST_REDIS_CLIENT.get;
+    const originalSet = TEST_REDIS_CLIENT.set;
+    TEST_REDIS_CLIENT.get = () => Promise.reject(new Error('Redis is down'));
+    TEST_REDIS_CLIENT.set = () => Promise.reject(new Error('Redis is down'));
+    try {
+      await updateAccount({ plan: 'plus', status: 'active' });
+      await getQuota(200);
+      await updateAccount({ status: 'canceled' });
+      await getQuota(402);
+    } finally {
+      TEST_REDIS_CLIENT.get = originalGet;
+      TEST_REDIS_CLIENT.set = originalSet;
+    }
+  });
 });

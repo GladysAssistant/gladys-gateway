@@ -1,6 +1,7 @@
 const Promise = require('bluebird');
 const { ValidationError } = require('../../common/error');
 const { adminLifecycleJobSchema } = require('../../common/schema');
+const { readPositiveIntegerEnv } = require('../../common/env');
 const {
   buildInstanceOfflineScope,
   buildInstanceBackOnlineScope,
@@ -15,8 +16,7 @@ const ACTIVE_STATUSES = ['active', 'trialing'];
 // cluster is not answering (partitioned node, adapter issue), not that every customer is
 // offline at once. Below it (dev, tests), a fully offline fleet is a normal situation.
 function getFailClosedMinInstances() {
-  const parsed = parseInt(process.env.INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES, 10);
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : 10;
+  return readPositiveIntegerEnv('INSTANCE_WATCHDOG_FAIL_CLOSED_MIN_INSTANCES', 10);
 }
 
 /**

@@ -38,8 +38,12 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
     try {
       // we first authenticate the instance thanks to his access token
       const instance = await socketModel.authenticateInstance(accessToken, socket.id);
-      // This instance is the primary instance
-      await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
+      // The last instance to connect is the primary instance of the account. When it already
+      // is (every reconnection of a single instance), there is nothing to write: this spares a
+      // transaction on each reconnection, all instances reconnecting at once after a deploy.
+      if (!instance.primary_instance) {
+        await instanceModel.setInstanceAsPrimaryInstance(instance.account_id, instance.id);
+      }
 
       // then he can join its rooms
       socket.join(`instance:${instance.id}`);
@@ -65,7 +69,13 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
         logger.info(`Instance ${instance.id} disconnected from websockets`);
         // the instance watchdog needs to know until when the instance was reachable
         instanceWatchdogModel.markInstanceDisconnected(instance.id);
+        socketModel.clearLastInstanceSocket(instance.id, socket.id);
       });
+
+      // the messages relayed from other nodes go to this connection, the most recent one.
+      // Recorded once the handlers above are registered: nothing is lost while it is saved.
+      // Not awaited: the authentication does not wait for Redis (it never throws).
+      socketModel.setLastInstanceSocket(instance.id, socket);
 
       return { isAuthenticated: true, instance };
     } catch (e) {

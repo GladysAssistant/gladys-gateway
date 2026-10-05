@@ -17,6 +17,7 @@
     "TEST_LEGACY_REDIS_CLIENT": true,
     "TEST_REDIS_CLIENT": true,
     "TEST_SERVICES": true,
+    "TEST_MODELS": true,
     "TEST_IO": true,
     "TEST_IO_SERVER_2": true,
     "beforeEach": true,

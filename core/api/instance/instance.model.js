@@ -1,6 +1,5 @@
 const Joi = require('joi');
 const crypto = require('crypto');
-const Promise = require('bluebird');
 const { ValidationError, ForbiddenError, NotFoundError } = require('../../common/error');
 
 const PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX = 'primary_instance_per_user';
@@ -11,6 +10,23 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     rsa_public_key: Joi.string().required(),
     ecdsa_public_key: Joi.string().required(),
   });
+
+  // Clean the user -> primary instance cache of every user of the account. Best effort: the
+  // primary instance is already saved when this runs, a failure must not fail the request
+  // (the cache expires by itself within 5 minutes).
+  async function clearPrimaryInstanceCache(accountId) {
+    try {
+      const users = await db.t_user.find({ account_id: accountId }, { fields: ['id'] });
+      if (users.length === 0) {
+        return;
+      }
+      logger.debug(`Cleaning primary instance cache, account = ${accountId}`);
+      await redisClient.del(users.map((user) => `${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${user.id}`));
+    } catch (e) {
+      logger.warn(`Unable to clean the primary instance cache of account ${accountId}`);
+      logger.warn(e);
+    }
+  }
 
   async function createInstance(user, newInstance) {
     const { error, value } = instanceSchema.validate(newInstance, { stripUnknown: true, abortEarly: false });
@@ -61,6 +77,10 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     );
 
     const insertedInstance = await db.t_instance.insert(value);
+
+    // the new instance is primary as soon as it is created: it will not be promoted again
+    // when it connects (see the socket controller), the cache has to be cleared now
+    await clearPrimaryInstanceCache(userWithAccount.account_id);
 
     return {
       id: insertedInstance.id,
@@ -249,12 +269,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
       );
     });
 
-    // clean user -> primary instance cache
-    const usersInInstance = await getUsers({ id: instanceId });
-    await Promise.map(usersInInstance, async (user) => {
-      logger.debug(`Cleaning primary instance cache, user = ${user.id}`);
-      await redisClient.del(`${PRIMARY_INSTANCE_PER_USER_REDIS_PREFIX}:${user.id}`);
-    });
+    await clearPrimaryInstanceCache(accountId);
   }
 
   return {

@@ -21,7 +21,14 @@ module.exports = function AnalyticsService(logger) {
       }
     }
   });
+  // The metrics are only collected when an analytics backend is configured
+  function isEnabled() {
+    return Boolean(process.env.ANALYTICS_URL && process.env.ANALYTICS_API_TOKEN);
+  }
   async function sendMetric(type, value, userId) {
+    if (!isEnabled()) {
+      return;
+    }
     try {
       batcher.add({
         user_id: userId,
@@ -34,7 +41,25 @@ module.exports = function AnalyticsService(logger) {
       logger.warn(e);
     }
   }
+  // Approximate size of a relayed websocket message, only computed when the metrics are
+  // collected: a message can weigh up to maxHttpBufferSize (25 MB). JSON.stringify is native,
+  // far cheaper than walking the object; it throws on a very deeply nested payload, which
+  // must never fail the relay.
+  function sendMessageSizeMetric(type, message, userId) {
+    if (!isEnabled()) {
+      return;
+    }
+    let size;
+    try {
+      size = Buffer.byteLength(JSON.stringify(message) || '');
+    } catch (e) {
+      logger.warn(`Unable to measure the size of a ${type} message`);
+      return;
+    }
+    sendMetric(type, size, userId);
+  }
   return {
     sendMetric,
+    sendMessageSizeMetric,
   };
 };

@@ -74,7 +74,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
 
       // the messages relayed from other nodes go to this connection, the most recent one.
       // Recorded once the handlers above are registered: nothing is lost while it is saved.
-      await socketModel.setLastInstanceSocket(instance.id, socket.id);
+      await socketModel.setLastInstanceSocket(instance.id, socket);
 
       return { isAuthenticated: true, instance };
     } catch (e) {

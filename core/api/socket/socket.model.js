@@ -1,6 +1,6 @@
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { NotFoundError, GatewayTimeoutError } = require('../../common/error');
+const { NotFoundError, GatewayTimeoutError, BadGatewayError } = require('../../common/error');
 const { readPositiveIntegerEnv } = require('../../common/env');
 
 // Relays a message to an instance connected to another node of the cluster
@@ -29,6 +29,11 @@ const DELETE_IF_EQUAL_SCRIPT =
 // the Open API ones answer third parties that give up after a few seconds anyway.
 const DEFAULT_USER_MESSAGE_TIMEOUT_IN_MS = 5 * 60 * 1000;
 const DEFAULT_OPEN_API_MESSAGE_TIMEOUT_IN_MS = 30 * 1000;
+// The Redis adapter drops a request to the cluster after its requestsTimeout, but never calls
+// back when the request could not be sent (Redis down, payload that cannot be serialized):
+// the gateway arms its own timer, a little longer than the adapter's
+const DEFAULT_CLUSTER_REQUESTS_TIMEOUT_IN_MS = 5000;
+const CLUSTER_REQUEST_TIMEOUT_MARGIN_IN_MS = 1000;
 
 function isOpenApiMessage(message) {
   return message.type === 'gladys-open-api';
@@ -41,26 +46,74 @@ function getMessageTimeoutInMs(message) {
   return readPositiveIntegerEnv('INSTANCE_MESSAGE_TIMEOUT_IN_MS', DEFAULT_USER_MESSAGE_TIMEOUT_IN_MS);
 }
 
-// Calls the callback once at most: a message can be answered by the instance, its timeout,
-// its disconnection or an error, whichever comes first
-function once(callback) {
-  let called = false;
-  return (response) => {
-    if (!called) {
-      called = true;
-      callback(response);
-    }
-  };
-}
-
 module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, analyticsService) {
   const instanceTimeoutError = () => new GatewayTimeoutError('INSTANCE_TIMEOUT').jsonError();
   const instanceNotFoundError = () => new NotFoundError('NO_INSTANCE_FOUND').jsonError();
+  const invalidInstanceResponseError = () => new BadGatewayError('INVALID_INSTANCE_RESPONSE').jsonError();
+
+  /**
+   * Answers a message once at most: the instance, its timeout, its disconnection or an error
+   * can each answer it, whichever comes first. The answer is sent on by socket.io (to the
+   * client, or to the origin node): a response nested too deeply to be encoded again throws
+   * there, inside a process.nextTick of socket.io where nothing would catch it and the process
+   * would crash. An error is answered instead when the callback allows a second try.
+   */
+  function answerOnce(callback) {
+    let answered = false;
+    return (response) => {
+      if (answered) {
+        return;
+      }
+      answered = true;
+      try {
+        callback(response);
+      } catch (e) {
+        logger.error(`INVALID_INSTANCE_RESPONSE: unable to send the answer of an instance (${e.message})`);
+        try {
+          callback(invalidInstanceResponseError());
+        } catch (secondError) {
+          // the callback already counted the first try as sent: nothing more can be answered
+        }
+      }
+    };
+  }
+
+  function getClusterRequestsTimeoutInMs() {
+    return io.of('/').adapter.requestsTimeout || DEFAULT_CLUSTER_REQUESTS_TIMEOUT_IN_MS;
+  }
+
+  /**
+   * io.serverSideEmit with an ack that always calls back: with the replies of the other
+   * nodes, or with an error when the adapter dropped the request or never sent it.
+   */
+  function askCluster(event, data, callback) {
+    let answered = false;
+    const reply = (err, replies) => {
+      if (!answered) {
+        answered = true;
+        callback(err, replies);
+      }
+    };
+    const timer = setTimeout(() => {
+      reply(new Error(`timeout reached: no answer from the cluster to "${event}"`), []);
+    }, getClusterRequestsTimeoutInMs() + CLUSTER_REQUEST_TIMEOUT_MARGIN_IN_MS);
+    const ack = (err, replies) => {
+      clearTimeout(timer);
+      reply(err, replies);
+    };
+    if (data === undefined) {
+      io.serverSideEmit(event, ack);
+    } else {
+      io.serverSideEmit(event, data, ack);
+    }
+  }
 
   /**
    * The socket of the instance in this room, if it is connected to this node. When an instance
    * reconnects before the server noticed its previous connection died, both sockets are in the
    * room for a while (up to pingInterval + pingTimeout): the last one to join is the live one.
+   * Only within this node: the last connection recorded in Redis is not read here, to spare a
+   * round-trip per message (see the README for what it means with several nodes).
    */
   function getLocalSocketInRoom(room) {
     const socketIds = typeof room === 'string' ? io.of('/').adapter.rooms.get(room) : undefined;
@@ -90,8 +143,9 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     return () => pendingAnswers.delete(answer);
   }
 
-  function emitToInstanceSocket(socket, message, timeoutInMs, callback) {
-    const answer = once(callback);
+  // The callback can be called more than once (ack, timeout, disconnection): the entry points
+  // pass a callback wrapped with answerOnce
+  function emitToInstanceSocket(socket, message, timeoutInMs, answer) {
     const untrack = trackPendingAnswer(socket, answer);
     const event = isOpenApiMessage(message) ? 'open-api-message' : 'message';
     try {
@@ -122,20 +176,6 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     return `${INSTANCE_SOCKET_PREFIX}:${instanceId}`;
   }
 
-  /**
-   * Records the socket an instance just authenticated with as its last one. Called once the
-   * socket joined the rooms of the instance; never throws (a failure only falls back to the
-   * claim when relaying across nodes).
-   */
-  async function setLastInstanceSocket(instanceId, socketId) {
-    try {
-      await redisClient.set(getInstanceSocketKey(instanceId), socketId, { EX: INSTANCE_SOCKET_TTL_IN_SECONDS });
-    } catch (e) {
-      logger.warn(`Unable to record the socket of instance ${instanceId}`);
-      logger.warn(e);
-    }
-  }
-
   // The socket of the instance disconnected: forget it, unless a newer connection replaced it
   async function clearLastInstanceSocket(instanceId, socketId) {
     try {
@@ -146,6 +186,27 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     } catch (e) {
       logger.warn(`Unable to forget the socket of instance ${instanceId}`);
       logger.warn(e);
+    }
+  }
+
+  /**
+   * Records the socket an instance just authenticated with as its last one. Called once the
+   * socket joined the rooms of the instance; never throws (a failure only falls back to the
+   * claim when relaying across nodes).
+   */
+  async function setLastInstanceSocket(instanceId, socket) {
+    try {
+      await redisClient.set(getInstanceSocketKey(instanceId), socket.id, { EX: INSTANCE_SOCKET_TTL_IN_SECONDS });
+    } catch (e) {
+      logger.warn(`Unable to record the socket of instance ${instanceId}`);
+      logger.warn(e);
+      return;
+    }
+    // The socket can close while the instance is authenticated (database, Redis): its
+    // disconnect handler then ran before the socket was recorded, and a dead socket would
+    // stay recorded for a whole day
+    if (socket.disconnected) {
+      await clearLastInstanceSocket(instanceId, socket.id);
     }
   }
 
@@ -200,11 +261,13 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       cb(null);
       return;
     }
-    // no try/catch needed here: a message socket.io could not emit again could not have been
-    // serialized by the origin node either, it never reaches this node
-    emitToInstanceSocket(socket, data.message, getMessageTimeoutInMs(data.message), (response) => {
-      cb({ found: true, response });
-    });
+    // No try/catch around the emit: a message socket.io could not emit again could not have
+    // been serialized by the origin node either, it never reaches this node. The origin drops
+    // the request after the requestsTimeout of the adapter: waiting longer here would only
+    // hold the message for an answer nobody reads.
+    const timeoutInMs = Math.min(getMessageTimeoutInMs(data.message), getClusterRequestsTimeoutInMs());
+    const answer = answerOnce((response) => cb({ found: true, response }));
+    emitToInstanceSocket(socket, data.message, timeoutInMs, answer);
   });
 
   io.on(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (cb) => {
@@ -290,7 +353,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
    */
   async function getConnectedInstanceIds() {
     const remoteInstanceIds = await new Promise((resolve, reject) => {
-      io.serverSideEmit(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, (err, replies) => {
+      askCluster(SERVER_TO_SERVER_GET_CONNECTED_INSTANCES, undefined, (err, replies) => {
         if (err) {
           reject(err);
           return;
@@ -329,7 +392,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
     // relays the message and answers with the response of the instance, the others answer null.
     // Across nodes, the requestsTimeout of the Redis adapter caps the timeout of the message.
     const request = { request_id: crypto.randomUUID(), room, message };
-    io.serverSideEmit(SERVER_TO_SERVER_COMMUNICATION, request, (err, replies) => {
+    askCluster(SERVER_TO_SERVER_COMMUNICATION, request, (err, replies) => {
       const relayed = (replies || []).find((reply) => reply && reply.found === true);
 
       if (relayed) {
@@ -352,7 +415,7 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
 
   function handleNewMessageFromUser(user, message, callback) {
     // a client can emit a message without waiting for an answer
-    const answer = once(typeof callback === 'function' ? callback : () => {});
+    const answer = answerOnce(typeof callback === 'function' ? callback : () => {});
 
     if (message === null || typeof message !== 'object' || typeof message.instance_id !== 'string') {
       logger.warn(`INSTANCE_NOT_FOUND (invalid message) user_id=${user.id}`);

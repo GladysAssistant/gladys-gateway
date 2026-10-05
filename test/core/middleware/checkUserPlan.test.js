@@ -65,4 +65,17 @@ describe('checkUserPlan middleware', () => {
       TEST_REDIS_CLIENT.set = originalSet;
     }
   });
+  it('should not wait for Redis while it reconnects', async () => {
+    const originalGet = TEST_REDIS_CLIENT.get;
+    // node-redis queues the commands while it reconnects: the read never answers in time
+    TEST_REDIS_CLIENT.get = () => new Promise(() => {});
+    try {
+      await updateAccount({ plan: 'plus', status: 'active' });
+      const startedAt = Date.now();
+      await getQuota(200);
+      expect(Date.now() - startedAt).to.be.below(1000);
+    } finally {
+      TEST_REDIS_CLIENT.get = originalGet;
+    }
+  });
 });

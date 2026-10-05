@@ -6,10 +6,25 @@ const AnalyticsService = require('../../../core/service/analytics');
 const logger = tracer.console({ level: 'error' });
 const ANALYTICS_URL = 'https://analytics.test.gladysassistant.com/metrics';
 
+const ANALYTICS_ENV = ['ANALYTICS_URL', 'ANALYTICS_API_TOKEN'];
+
 describe('AnalyticsService', () => {
+  let originalEnv;
+
+  // the tests do not depend on the analytics configured on the machine running them
+  beforeEach(() => {
+    originalEnv = ANALYTICS_ENV.map((name) => process.env[name]);
+    ANALYTICS_ENV.forEach((name) => delete process.env[name]);
+  });
+
   afterEach(() => {
-    delete process.env.ANALYTICS_URL;
-    delete process.env.ANALYTICS_API_TOKEN;
+    ANALYTICS_ENV.forEach((name, index) => {
+      if (originalEnv[index] === undefined) {
+        delete process.env[name];
+      } else {
+        process.env[name] = originalEnv[index];
+      }
+    });
   });
 
   it('should send nothing when analytics are not configured', async () => {

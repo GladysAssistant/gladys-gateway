@@ -34,14 +34,31 @@ describe('socket message routing', function Describe() {
     });
   }
 
+  // deep enough to overflow the stack when emitted, shallow enough to be decoded
+  const DEEPLY_NESTED = `${'['.repeat(20000)}${']'.repeat(20000)}`;
+
   // Sends an event written by hand: socket.io-client cannot encode a payload nested so deeply
   // that its recursive binary check overflows the stack, the server must survive receiving it
   function sendDeeplyNestedEvent(socket, event, fields) {
-    // deep enough to overflow the stack when emitted, shallow enough to be decoded
-    const depth = 20000;
-    const nested = `${'['.repeat(depth)}${']'.repeat(depth)}`;
-    socket.io.engine.send(`2["${event}",{${fields},"data":${nested}}]`);
+    socket.io.engine.send(`2["${event}",{${fields},"data":${DEEPLY_NESTED}}]`);
   }
+
+  // An instance acknowledging the next message it receives with a deeply nested payload,
+  // written by hand from the id of the ack in the raw packet
+  function acknowledgeNextMessageDeeplyNested(socket) {
+    socket.io.engine.on('packet', (packet) => {
+      const match = typeof packet.data === 'string' && packet.data.match(/^2(\d+)\["(open-api-)?message"/);
+      if (match) {
+        socket.io.engine.send(`3${match[1]}[{"data":${DEEPLY_NESTED}}]`);
+      }
+    });
+  }
+
+  const INVALID_INSTANCE_RESPONSE = {
+    status: 502,
+    error_code: 'BAD_GATEWAY',
+    error_message: 'INVALID_INSTANCE_RESPONSE',
+  };
 
   const lastInstanceSocketKey = (instanceId = INSTANCE_ID) => `instance_socket:${instanceId}`;
 
@@ -99,6 +116,22 @@ describe('socket message routing', function Describe() {
 
       const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
       expect(response).to.deep.equal(INSTANCE_TIMEOUT_RESPONSE);
+    });
+
+    it('should answer once when the instance disconnects before its timeout', async () => {
+      const socketInstance = await connectInstance();
+      socketInstance.on('message', () => socketInstance.disconnect());
+      const socketUser = await connectUser();
+      const responses = [];
+      socketUser.emit('message', { data: 'test-data', instance_id: INSTANCE_ID }, (response) =>
+        responses.push(response),
+      );
+
+      // the timeout (200 ms) fires after the disconnection already answered
+      await new Promise((resolve) => {
+        setTimeout(resolve, 400);
+      });
+      expect(responses).to.deep.equal([NO_INSTANCE_FOUND_RESPONSE]);
     });
 
     it('should answer 504 to an Open API call the instance never acknowledges', async () => {
@@ -248,6 +281,59 @@ describe('socket message routing', function Describe() {
     // the default timeout is 5 minutes, far longer than the timeout of this test
     const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
     expect(response).to.deep.equal(NO_INSTANCE_FOUND_RESPONSE);
+  });
+
+  it('should answer an error when the answer of the instance is too deeply nested to be sent on', async () => {
+    const socketInstance = await connectInstance();
+    acknowledgeNextMessageDeeplyNested(socketInstance);
+    const socketUser = await connectUser();
+
+    const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+    expect(response).to.deep.equal(INVALID_INSTANCE_RESPONSE);
+  });
+
+  it('should survive an answer too deeply nested to be relayed across nodes', async () => {
+    const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
+    TEST_IO.of('/').adapter.requestsTimeout = 300;
+    try {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT + 1);
+      acknowledgeNextMessageDeeplyNested(socketInstance);
+      const socketUser = await connectUser(process.env.SERVER_PORT);
+
+      // the node holding the instance cannot serialize its answer: the origin times out
+      const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+      expect(response).to.deep.equal(INSTANCE_TIMEOUT_RESPONSE);
+    } finally {
+      TEST_IO.of('/').adapter.requestsTimeout = originalRequestsTimeout;
+    }
+  });
+
+  it('should not wait on the relaying node longer than the origin waits for the cluster', async () => {
+    const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
+    // this node relays, and its requestsTimeout is the one of the whole cluster
+    TEST_IO.of('/').adapter.requestsTimeout = 200;
+    try {
+      const socketInstance = await connectInstance(process.env.SERVER_PORT);
+      socketInstance.on('message', () => {});
+
+      const startedAt = Date.now();
+      const replies = await new Promise((resolve) => {
+        TEST_IO_SERVER_2.serverSideEmit(
+          'find-socket-and-send-message',
+          {
+            request_id: '9c1b2d3e-4f5a-4b6c-8d7e-0f1a2b3c4d5e',
+            room: `account:${ACCOUNT_ID}:instance:${INSTANCE_ID}`,
+            message: { data: 'test-data', instance_id: INSTANCE_ID },
+          },
+          (err, result) => resolve(result),
+        );
+      });
+      // the dashboard timeout is 5 minutes: the relay gave up after the cluster timeout
+      expect(replies).to.deep.equal([{ found: true, response: INSTANCE_TIMEOUT_RESPONSE }]);
+      expect(Date.now() - startedAt).to.be.below(2000);
+    } finally {
+      TEST_IO.of('/').adapter.requestsTimeout = originalRequestsTimeout;
+    }
   });
 
   it('should not relay a message of an instance without a valid user_id', async () => {
@@ -430,6 +516,37 @@ describe('socket message routing', function Describe() {
       });
     });
 
+    // the Redis adapter never calls back when it could not send the request (Redis down)
+    const dropClusterRequests = () => {
+      TEST_IO.serverSideEmit = () => {};
+      TEST_IO.of('/').adapter.requestsTimeout = 100;
+    };
+
+    it('should answer a timeout when the request to the cluster could not be sent', async () => {
+      const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
+      dropClusterRequests();
+      try {
+        const socketUser = await connectUser(process.env.SERVER_PORT);
+
+        const response = await sendMessage(socketUser, { data: 'test-data', instance_id: INSTANCE_ID });
+        expect(response).to.deep.equal(INSTANCE_TIMEOUT_RESPONSE);
+      } finally {
+        TEST_IO.of('/').adapter.requestsTimeout = originalRequestsTimeout;
+      }
+    });
+
+    it('should fail to list the connected instances when the request to the cluster could not be sent', async () => {
+      const originalRequestsTimeout = TEST_IO.of('/').adapter.requestsTimeout;
+      dropClusterRequests();
+      try {
+        await expect(TEST_MODELS.socketModel.getConnectedInstanceIds()).to.be.rejectedWith(
+          'no answer from the cluster',
+        );
+      } finally {
+        TEST_IO.of('/').adapter.requestsTimeout = originalRequestsTimeout;
+      }
+    });
+
     // a node of the cluster that does not answer in time
     const failClusterRequests = () => {
       TEST_IO.serverSideEmit = (event, ...args) => {
@@ -480,11 +597,19 @@ describe('socket message routing', function Describe() {
       expect(replies).to.deep.equal([{ found: true, response: { response: 'response' } }]);
     });
 
+    it('should not record as last socket a socket that closed while the instance authenticated', async () => {
+      await TEST_REDIS_CLIENT.set(lastInstanceSocketKey(), 'previous-socket-id');
+
+      await TEST_MODELS.socketModel.setLastInstanceSocket(INSTANCE_ID, { id: 'closed-socket-id', disconnected: true });
+
+      expect(await TEST_REDIS_CLIENT.get(lastInstanceSocketKey())).to.equal(null);
+    });
+
     it('should not fail when the last socket of an instance cannot be recorded or forgotten', async () => {
       TEST_REDIS_CLIENT.set = () => Promise.reject(new Error('Redis is down'));
       TEST_REDIS_CLIENT.eval = () => Promise.reject(new Error('Redis is down'));
 
-      await TEST_MODELS.socketModel.setLastInstanceSocket(INSTANCE_ID, 'socket-id');
+      await TEST_MODELS.socketModel.setLastInstanceSocket(INSTANCE_ID, { id: 'socket-id', disconnected: false });
       await TEST_MODELS.socketModel.clearLastInstanceSocket(INSTANCE_ID, 'socket-id');
     });
 

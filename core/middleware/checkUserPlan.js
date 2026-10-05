@@ -9,6 +9,25 @@ const ALLOWED_ACCOUNT_STATUS = ['active', 'trialing'];
 // a canceled or unpaid one keeps its access for this long at most.
 const GRANTED_ACCESS_CACHE_TTL_IN_SECONDS = 5 * 60;
 const GRANTED_ACCESS_CACHE_PREFIX = 'check_user_plan_granted';
+// While Redis reconnects, node-redis queues the commands instead of failing them: the cache
+// is only read for this long, then the access is checked in database
+const GRANTED_ACCESS_CACHE_READ_TIMEOUT_IN_MS = 200;
+
+// The cached access, or null when it is not cached, Redis failed or did not answer in time
+async function readGrantedAccessCache(redisClient, cacheKey, logger) {
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => resolve(null), GRANTED_ACCESS_CACHE_READ_TIMEOUT_IN_MS);
+  });
+  try {
+    return await Promise.race([redisClient.get(cacheKey), timeout]);
+  } catch (e) {
+    logger.warn(`checkUserPlan: unable to read the access cache (${e.message})`);
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
 
 function getGrantedAccessCacheKey(req, plan) {
   // the instance wins over the user, as below
@@ -23,13 +42,7 @@ module.exports = function checkUserPlan(userModel, instanceModel, redisClient, l
     return asyncMiddleware(async (req, res, next) => {
       const cacheKey = getGrantedAccessCacheKey(req, plan);
       // the cache is only a shortcut: when Redis fails, the access is checked in database
-      let cachedAccess = null;
-      try {
-        cachedAccess = await redisClient.get(cacheKey);
-      } catch (e) {
-        logger.warn(`checkUserPlan: unable to read the access cache (${e.message})`);
-      }
-      if (cachedAccess) {
+      if (await readGrantedAccessCache(redisClient, cacheKey, logger)) {
         next();
         return;
       }
@@ -63,11 +76,10 @@ module.exports = function checkUserPlan(userModel, instanceModel, redisClient, l
         throw new PaymentRequiredError(`Account is not active`);
       }
 
-      try {
-        await redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS });
-      } catch (e) {
+      // not awaited: the request does not wait for Redis to cache the access
+      redisClient.set(cacheKey, '1', { EX: GRANTED_ACCESS_CACHE_TTL_IN_SECONDS }).catch((e) => {
         logger.warn(`checkUserPlan: unable to cache the access (${e.message})`);
-      }
+      });
 
       next();
     });

@@ -173,6 +173,69 @@ describe('EnedisWorker with ENEDIS_USE_2026_APIS enabled', function Describe() {
       { value: 200, created_at: '2022-07-31T23:00:00.000Z' },
     ]);
   });
+  it('should save nothing and count the job as done when the daily consumption has no grandeur', async () => {
+    await finalizeOauthProcess();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/mesure_synchrone_auto/v2/consommation_quotidienne')
+      .query({ ...queryParamsV2, dateDebut: '2022-09-01', dateFin: '2022-09-03' })
+      .reply(200, { idPrm: queryParams.usage_point_id, periode: { dateDebut: '2022-09-01', dateFin: '2022-09-03' } });
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 1,
+    });
+    await enedisModel.getDataDailyConsumption(
+      ACCOUNT_ID,
+      queryParams.usage_point_id,
+      '2022-09-01',
+      '2022-09-03',
+      createdSync.id,
+    );
+    const rows = await db.query(
+      `SELECT value FROM t_enedis_daily_consumption
+       WHERE usage_point_id = $1 AND created_at >= '2022-09-01' AND created_at < '2022-09-03'`,
+      [queryParams.usage_point_id],
+    );
+    expect(rows).to.have.lengthOf(0);
+    const sync = await db.t_enedis_sync.findOne({ id: createdSync.id });
+    expect(sync.jobs_done).to.equal(1);
+  });
+  it('should save nothing and count the job as done when the load curve has no consumption series', async () => {
+    await finalizeOauthProcess();
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get('/mesure_synchrone_auto/v2/courbe_de_charge_consommation')
+      .query({ ...queryParamsV2, dateDebut: '2022-09-01', dateFin: '2022-09-03' })
+      .reply(200, {
+        ...loadCurveData,
+        grandeur: [
+          { grandeurMetier: 'CONS', grandeurPhysique: 'PA', unite: 'W', calendrier: [] },
+          {
+            grandeurMetier: 'PROD',
+            grandeurPhysique: 'PA',
+            unite: 'W',
+            points: [{ v: '999', d: '2022-09-01 01:30:00' }],
+          },
+        ],
+      });
+    const createdSync = await db.t_enedis_sync.insert({
+      usage_point_id: queryParams.usage_point_id,
+      jobs_total: 1,
+    });
+    await enedisModel.getConsumptionLoadCurve(
+      ACCOUNT_ID,
+      queryParams.usage_point_id,
+      '2022-09-01',
+      '2022-09-03',
+      createdSync.id,
+    );
+    const rows = await db.query(
+      `SELECT value FROM t_enedis_consumption_load_curve
+       WHERE usage_point_id = $1 AND created_at >= '2022-08-31T22:00:00Z' AND created_at < '2022-09-02T22:00:00Z'`,
+      [queryParams.usage_point_id],
+    );
+    expect(rows).to.have.lengthOf(0);
+    const sync = await db.t_enedis_sync.findOne({ id: createdSync.id });
+    expect(sync.jobs_done).to.equal(1);
+  });
   it('should count the job as done when Mesures V2 has no data for the period', async () => {
     await finalizeOauthProcess();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)

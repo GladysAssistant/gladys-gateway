@@ -829,8 +829,35 @@ describe('GET /users/me', () => {
           gladys_user_id: null,
           gladys_4_user_id: null,
           current_period_end: '2050-11-20T16:00:00.000Z',
+          has_recovery_codes: true,
         });
       }));
+
+  it('should say the user has no recovery codes when none were generated', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', {
+      two_factor_recovery_codes: null,
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('has_recovery_codes', false);
+  });
+
+  it('should say the user has no recovery codes when all of them were used', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', {
+      two_factor_recovery_codes: [],
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/users/me')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('has_recovery_codes', false);
+  });
 });
 
 describe('POST /users/forgot-password', () => {

@@ -4,6 +4,9 @@ const emails = require('../common/email');
 const { buildLogoAttachment } = require('../common/email-logo');
 const { normalizeLanguage } = require('../common/language');
 
+// Emails sent automatically in volume (instance watchdog): not worth a Telegram alert each.
+const TEMPLATES_WITHOUT_TELEGRAM_ALERT = ['instance_offline', 'instance_back_online'];
+
 module.exports = function MailService(logger, telegramService) {
   let transporter;
 
@@ -62,7 +65,9 @@ module.exports = function MailService(logger, telegramService) {
     logger.info(`Sending ${template} email.`);
     // Only notify metadata on Telegram: never forward the email body or the scope,
     // as it may contain sensitive links (password reset, invitation token, email confirmation...)
-    telegramService.sendAlert(`Sending "${template}" email to ${user.email} (language = ${user.language})`);
+    if (!TEMPLATES_WITHOUT_TELEGRAM_ALERT.includes(template)) {
+      telegramService.sendAlert(`Sending "${template}" email to ${user.email} (language = ${user.language})`);
+    }
     return transporter.sendMail(mailOptions);
   }
 

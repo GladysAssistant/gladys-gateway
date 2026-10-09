@@ -10,6 +10,21 @@ const {
 } = require('../../../core/common/instance-email-scope');
 
 describe('instance-email-scope', () => {
+  const previousFrontendUrl = process.env.GLADYS_PLUS_FRONTEND_URL;
+  const alertSettingsUrl = 'https://plus.gladysassistant.com/dashboard/settings/gateway';
+
+  before(() => {
+    process.env.GLADYS_PLUS_FRONTEND_URL = 'https://plus.gladysassistant.com';
+  });
+
+  after(() => {
+    if (previousFrontendUrl === undefined) {
+      delete process.env.GLADYS_PLUS_FRONTEND_URL;
+    } else {
+      process.env.GLADYS_PLUS_FRONTEND_URL = previousFrontendUrl;
+    }
+  });
+
   it('should format durations with the two most significant units', () => {
     expect(formatDuration(0, 'fr')).to.equal('0 min');
     expect(formatDuration(45, 'fr')).to.equal('45 min');
@@ -52,6 +67,7 @@ describe('instance-email-scope', () => {
       offlineFor: '2 h 15 min',
       lastSeenDate: '7 septembre 2026 à 12:00 UTC',
       alertDelay: '1 h',
+      alertSettingsUrl,
     });
   });
 
@@ -68,6 +84,7 @@ describe('instance-email-scope', () => {
       instanceName: 'Raspberry Pi',
       downtime: '1 day 2 h',
       lastSeenDate: '6 September 2026 at 12:00 UTC',
+      alertSettingsUrl,
     });
   });
 
@@ -87,6 +104,7 @@ describe('instance-email-scope', () => {
       expect(offlineHtml).to.include('2 h 15 min');
       expect(offlineHtml).to.include('1 h');
       expect(offlineHtml).to.not.include('NaN');
+      expect(offlineHtml).to.include(`href="${alertSettingsUrl}"`);
       const backOnlineHtml = emails.instance_back_online[language].ejs(
         buildInstanceBackOnlineScope({
           instance: { name: 'Raspberry Pi' },
@@ -98,6 +116,7 @@ describe('instance-email-scope', () => {
       );
       expect(backOnlineHtml).to.include('Raspberry Pi');
       expect(backOnlineHtml).to.include('2 h 15 min');
+      expect(backOnlineHtml).to.include(`href="${alertSettingsUrl}"`);
     });
   });
 });

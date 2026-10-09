@@ -62,6 +62,7 @@ function buildPreviewScope(templateName, language) {
     planProductName: 'Gladys Plus',
     subscribeUrl: 'https://gladysassistant.com/fr/plus',
     recoveryCodesUrl: 'http://gladysassistant.com/dashboard/settings/security',
+    alertSettingsUrl: 'http://gladysassistant.com/dashboard/settings/gateway',
     instanceName: 'Raspberry Pi',
     offlineFor: '2 h 15 min',
     lastSeenDate: isFr ? '7 septembre 2026 à 14:05 UTC' : '7 September 2026 at 14:05 UTC',

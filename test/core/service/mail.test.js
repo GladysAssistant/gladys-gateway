@@ -86,6 +86,26 @@ describe('mail service', () => {
     expect(telegramMessages[0]).to.not.include(confirmationUrlGladys4);
   });
 
+  it('should send the instance watchdog emails without notifying Telegram', async () => {
+    process.env.DISABLE_EMAIL = 'false';
+    const mail = Mail(silentLogger, telegramService);
+    const scope = {
+      firstname: 'Tony',
+      instanceName: 'Raspberry Pi',
+      offlineFor: '2 h',
+      downtime: '2 h',
+      lastSeenDate: '7 September 2026 at 12:00 UTC',
+      alertDelay: '1 h',
+      alertSettingsUrl: 'https://plus.gladysassistant.com/dashboard/settings/gateway',
+    };
+
+    await mail.send({ email: 'user@example.com', language: 'fr' }, 'instance_offline', scope);
+    await mail.send({ email: 'user@example.com', language: 'fr' }, 'instance_back_online', scope);
+
+    expect(sentMails).to.have.lengthOf(2);
+    expect(telegramMessages).to.have.lengthOf(0);
+  });
+
   it('should not send email nor notify Telegram when email is disabled', async () => {
     process.env.DISABLE_EMAIL = 'true';
     const mail = Mail(silentLogger, telegramService);

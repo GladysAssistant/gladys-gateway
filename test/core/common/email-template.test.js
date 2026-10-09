@@ -56,6 +56,7 @@ function buildScope(templateName, language) {
     planProductName: 'Gladys Plus',
     subscribeUrl: 'https://gladysassistant.com/plus',
     recoveryCodesUrl: 'https://plus.gladysassistant.com/dashboard/settings/security',
+    alertSettingsUrl: 'https://plus.gladysassistant.com/dashboard/settings/gateway',
     instanceName: 'Raspberry Pi',
     offlineFor: '2 h 15 min',
     lastSeenDate: '7 September 2026 at 14:05 UTC',

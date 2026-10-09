@@ -46,6 +46,13 @@ function formatDateTime(date, language) {
   return `${formatted} UTC`;
 }
 
+/**
+ * Page of Gladys Plus where the admins change the delay of the alerts or disable them.
+ */
+function getAlertSettingsUrl() {
+  return `${process.env.GLADYS_PLUS_FRONTEND_URL}/dashboard/settings/gateway`;
+}
+
 function minutesBetween(from, to) {
   return Math.floor((new Date(to).getTime() - new Date(from).getTime()) / ONE_MINUTE_IN_MS);
 }
@@ -62,6 +69,7 @@ function buildInstanceOfflineScope({ instance, user, lastSeenAt, delayInMinutes,
     offlineFor: formatDuration(minutesBetween(lastSeenAt, now), normalizedLanguage),
     lastSeenDate: formatDateTime(lastSeenAt, normalizedLanguage),
     alertDelay: formatDuration(delayInMinutes, normalizedLanguage),
+    alertSettingsUrl: getAlertSettingsUrl(),
   };
 }
 
@@ -76,6 +84,7 @@ function buildInstanceBackOnlineScope({ instance, user, lastSeenAt, now = new Da
     instanceName: instance.name,
     downtime: formatDuration(minutesBetween(lastSeenAt, now), normalizedLanguage),
     lastSeenDate: formatDateTime(lastSeenAt, normalizedLanguage),
+    alertSettingsUrl: getAlertSettingsUrl(),
   };
 }
 

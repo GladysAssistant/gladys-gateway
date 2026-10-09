@@ -406,7 +406,8 @@ module.exports = function UserController(userModel, mailService, socketModel, in
    *   "role": "admin",
    *   "language": "en",
    *   "profile_url": "https://gravatar.com/sdkflmskd",
-   *   "gladys_user_id": 1
+   *   "gladys_user_id": 1,
+   *   "has_recovery_codes": true
    * }
    */
   async function getMySelf(req, res, next) {

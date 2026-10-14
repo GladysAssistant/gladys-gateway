@@ -208,7 +208,13 @@ module.exports = async (port) => {
     tempoModel: TempoModel(logger, db, redisClient),
     openAIModel: OpenAIModel(logger, db, legacyRedisClient, instanceModel),
   };
-  models.adminAccountModel = AdminAccountModel(logger, db, services.stripeService, models.enedisModel);
+  models.adminAccountModel = AdminAccountModel(
+    logger,
+    db,
+    services.stripeService,
+    services.mailService,
+    models.enedisModel,
+  );
   models.adminAccountLifecycleModel = AdminAccountLifecycleModel(
     logger,
     db,

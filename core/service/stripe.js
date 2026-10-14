@@ -63,6 +63,16 @@ module.exports = function StripeService(logger) {
     return result;
   }
 
+  // The email of the customer is where Stripe sends the invoices and the receipts
+  async function updateCustomerEmail(stripeCustomerId, email) {
+    if (stripe === null) {
+      logger.info('Stripe not enabled on this instance, resolving.');
+      return Promise.resolve(null);
+    }
+
+    return stripe.customers.update(stripeCustomerId, { email });
+  }
+
   // A PaymentMethod is not always a card: customers coming through Stripe
   // Checkout or the customer portal can pay with PayPal, SEPA debit, Link...
   // The type-specific details (card number, PayPal email) live under a key
@@ -231,6 +241,7 @@ module.exports = function StripeService(logger) {
     getCard,
     getPaymentMethod,
     updateCard,
+    updateCustomerEmail,
     verifyEvent,
     getSubscriptionCurrentPeriodEnd,
     getSubscription,

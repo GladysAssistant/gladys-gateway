@@ -340,6 +340,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.adminApiController.runInstanceWatchdog),
   );
   app.patch('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.updateAccount));
+  app.patch(
+    '/admin/api/accounts/:id/email',
+    adminAuth,
+    asyncMiddleware(controllers.adminApiController.updateAccountEmail),
+  );
   app.delete('/admin/api/accounts/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteAccount));
   app.get('/admin/api/accounts/:id/enedis', adminAuth, asyncMiddleware(controllers.adminApiController.getEnedisState));
   app.post(
@@ -362,6 +367,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     adminAuth,
     asyncMiddleware(controllers.adminApiController.resetTwoFactor),
   );
+  app.patch('/admin/api/users/:id/email', adminAuth, asyncMiddleware(controllers.adminApiController.updateUserEmail));
   app.delete('/admin/api/users/:id', adminAuth, asyncMiddleware(controllers.adminApiController.deleteUser));
   app.get('/admin/api/gladys/versions', adminAuth, asyncMiddleware(controllers.adminApiController.listVersions));
   // The release GitHub Action only holds the restricted GLADYS_VERSION_API_KEY

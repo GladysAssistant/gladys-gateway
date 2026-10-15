@@ -2,6 +2,7 @@ const request = require('supertest');
 const { expect } = require('chai');
 // eslint-disable-next-line import/no-extraneous-dependencies
 const nock = require('nock');
+const { setupPersistentNocks } = require('../../../tasks/nock');
 
 const ACCOUNT_WITH_USERS = 'b2d23f66-487d-493f-8acb-9c8adb400def';
 const ACCOUNT_WITH_STRIPE = 'be2b9666-5c72-451e-98f4-efca76ffef54';
@@ -213,6 +214,81 @@ describe('PATCH /admin/api/accounts/:id', () => {
   it('should return 404 for an unknown account', async () => {
     await adminRequest('patch', '/admin/api/accounts/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1')
       .send({ is_internal: true })
+      .expect(404);
+  });
+});
+
+describe('PATCH /admin/api/accounts/:id/email', () => {
+  const NEW_EMAIL = 'new.billing@gladysassistant.com';
+
+  // an interceptor left unused by a failing test must not leak into the next ones; cleanAll()
+  // also wipes the persistent nocks of test/tasks/nock.js, so they are restored
+  afterEach(() => {
+    nock.cleanAll();
+    setupPersistentNocks();
+  });
+
+  it('should change the email of the account and of its Stripe customer', async () => {
+    const stripeCall = nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .post('/v1/customers/cus', (body) => body.email === NEW_EMAIL)
+      .reply(200, { id: 'cus', email: NEW_EMAIL });
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}/email`)
+      .send({ email: ' New.Billing@GladysAssistant.com' })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.include({ id: ACCOUNT_WITH_STRIPE, name: NEW_EMAIL, status: 'active' });
+    expect(response.body).to.not.have.property('stripe_portal_key');
+    expect(stripeCall.isDone()).to.equal(true);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    expect(account.name).to.equal(NEW_EMAIL);
+  });
+
+  it('should only change the database when the account has no Stripe customer', async () => {
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}/email`)
+      .send({ email: NEW_EMAIL })
+      .expect(200);
+    expect(response.body).to.include({ id: ACCOUNT_WITH_USERS, name: NEW_EMAIL });
+    // the users keep their own email
+    const users = await TEST_DATABASE_INSTANCE.t_user.find({ account_id: ACCOUNT_WITH_USERS });
+    expect(users.map((user) => user.email)).to.not.include(NEW_EMAIL);
+  });
+
+  it('should change nothing when Stripe fails', async () => {
+    nock('https://api.stripe.com:443', { encodedQueryParams: true })
+      .post('/v1/customers/cus')
+      .reply(400, { error: { type: 'invalid_request_error', message: 'Invalid email address' } });
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_STRIPE}/email`)
+      .send({ email: NEW_EMAIL })
+      .expect(500);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_STRIPE });
+    expect(account.name).to.equal('new-account-lost@gladysassistant.com');
+  });
+
+  it('should accept the current email of the account', async () => {
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}/email`)
+      .send({ email: 'email-confirmed-two-factor-enabled@gladysprojet.com' })
+      .expect(200);
+  });
+
+  it('should return 409 when another account has this email', async () => {
+    const response = await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}/email`)
+      .send({ email: 'new-account-lost@gladysassistant.com' })
+      .expect(409);
+    expect(response.body).to.have.property('error_code', 'ALREADY_EXIST');
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_USERS });
+    expect(account.name).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+  });
+
+  it('should return 422 with an invalid email', async () => {
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}/email`).send({}).expect(422);
+    await adminRequest('patch', `/admin/api/accounts/${ACCOUNT_WITH_USERS}/email`)
+      .send({ email: 'not-an-email' })
+      .expect(422);
+  });
+
+  it('should return 404 for an unknown account', async () => {
+    await adminRequest('patch', '/admin/api/accounts/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1/email')
+      .send({ email: NEW_EMAIL })
       .expect(404);
   });
 });

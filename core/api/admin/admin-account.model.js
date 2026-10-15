@@ -1,9 +1,17 @@
 const Joi = require('joi');
 const Promise = require('bluebird');
-const { NotFoundError, ForbiddenError, ValidationError } = require('../../common/error');
-const { adminListAccountsQuerySchema, adminUpdateAccountSchema } = require('../../common/schema');
+const { NotFoundError, ForbiddenError, ValidationError, AlreadyExistError } = require('../../common/error');
+const { normalizeEmail } = require('../../common/normalize-email');
+const {
+  adminListAccountsQuerySchema,
+  adminUpdateAccountSchema,
+  adminUpdateEmailSchema,
+} = require('../../common/schema');
 
 const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
+
+// PostgreSQL error code for unique_violation
+const UNIQUE_VIOLATION_ERROR_CODE = '23505';
 
 // Fields of t_user an admin is allowed to see. Never the SRP verifier, the encrypted
 // private keys, the two factor secret or the recovery code hashes.
@@ -46,12 +54,23 @@ function toLikePattern(search) {
   return `%${search.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
-module.exports = function AdminAccountModel(logger, db, stripeService, enedisModel) {
+module.exports = function AdminAccountModel(logger, db, stripeService, mailService, enedisModel) {
   function validateId(id) {
     const { error } = uuidSchema.validate(id);
     if (error) {
       throw new NotFoundError();
     }
+  }
+
+  function validateEmail(objectName, body) {
+    const { error, value } = adminUpdateEmailSchema.validate(
+      { email: normalizeEmail(body && body.email) },
+      { abortEarly: false },
+    );
+    if (error) {
+      throw new ValidationError(objectName, error);
+    }
+    return value.email;
   }
 
   async function getAccountOrFail(accountId) {
@@ -207,6 +226,98 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
   }
 
   /**
+   * Change the email of an account: the billing email stored as the account name, which is
+   * also the address the Stripe webhooks write to and the key used to find the account back
+   * when the customer subscribes again through Stripe Checkout. The email of the Stripe
+   * customer (invoices, receipts) is changed first: when Stripe fails, nothing is changed.
+   * The users of the account keep their own email, see updateUserEmail.
+   */
+  async function updateAccountEmail(accountId, body) {
+    const account = await getAccountOrFail(accountId);
+    const email = validateEmail('admin_update_account_email', body);
+    // createAccountFromStripeSession looks the account up by email: two accounts sharing
+    // one would make a new checkout re-link an arbitrary one of them
+    const otherAccount = await db.t_account.findOne(
+      { name: email, is_deleted: false, 'id <>': accountId },
+      { fields: ['id'] },
+    );
+    if (otherAccount !== null) {
+      throw new AlreadyExistError('account', email);
+    }
+    if (account.stripe_customer_id) {
+      await stripeService.updateCustomerEmail(account.stripe_customer_id, email);
+    }
+    const [updatedAccount] = await db.t_account.update(
+      { id: accountId },
+      { name: email },
+      { fields: ACCOUNT_PUBLIC_FIELDS },
+    );
+    logger.warn(`Admin API: email of account ${accountId} changed`);
+    return pick(updatedAccount, ACCOUNT_PUBLIC_FIELDS);
+  }
+
+  /**
+   * Change the email of a user who cannot do it from the dashboard. The admin vouches for the
+   * new address, so it is marked as confirmed. The previous address is warned by email, and the
+   * reset password links already sent to it stop working: it is no longer the recovery channel
+   * of the account. Existing sessions are kept.
+   * The SRP verifier is derived from the email AND the password on the client side: the user
+   * cannot log in with the new address until the password is reset ("forgot password" with
+   * the new address).
+   */
+  async function updateUserEmail(userId, body) {
+    const user = await getUserOrFail(userId);
+    if (user.is_deleted) {
+      throw new NotFoundError('User not found');
+    }
+    const email = validateEmail('admin_update_user_email', body);
+    const emailChanged = email !== user.email;
+    // A confirmed email is unique among the active users (idx_unique_email)
+    const otherUser = await db.t_user.findOne(
+      { email, email_confirmed: true, is_deleted: false, 'id <>': userId },
+      { fields: ['id'] },
+    );
+    if (otherUser !== null) {
+      throw new AlreadyExistError('user', email);
+    }
+    let updatedUser;
+    try {
+      updatedUser = await db.withTransaction(async (tx) => {
+        const [result] = await tx.t_user.update(
+          { id: userId },
+          { email, email_confirmed: true },
+          { fields: USER_PUBLIC_FIELDS },
+        );
+        if (emailChanged) {
+          await tx.t_reset_password.update(
+            { user_id: userId, used: false, is_deleted: false },
+            { is_deleted: true },
+            { fields: ['id'] },
+          );
+        }
+        return result;
+      });
+    } catch (e) {
+      // another user confirmed this email in the meantime: the unique index catches the race
+      if (e && e.code === UNIQUE_VIOLATION_ERROR_CODE) {
+        throw new AlreadyExistError('user', email);
+      }
+      throw e;
+    }
+    logger.warn(`Admin API: email of user ${userId} changed`);
+    if (emailChanged) {
+      // The change is done: a mail provider failure must not turn it into an error
+      try {
+        await mailService.send({ email: user.email, language: user.language }, 'email_changed', { newEmail: email });
+      } catch (e) {
+        logger.warn(`Admin API: unable to warn the previous email address of user ${userId}`);
+        logger.warn(e);
+      }
+    }
+    return updatedUser;
+  }
+
+  /**
    * Disable the second factor of a user who lost access to his authenticator. The user will
    * be able to login with his password only and to configure a new second factor.
    * Existing sessions are kept.
@@ -318,6 +429,8 @@ module.exports = function AdminAccountModel(logger, db, stripeService, enedisMod
     listAccounts,
     getAccount,
     updateAccount,
+    updateAccountEmail,
+    updateUserEmail,
     resetTwoFactor,
     deleteUser,
     getEnedisState,

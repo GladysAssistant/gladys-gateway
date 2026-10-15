@@ -41,7 +41,7 @@ An instance that never acknowledges a message is answered with a `504 GATEWAY_TI
 
 ## Admin API
 
-The routes under `/admin/api/` are used to administrate Gladys Plus accounts (list and inspect accounts, reset the two factor authentication of a user, delete a user or an account, check the Enedis synchronization, publish Gladys versions). They are documented with apidoc (`npm run apidoc`, group "Admin API").
+The routes under `/admin/api/` are used to administrate Gladys Plus accounts (list and inspect accounts, change the email of an account or a user, reset the two factor authentication of a user, delete a user or an account, check the Enedis synchronization, publish Gladys versions). They are documented with apidoc (`npm run apidoc`, group "Admin API").
 
 Two ways to authenticate:
 
@@ -70,6 +70,15 @@ Two ways to authenticate:
 ```
 
 The call answers `201` with the created version, `409` if the version already exists (so a re-run of the workflow is harmless, as shown above) and `422` if the body is invalid. A published version can be rolled back with `PATCH /admin/api/gladys/versions/:id` and `{ "active": false }`.
+
+### Changing an email
+
+The account email and the user email are two different things, changed by two routes:
+
+- `PATCH /admin/api/accounts/:id/email` with `{ "email": "..." }` changes the billing email of the account (the account name): where the billing emails go, and the address used to find the account back when the customer subscribes again through Stripe Checkout. The email of the Stripe customer (invoices, receipts) is changed first; when Stripe fails, nothing is changed.
+- `PATCH /admin/api/users/:id/email` with `{ "email": "..." }` changes the address a user logs in with. It is marked as confirmed (the admin vouches for it), the previous address receives the "email changed" email and the reset password links already sent to it stop working. Sessions are kept. **The user has to reset the password before logging in again**: the SRP verifier is derived from the email and the password on the client side, so the old verifier does not match the new address. Tell the user to use "forgot password" with the new address.
+
+Both answer `409` when another account (resp. active user) already has this email and `422` when the email is invalid. For the usual case, a customer alone on the account, call both.
 
 ### Account lifecycle
 

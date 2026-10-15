@@ -34,4 +34,9 @@ describe('stripe service without STRIPE_SECRET_KEY', () => {
     const paymentMethod = await stripeService.getPaymentMethod('pm');
     expect(paymentMethod).to.equal(null);
   });
+
+  it('should resolve null in updateCustomerEmail', async () => {
+    const customer = await stripeService.updateCustomerEmail('cus', 'tony.stark@gladysassistant.com');
+    expect(customer).to.equal(null);
+  });
 });

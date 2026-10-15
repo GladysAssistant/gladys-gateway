@@ -95,6 +95,12 @@ const adminUpdateAccountSchema = Joi.object()
   })
   .min(1);
 
+// Email of an account (billing email) or of a user, normalized (see normalizeEmail) before
+// validation. 255 is the size of the columns.
+const adminUpdateEmailSchema = Joi.object().keys({
+  email: Joi.string().email().max(255).required(),
+});
+
 // Gladys versions are named like the git tags of the Gladys repository: v4.57.0, v4.0.0-alpha
 const gladysVersionNamePattern = /^v?\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
@@ -130,5 +136,6 @@ const adminUpdateGladysVersionSchema = Joi.object()
 module.exports.adminListAccountsQuerySchema = adminListAccountsQuerySchema;
 module.exports.adminLifecycleJobSchema = adminLifecycleJobSchema;
 module.exports.adminUpdateAccountSchema = adminUpdateAccountSchema;
+module.exports.adminUpdateEmailSchema = adminUpdateEmailSchema;
 module.exports.adminCreateGladysVersionSchema = adminCreateGladysVersionSchema;
 module.exports.adminUpdateGladysVersionSchema = adminUpdateGladysVersionSchema;

@@ -136,6 +136,36 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {patch} /admin/api/accounts/:id/email Change account email
+   * @apiName adminUpdateAccountEmail
+   * @apiGroup Admin API
+   * @apiDescription Change the billing email of an account (the account name): the address
+   * the billing emails are sent to, and the one used to find the account back when the
+   * customer subscribes again through Stripe Checkout. The email of the Stripe customer
+   * (invoices, receipts) is changed too, first: when Stripe fails, nothing is changed. The
+   * users of the account keep their own email (see PATCH /admin/api/users/:id/email).
+   * 409 when another account already has this email, 422 when the email is invalid.
+   *
+   * @apiParam {String} email New email (trimmed and lowercased)
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "b2d23f66-487d-493f-8acb-9c8adb400def",
+   *   "name": "tony.stark@gladysassistant.com",
+   *   "plan": "plus",
+   *   "status": "active",
+   *   ...
+   * }
+   */
+  async function updateAccountEmail(req, res) {
+    const account = await adminAccountModel.updateAccountEmail(req.params.id, req.body);
+    audit(req, `change email of account ${account.id}`);
+    res.json(account);
+  }
+
+  /**
    * @api {post} /admin/api/accounts/sync-stripe Reconcile accounts with Stripe
    * @apiName adminSyncAccountsWithStripe
    * @apiGroup Admin API
@@ -437,6 +467,38 @@ module.exports = function AdminApiController(
   }
 
   /**
+   * @api {patch} /admin/api/users/:id/email Change user email
+   * @apiName adminUpdateUserEmail
+   * @apiGroup Admin API
+   * @apiDescription Change the email of a user, the one used to log in. The admin vouches
+   * for the new address: it is marked as confirmed. The previous address receives the
+   * "email changed" email, and the reset password links already sent to it stop working.
+   * Existing sessions are kept. The password is derived from the email on the client side
+   * (SRP): the user has to reset the password ("forgot password" with the new address)
+   * before logging in again. The billing email of the account is not changed (see
+   * PATCH /admin/api/accounts/:id/email). 404 for an unknown or deleted user, 409 when
+   * another user already has this email, 422 when the email is invalid.
+   *
+   * @apiParam {String} email New email (trimmed and lowercased)
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "a139e4a6-ec6c-442d-9730-0499155d38d4",
+   *   "email": "tony.stark@gladysassistant.com",
+   *   "email_confirmed": true,
+   *   "account_id": "b2d23f66-487d-493f-8acb-9c8adb400def",
+   *   ...
+   * }
+   */
+  async function updateUserEmail(req, res) {
+    const user = await adminAccountModel.updateUserEmail(req.params.id, req.body);
+    audit(req, `change email of user ${user.id}`);
+    res.json(user);
+  }
+
+  /**
    * @api {delete} /admin/api/users/:id Delete user
    * @apiName adminDeleteUser
    * @apiGroup Admin API
@@ -589,6 +651,7 @@ module.exports = function AdminApiController(
     listAccounts,
     getAccount,
     updateAccount,
+    updateAccountEmail,
     deleteAccount,
     syncAccountsWithStripe,
     applyRetentionPolicy,
@@ -597,6 +660,7 @@ module.exports = function AdminApiController(
     sendRecoveryCodesReminderToUser,
     runInstanceWatchdog,
     resetTwoFactor,
+    updateUserEmail,
     deleteUser,
     getEnedisState,
     refreshEnedisData,

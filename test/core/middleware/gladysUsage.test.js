@@ -39,6 +39,27 @@ describe('gladysUsage middleware', () => {
       system: 'linux',
     });
   });
+  it('should record a usage point for a Gladys pre-release', () => {
+    const { middleware, inserted } = createMiddleware();
+    middleware(createReq('Gladys/v4.0.0-beta-13'), {}, () => {});
+    expect(inserted).to.have.lengthOf(1);
+    expect(inserted[0]).to.include({ user_agent: 'Gladys/v4.0.0-beta-13' });
+  });
+  it('should not record a usage point for Gladys run from source', () => {
+    const { middleware, inserted } = createMiddleware();
+    middleware(createReq('Gladys/vundefined'), {}, () => {});
+    expect(inserted).to.have.lengthOf(0);
+  });
+  it('should not record a usage point for a Gladys version older than v4', () => {
+    const { middleware, inserted } = createMiddleware();
+    middleware(createReq('Gladys/v1.0.0'), {}, () => {});
+    expect(inserted).to.have.lengthOf(0);
+  });
+  it('should not record a usage point for a bot using a Gladys user agent', () => {
+    const { middleware, inserted } = createMiddleware();
+    middleware(createReq('Gladys/v4.54.0 Geminibot'), {}, () => {});
+    expect(inserted).to.have.lengthOf(0);
+  });
   it('should not record a usage point for a crawler', () => {
     const { middleware, inserted } = createMiddleware();
     let nextCalled = false;

@@ -2,9 +2,11 @@ const geoip = require('geoip-lite');
 const get = require('get-value');
 const asyncMiddleware = require('./asyncMiddleware');
 
-// Only API calls made by a Gladys instance are recorded (User-Agent "Gladys/v4.57.0").
-// Crawlers and link previews (facebookexternalhit, bots...) also hit this route.
-const GLADYS_USER_AGENT_REGEX = /^Gladys\//;
+// Only API calls made by a Gladys 4+ instance are recorded (User-Agent "Gladys/v4.57.0", or a
+// pre-release like "Gladys/v4.0.0-beta-13"). Crawlers and link previews (facebookexternalhit...)
+// also hit this route, as well as bots and AI agents running Gladys from source, which send
+// "Gladys/vundefined", "Gladys/v1.0.0" or "Gladys/v4.54.0 Geminibot".
+const GLADYS_USER_AGENT_REGEX = /^Gladys\/v([4-9]|[1-9]\d+)\.\d+\.\d+(-[0-9A-Za-z.-]+)?$/;
 
 module.exports = function GladysUsage(logger, db) {
   return asyncMiddleware(async (req, res, next) => {

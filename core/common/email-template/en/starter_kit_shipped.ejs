@@ -1,0 +1,78 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml" style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; margin: 0;">
+<head>
+  <meta name="viewport" content="width=device-width" />
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+  <title>Your Gladys starter kit is on its way</title>
+</head>
+<body style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; box-sizing: border-box; font-size: 14px; -webkit-font-smoothing: antialiased; -webkit-text-size-adjust: none; width: 100% !important; height: 100%; line-height: 1.6em; background-color: #f6f6f6; margin: 0;" bgcolor="#f6f6f6">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f6f6f6;" bgcolor="#f6f6f6">
+    <tr>
+      <td></td>
+      <td width="600" style="display: block !important; max-width: 600px !important; clear: both !important; margin: 0 auto;">
+        <div style="max-width: 600px; display: block; margin: 0 auto; padding: 20px;">
+          <table width="100%" cellpadding="0" cellspacing="0" style="border-radius: 3px; background-color: #fff; border: 1px solid #e9e9e9;" bgcolor="#fff">
+            <tr>
+              <td style="padding: 20px;" valign="top">
+                <h1 style="font-family: 'Helvetica Neue', Helvetica, Arial, 'Lucida Grande', sans-serif; font-size: 32px; line-height: 1.2; color: #000; font-weight: 200; margin: 10px 0 20px; padding: 0;">
+                  Your parcel is on its way 📦
+                </h1>
+
+                <p style="margin: 0 0 20px;">
+                  <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                </p>
+
+                <p style="margin: 0 0 20px;">
+                  Good news, your parcel has been shipped!
+                </p>
+<% if (shipmentTrackingUrl) { %>                <p style="margin: 0 0 20px;">
+                  You can track it here: <a href="<%= shipmentTrackingUrl %>"><%= shipmentTrackingUrl %></a><% if (shipmentNumber) { %><br />Parcel number: <strong><%= shipmentNumber %></strong><% } %>
+                </p>
+<% } else if (shipmentNumber) { %>                <p style="margin: 0 0 20px;">
+                  You can track it on <a href="https://www.mondialrelay.fr/suivi-de-colis/">https://www.mondialrelay.fr/suivi-de-colis/</a> with the parcel number <strong><%= shipmentNumber %></strong>.
+                </p>
+<% } %>
+<% if (pickupPoint) { %>                <p style="margin: 0 0 20px;">
+                  Pickup point: <strong><%= pickupPoint.name %></strong><br /><%= pickupPoint.address_1 %><% if (pickupPoint.address_2) { %>, <%= pickupPoint.address_2 %><% } %><br /><%= pickupPoint.postal_code %> <%= pickupPoint.city %>
+                </p>
+<% } %>
+                <p style="margin: 0 0 20px;">
+                  I put a Gladys sticker in the box 😉
+                </p>
+                <p style="margin: 0 0 20px;">
+                  <strong>When it arrives:</strong> simply connect the mini-PC to your router with an Ethernet cable, plug it in, then open Gladys.
+                </p>
+<% if (installGuideUrl) { %>                <p style="margin: 0 0 20px;">
+                  The installation guide is here: <a href="<%= installGuideUrl %>"><%= installGuideUrl %></a>
+                </p>
+<% } %>
+<% if (sshPassword) { %>                <p style="margin: 0 0 20px;">
+                  If you ever want to access the Ubuntu system through SSH (completely optional, but keep the password somewhere just in case), you can log in with:<br />- Username: <strong><%= sshUsername %></strong><br />- Password: <strong><%= sshPassword %></strong>
+                </p>
+<% } %>
+                <p style="margin: 0 0 20px;">
+                  <strong>Gladys Plus:</strong> you should have received an email inviting you to create your Gladys Plus account. You can do it right now or wait for the mini-PC. Either way, the mini-PC needs to be plugged in before you can use Gladys.
+                </p>
+<% if (trackingUrl) { %>                <p style="margin: 0 0 20px;">
+                  You can follow the progress of your order at any time on your tracking page:<br /><a href="<%= trackingUrl %>"><%= trackingUrl %></a>
+                </p>
+<% } %>
+
+                <p style="margin: 0 0 20px;">
+                  Any question? Just reply to this email or write to me at
+                  <a href="mailto:hello@gladysassistant.com">hello@gladysassistant.com</a>.
+                </p>
+
+                <p style="margin: 0 0 20px;">
+                  Pierre-Gilles Leymarie, founder of Gladys Assistant
+                </p>
+              </td>
+            </tr>
+          </table>
+        </div>
+      </td>
+      <td></td>
+    </tr>
+  </table>
+</body>
+</html>

@@ -180,6 +180,23 @@ describe('errorMiddleware', () => {
     expect(res.statusCode).to.equal(404);
   });
 
+  it('should warn and answer 400 for a malformed URL that Express cannot decode', () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const req = { method: 'GET', originalUrl: '/%c0' };
+    const error = new URIError("Failed to decode param '%c0'");
+    error.status = 400;
+    error.statusCode = 400;
+
+    middleware(error, req, res, () => {});
+
+    expect(logger.calls.warn[0][0]).to.equal("400 Failed to decode param '%c0' GET /%c0 user=—");
+    expect(logger.calls.error).to.have.length(0);
+    expect(res.statusCode).to.equal(400);
+    expect(res.body).to.deep.equal({ status: 400, error_code: 'BAD_REQUEST', error_message: 'Malformed URL' });
+  });
+
   it('should log Axios errors as a compact single line without dumping the body', () => {
     const logger = createLoggerSpy();
     const middleware = getErrorMiddleware(logger);
@@ -376,6 +393,15 @@ describe('shouldReportErrorToSentry', () => {
     errorWithStatusCode.statusCode = 404;
     expect(shouldReportErrorToSentry(errorWithStatus)).to.equal(false);
     expect(shouldReportErrorToSentry(errorWithStatusCode)).to.equal(false);
+  });
+
+  it('should not report malformed URLs that Express cannot decode', () => {
+    const error = new URIError("Failed to decode param '%c0'");
+    error.status = 400;
+    error.statusCode = 400;
+    expect(shouldReportErrorToSentry(error)).to.equal(false);
+    // a URIError raised by our own code (no 400 status) is still a bug
+    expect(shouldReportErrorToSentry(new URIError('URI malformed'))).to.equal(true);
   });
 
   it('should report unexpected errors', () => {

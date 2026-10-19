@@ -36,6 +36,12 @@ function isExpectedUpstreamError(error) {
   return EXPECTED_UPSTREAM_ERRORS.some((ErrorClass) => error instanceof ErrorClass);
 }
 
+// Malformed URL sent by a client or a scanner (e.g. GET /%c0): Express fails to
+// decode the route param and raises a URIError flagged with a 400 status.
+function isMalformedUrlError(error) {
+  return error instanceof URIError && (error.status === 400 || error.statusCode === 400);
+}
+
 /**
  * Sentry should only receive errors that are actual bugs.
  * Expected client errors (4xx we raise on purpose: 400, 401, 402, 403, 404, 409, 422, 429)
@@ -43,7 +49,7 @@ function isExpectedUpstreamError(error) {
  * as metrics instead) are handled by the error middleware and must not be reported.
  */
 function shouldReportErrorToSentry(error) {
-  if (isExpectedClientError(error) || isExpectedUpstreamError(error)) {
+  if (isExpectedClientError(error) || isExpectedUpstreamError(error) || isMalformedUrlError(error)) {
     return false;
   }
   // generic 404 raised by third-party middlewares (e.g. express static / proxy)
@@ -82,6 +88,8 @@ function getErrorMiddleware(logger) {
       logger.warn(`402 ${error.message} ${context}`);
     } else if (error && error.statusCode === 404) {
       logger.warn(`404 Not Found ${context}`);
+    } else if (isMalformedUrlError(error)) {
+      logger.warn(`400 ${error.message} ${context}`);
     } else if (isAxiosError(error)) {
       // Upstream HTTP failures: one compact line, never dump config/body/tokens
       logger.error(`${formatAxiosError(error)} ${context}`);
@@ -107,6 +115,11 @@ function getErrorMiddleware(logger) {
       return res.status(notFoundError.getStatus()).json(notFoundError.jsonError());
     }
 
+    if (isMalformedUrlError(error)) {
+      const badRequestError = new BadRequestError('Malformed URL');
+      return res.status(badRequestError.getStatus()).json(badRequestError.jsonError());
+    }
+
     const serverError = new ServerError();
     return res.status(serverError.getStatus()).json(serverError.jsonError());
   };
@@ -117,4 +130,5 @@ module.exports.EXPECTED_CLIENT_ERRORS = EXPECTED_CLIENT_ERRORS;
 module.exports.EXPECTED_UPSTREAM_ERRORS = EXPECTED_UPSTREAM_ERRORS;
 module.exports.isExpectedClientError = isExpectedClientError;
 module.exports.isExpectedUpstreamError = isExpectedUpstreamError;
+module.exports.isMalformedUrlError = isMalformedUrlError;
 module.exports.shouldReportErrorToSentry = shouldReportErrorToSentry;

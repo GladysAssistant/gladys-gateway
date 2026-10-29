@@ -97,11 +97,16 @@ module.exports = async (port) => {
 
   const app = express();
   // The gateway runs on a VM that is not reachable from the internet: the only
-  // way in is through the Caddy reverse proxy on a separate VM. Trust exactly
-  // one hop (Caddy) so that req.ip, used by the rate limiters and geoip
-  // lookups, is the client address Caddy saw and not a client-supplied
-  // X-Forwarded-For value.
+  // way in is through the DigitalOcean load balancer, which terminates TLS.
+  // Trust exactly one hop (the load balancer) so that req.ip, used by the rate
+  // limiters and geoip lookups, is the client address the load balancer saw
+  // and not a client-supplied X-Forwarded-For value.
   app.set('trust proxy', 1);
+  // HTTPS only: the load balancer does not add the HSTS header itself
+  app.use((req, res, next) => {
+    res.setHeader('Strict-Transport-Security', 'max-age=31536000');
+    next();
+  });
   const server = createServer(app);
 
   const io = new Server(server, {

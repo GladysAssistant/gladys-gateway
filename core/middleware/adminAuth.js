@@ -3,6 +3,7 @@ const { RateLimiterRedis } = require('rate-limiter-flexible');
 const { UnauthorizedError, TooManyRequestsError } = require('../common/error');
 const { secureCompare } = require('../common/secure-compare');
 const asyncMiddleware = require('./asyncMiddleware');
+const { getRateLimitKey } = require('../common/rate-limit-key');
 
 const API_KEY_HEADER = 'x-admin-api-key';
 const MIN_API_KEY_LENGTH = 64;
@@ -47,7 +48,7 @@ module.exports = function AdminAuth(logger, redisClient, accessTokenAuth) {
 
   async function consumeFailedAttempt(ip) {
     try {
-      await limiter.consume(ip);
+      await limiter.consume(getRateLimitKey(ip));
     } catch (e) {
       logger.warn(`AdminAuth: Client ${ip} has been querying too much this route`);
       throw new TooManyRequestsError('Too many requests.');
@@ -55,7 +56,7 @@ module.exports = function AdminAuth(logger, redisClient, accessTokenAuth) {
   }
 
   async function authenticateWithApiKey(req, allowedKeys) {
-    const limiterResult = await limiter.get(req.ip);
+    const limiterResult = await limiter.get(getRateLimitKey(req.ip));
     if (limiterResult && limiterResult.consumedPoints > MAX_FAILS) {
       logger.warn(`AdminAuth: Client ${req.ip} has been querying too much this route`);
       throw new TooManyRequestsError('Too many requests.');

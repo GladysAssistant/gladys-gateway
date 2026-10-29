@@ -3,10 +3,12 @@ require('dotenv').config();
 require('./core/service/sentry').init();
 const DBMigrate = require('db-migrate');
 const server = require('./core/index');
+const { readPositiveIntegerEnv } = require('./core/common/env');
 
 // The whole shutdown (drain, websockets closed by batches, in-flight requests)
 // must fit in the stop grace period of the container (deploy/docker-compose.yml)
-const SHUTDOWN_TIMEOUT_IN_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_IN_MS || '55000', 10);
+// an invalid value falls back to the default rather than exiting at once on SIGTERM
+const SHUTDOWN_TIMEOUT_IN_MS = readPositiveIntegerEnv('SHUTDOWN_TIMEOUT_IN_MS', 55000);
 
 (async () => {
   // we perform database migration if needed

@@ -1,8 +1,10 @@
 require('dotenv').config();
 
 const { initEnedisListener } = require('./core/enedis/enedisListener');
+const { readPositiveIntegerEnv } = require('./core/common/env');
 
-const SHUTDOWN_TIMEOUT_IN_MS = parseInt(process.env.SHUTDOWN_TIMEOUT_IN_MS || '115000', 10);
+// an invalid value falls back to the default rather than exiting at once on SIGTERM
+const SHUTDOWN_TIMEOUT_IN_MS = readPositiveIntegerEnv('SHUTDOWN_TIMEOUT_IN_MS', 115000);
 
 (async () => {
   const { shutdown, closeConnections } = await initEnedisListener();

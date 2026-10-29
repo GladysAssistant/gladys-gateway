@@ -25,7 +25,9 @@ const sleep = (ms) =>
  * 2. The HTTP server stops accepting connections and closes the idle keep-alive ones.
  * 3. The websockets are closed by batches: the clients see a transport close and
  *    reconnect by themselves (to the other node, through the proxy / load balancer).
- * 4. The in-flight HTTP requests finish (requestsTimeoutInMs at most).
+ * 4. The in-flight HTTP requests finish (requestsTimeoutInMs at most, counted from
+ *    the end of the batches: the steps are sequential, their sum must fit in the
+ *    stop grace period of the container).
  * 5. The socket.io adapter, Redis and Postgres connections are closed.
  *
  * Calling shutdown() twice returns the same promise: a second signal does not
@@ -40,26 +42,24 @@ module.exports = function GracefulShutdown(
   let shutdownPromise = null;
 
   /**
-   * Stops accepting connections and resolves when every connection is closed,
-   * or when the in-flight requests have had their time and were destroyed.
+   * Resolves once every connection is closed ("clean"), or once the in-flight
+   * requests have had requestsTimeoutInMs after the websockets were closed and
+   * were destroyed ("forced"). The timer only starts when waitForRequests is
+   * called, after the websockets batches: server.close() cannot complete while
+   * websockets are open, so a timer started earlier would cut the in-flight
+   * requests short.
    */
-  function closeServer() {
-    return new Promise((resolve) => {
-      let done = false;
-      const finish = (how) => {
-        if (!done) {
-          done = true;
-          resolve(how);
-        }
-      };
-      const timer = setTimeout(() => {
+  function waitForRequests(serverClosed) {
+    let timer;
+    const forced = new Promise((resolve) => {
+      timer = setTimeout(() => {
         server.closeAllConnections();
-        finish('forced');
+        resolve('forced');
       }, config.requestsTimeoutInMs);
-      server.close(() => {
-        clearTimeout(timer);
-        finish('clean');
-      });
+    });
+    return Promise.race([serverClosed, forced]).then((how) => {
+      clearTimeout(timer);
+      return how;
     });
   }
 
@@ -98,15 +98,21 @@ module.exports = function GracefulShutdown(
       scheduler.stop();
       await sleep(config.drainDelayInMs);
       logger.info('shutdown: closing the server and the websockets');
-      const serverClosed = closeServer();
+      // no new connection from now on; the callback fires once every connection is gone
+      const serverClosed = new Promise((resolve) => {
+        server.close(() => resolve('clean'));
+      });
+      server.closeIdleConnections();
       const disconnected = await disconnectSockets();
       logger.info(`shutdown: ${disconnected} websocket(s) closed, waiting for the in-flight requests`);
-      const how = await serverClosed;
+      const how = await waitForRequests(serverClosed);
       if (how === 'forced') {
         logger.warn(`shutdown: in-flight requests still running after ${config.requestsTimeoutInMs}ms, destroyed`);
       }
-      // closes the remaining sockets and the adapter (unsubscribes from Redis)
-      io.close();
+      // closes the remaining sockets and the adapter (unsubscribes from Redis). Async in
+      // socket.io 4: awaited so that Redis is still there while the adapter unsubscribes.
+      // Its second httpServer.close() is harmless (the error only reaches its callback).
+      await io.close();
       await closeConnections();
       logger.info(`shutdown: done in ${Date.now() - startedAt}ms`);
     })();

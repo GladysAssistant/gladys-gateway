@@ -16,12 +16,17 @@ A deployment starts the new version on the inactive slot, waits for it to answer
 
 ## First setup
 
-On the VM, in a copy of this directory (`scp -r deploy/ vm:gladys-gateway/`; the directory does not need to be a git checkout, `.env` and `nginx/upstream.conf` are state maintained by the script):
+Two things have to be true before nginx takes the traffic:
 
-1. `cp .env.example .env` and set the two tags to the version currently running.
+- **The slot behind nginx runs a release that includes `TRUSTED_PROXY_HOPS`** (the compose file sets it to 2). nginx appends its hop to `X-Forwarded-For`: an earlier image, which trusts exactly one hop, would take the address of the load balancer as the client address for every request, and the per-IP rate limiters and geoip would collapse onto that single address. So the first tag behind nginx is never "the version currently running" if that version predates this change. The safe order is: release the version that includes it, deploy it the current way (load balancer straight to the gateway, the default of one hop applies), then set up nginx with that tag.
+- **Port 80 of the VM is reachable from the load balancer only** (DigitalOcean cloud firewall: inbound 80 from the load balancer, nothing else; the slots do not publish their port 3000). With two trusted hops, a client that reaches nginx directly could set its own `X-Forwarded-For` and choose the address the gateway rate limits it by.
+
+Then, on the VM, in a copy of this directory (`scp -r deploy/ vm:gladys-gateway/`; the directory does not need to be a git checkout, `.env` and `nginx/upstream.conf` are state maintained by the script):
+
+1. `cp .env.example .env` and set the two tags to that release.
 2. Create `gateway.env` with the environment of the gateway (database, Redis, secrets...). `SERVER_PORT` and `TRUSTED_PROXY_HOPS` are set by the compose file.
-3. `docker compose up -d proxy gateway-blue`
-4. Point the forwarding rule of the load balancer to port 80 of the VM, with the health check on `GET /ping`. The health check goes through nginx to the active slot: it fails when the slot is down, and answers 503 while the slot drains.
+3. `docker compose up -d proxy gateway-blue`, then check from the VM that `curl -s http://127.0.0.1/ping` answers through nginx.
+4. Point the forwarding rule of the load balancer to port 80 of the VM, with the health check on `GET /ping`. The health check goes through nginx to the active slot: it fails when nginx or the active slot is down.
 5. Set the idle timeout of the load balancer in line with the `proxy_read_timeout` of `nginx/gateway.conf` (10 minutes): some dashboard calls relayed to an instance last up to 5 minutes.
 
 ## Deploying a release
@@ -63,4 +68,6 @@ Other commands:
 
 ## Two VMs
 
-To also survive a reboot or a failure of the VM, run this same setup on two droplets registered in the load balancer, with the health check on `/ping`. Stopping a slot makes `/ping` answer 503 during the drain delay (`SHUTDOWN_DRAIN_DELAY_IN_MS`, 5 seconds), so the load balancer stops sending traffic to that VM before the connections are closed: set the drain delay above the health check interval times the unhealthy threshold of the load balancer.
+To also survive a reboot or a failure of the VM, run this same setup on two droplets registered in the load balancer, with the health check on `/ping`. A VM leaves the load balancer when its health check fails, which happens when nginx or the active slot is down: a normal deployment never makes the load balancer see a failure, since it only stops the inactive slot and the active one keeps answering 200 through nginx.
+
+To take a whole VM out gracefully (maintenance, reboot), remove the droplet from the load balancer first, then stop its active slot: the drain still closes the websockets by batches, and the clients reconnect through the load balancer to the other VM. The drain delay (`SHUTDOWN_DRAIN_DELAY_IN_MS`, 5 seconds) only matters when the active slot itself is stopped while nginx still points at it: `/ping` then answers 503 through nginx, and the delay has to exceed the health check interval times the unhealthy threshold of the load balancer (often 10 seconds times 3) for the load balancer to stop sending traffic before the connections close.

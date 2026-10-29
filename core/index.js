@@ -19,6 +19,7 @@ const EmailList = require('./service/email-list');
 const Scheduler = require('./service/scheduler');
 const GracefulShutdown = require('./service/gracefulShutdown');
 const parseTrustedProxyHops = require('./common/trustedProxyHops');
+const { readPositiveIntegerEnv } = require('./common/env');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -352,14 +353,15 @@ module.exports = async (port) => {
     await db.instance.$pool.end();
   }
 
-  const envInt = (name, fallback) => (process.env[name] === undefined ? fallback : parseInt(process.env[name], 10));
+  // A missing or invalid value falls back to the default: a typo must never
+  // turn the drain into an immediate exit
   const { shutdown } = GracefulShutdown(
     logger,
     { server, io, scheduler, lifecycle, closeConnections },
     {
-      drainDelayInMs: envInt('SHUTDOWN_DRAIN_DELAY_IN_MS', 5000),
-      disconnectWindowInMs: envInt('SHUTDOWN_DISCONNECT_WINDOW_IN_MS', 30000),
-      requestsTimeoutInMs: envInt('SHUTDOWN_REQUESTS_TIMEOUT_IN_MS', 15000),
+      drainDelayInMs: readPositiveIntegerEnv('SHUTDOWN_DRAIN_DELAY_IN_MS', 5000),
+      disconnectWindowInMs: readPositiveIntegerEnv('SHUTDOWN_DISCONNECT_WINDOW_IN_MS', 30000),
+      requestsTimeoutInMs: readPositiveIntegerEnv('SHUTDOWN_REQUESTS_TIMEOUT_IN_MS', 15000),
     },
   );
 

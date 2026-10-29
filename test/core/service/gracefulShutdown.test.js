@@ -31,18 +31,23 @@ function fakeDeps({ socketsCount = 0, serverCloses = true, events = [] } = {}) {
   }
   const server = {
     close(callback) {
-      events.push({ type: 'server.close' });
+      events.push({ type: 'server.close', at: Date.now() });
       if (serverCloses) {
         setTimeout(callback, 5);
       }
     },
+    closeIdleConnections() {
+      events.push({ type: 'server.closeIdleConnections' });
+    },
     closeAllConnections() {
-      events.push({ type: 'server.closeAllConnections' });
+      events.push({ type: 'server.closeAllConnections', at: Date.now() });
     },
   };
   const io = {
     of: () => ({ sockets }),
-    close() {
+    // async in socket.io 4: the adapter unsubscribes from Redis before it resolves
+    async close() {
+      await sleep(5);
       events.push({ type: 'io.close' });
     },
   };
@@ -77,6 +82,7 @@ describe('graceful shutdown', () => {
       'lifecycle.startDraining',
       'scheduler.stop',
       'server.close',
+      'server.closeIdleConnections',
       'socket.conn.close',
       'socket.conn.close',
       'socket.conn.close',
@@ -138,6 +144,32 @@ describe('graceful shutdown', () => {
     const types = deps.events.map((event) => event.type);
     expect(types).to.include('server.closeAllConnections');
     expect(types.indexOf('server.closeAllConnections')).to.be.below(types.indexOf('io.close'));
+  });
+
+  it('should give the in-flight requests their time after the websockets, not during the batches', async () => {
+    const deps = fakeDeps({ socketsCount: 40, serverCloses: false });
+    const { shutdown } = GracefulShutdown(silentLogger, deps, {
+      ...FAST,
+      disconnectWindowInMs: 100,
+      disconnectBatchIntervalInMs: 50,
+      minDisconnectBatchSize: 20,
+      requestsTimeoutInMs: 40,
+    });
+    await shutdown('SIGTERM');
+    const lastSocketClose = deps.events.filter((event) => event.type === 'socket.conn.close').pop();
+    const forced = deps.events.find((event) => event.type === 'server.closeAllConnections');
+    // 2 batches 50 ms apart, then 40 ms for the requests: the force-close comes after both
+    expect(forced.at - lastSocketClose.at).to.be.at.least(35);
+    const serverClose = deps.events.find((event) => event.type === 'server.close');
+    expect(forced.at - serverClose.at).to.be.at.least(85);
+  });
+
+  it('should wait for the adapter to close before closing the connections', async () => {
+    const deps = fakeDeps();
+    const { shutdown } = GracefulShutdown(silentLogger, deps, FAST);
+    await shutdown('SIGTERM');
+    const types = deps.events.map((event) => event.type);
+    expect(types.indexOf('io.close')).to.be.below(types.indexOf('closeConnections'));
   });
 
   it('should not destroy the connections when the server closes in time', async () => {

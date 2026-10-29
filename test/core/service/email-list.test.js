@@ -144,6 +144,36 @@ describe('email-list service', () => {
     });
   });
 
+  describe('error logging', () => {
+    it('should never log the API token when a request fails', async () => {
+      const logged = [];
+      const capturingLogger = {
+        debug: () => {},
+        info: () => {},
+        warn: (...args) => logged.push(args),
+      };
+      nock(TEST_API_HOST).post(SUBSCRIBE_PATH).reply(500, { error: 'boom' });
+      nock(TEST_API_HOST).post(UNSUBSCRIBE_PATH).replyWithError({ code: 'ECONNRESET', message: 'socket hang up' });
+
+      const service = EmailList(capturingLogger);
+      await service.subscribe({
+        email: 'jane@example.com',
+        firstname: 'Jane',
+        list: 'gladysPlusTrial',
+        language: 'fr',
+      });
+      await service.unsubscribe({ email: 'jane@example.com', list: 'gladysPlusTrial', language: 'fr' });
+
+      expect(logged).to.have.lengthOf(2);
+      logged.forEach((args) => {
+        args.forEach((arg) => expect(arg).to.be.a('string'));
+        expect(args.join(' ')).not.to.include(TEST_API_TOKEN);
+      });
+      expect(logged[0][0]).to.include('status 500');
+      expect(logged[1][0]).to.include('ECONNRESET');
+    });
+  });
+
   describe('unsubscribe', () => {
     it('should POST the email to the list unsubscribe route with the API token', async () => {
       let receivedBody = null;

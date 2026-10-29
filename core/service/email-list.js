@@ -10,6 +10,12 @@ const NEWSLETTER_LIST_IDS = {
 const REQUEST_TIMEOUT_IN_MS = 10 * 1000;
 
 module.exports = function EmailListService(logger) {
+  // The Axios error carries the request config, Authorization header included: never log it as is.
+  function logFailure(action, email, e) {
+    const status = e.response ? e.response.status : 'no response';
+    logger.warn(`EmailList: ${action} failed for ${email} (${e.code || 'error'}, status ${status}): ${e.message}`);
+  }
+
   // Calls POST {EMAIL_LIST_API_URL}/api/v1/lists/:list/(subscribe|unsubscribe) with the API token.
   async function callListApi(action, { email, list }, body) {
     const apiUrl = process.env.EMAIL_LIST_API_URL;
@@ -42,7 +48,7 @@ module.exports = function EmailListService(logger) {
         },
       );
     } catch (e) {
-      logger.warn(e);
+      logFailure('subscribe', email, e);
     }
   }
 
@@ -51,7 +57,7 @@ module.exports = function EmailListService(logger) {
       logger.debug(`EmailList: Unsubscribing ${email} from list ${list} (${language}).`);
       await callListApi('unsubscribe', { email, list }, { email });
     } catch (e) {
-      logger.warn(e);
+      logFailure('unsubscribe', email, e);
     }
   }
 

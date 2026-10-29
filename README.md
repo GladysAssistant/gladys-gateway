@@ -33,6 +33,10 @@ Docker images are only published from a Git tag, so a release can be rolled back
 
 Merging a regular pull request to `master` no longer publishes an image.
 
+## Allowed hosts
+
+`ALLOWED_HOSTS` (optional) is a comma-separated list of the host names the API answers, e.g. `api.gladysgateway.com`. A request whose `Host` header is not in the list (port and trailing dot ignored, case insensitive) is answered `421 Misdirected Request` with an empty body, and a socket.io handshake is refused. The load balancer forwards any `Host`, so this keeps internet scanners hitting the API with random domains out of the logs and Sentry. When the variable is unset or empty, the filter is disabled (local development, tests). `/ping` is always allowed, whatever the `Host`: the load balancer health check calls it.
+
 ## Websocket relay
 
 A message from a user (dashboard, Open API, Google Home, Alexa) is relayed to the socket of the instance on the same node when it is connected there, without any round-trip to Redis (with an instance connected twice to that node, to its last connection). Otherwise the other nodes of the cluster are asked once: only the node holding the last connection of the instance (recorded in Redis when it authenticates) relays it, so a command never runs twice. The same-node shortcut does not look at that record: with several nodes, a user on the node still holding a dead connection of the instance (until its ping timeout) is answered by that connection's disconnection, not by the live connection on another node.

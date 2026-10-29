@@ -1,4 +1,6 @@
 const { expect } = require('chai');
+const { Readable } = require('stream');
+const bodyParser = require('body-parser');
 const getErrorMiddleware = require('../../../core/middleware/errorMiddleware');
 const {
   ValidationError,
@@ -27,6 +29,17 @@ function createMockRes() {
     },
   };
   return res;
+}
+
+// Run a real body-parser on a fake request and return the error it raises
+function getBodyParserError(parser, body, contentType) {
+  const req = Readable.from([Buffer.from(body)]);
+  req.headers = { 'content-type': contentType, 'content-length': String(Buffer.byteLength(body)) };
+  req.method = 'POST';
+  req.url = '/';
+  return new Promise((resolve) => {
+    parser(req, {}, resolve);
+  });
 }
 
 function createLoggerSpy() {
@@ -195,6 +208,37 @@ describe('errorMiddleware', () => {
     expect(logger.calls.error).to.have.length(0);
     expect(res.statusCode).to.equal(400);
     expect(res.body).to.deep.equal({ status: 400, error_code: 'BAD_REQUEST', error_message: 'Malformed URL' });
+  });
+
+  it('should warn and answer 400 for a body that is not valid JSON, without logging the body', async () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const error = await getBodyParserError(bodyParser.json(), '\u0016\u0003ge6 secret', 'application/json');
+
+    middleware(error, { method: 'POST', originalUrl: '/' }, res, () => {});
+
+    expect(logger.calls.error).to.have.length(0);
+    expect(logger.calls.warn).to.deep.equal([['400 entity.parse.failed POST / user=—']]);
+    expect(res.statusCode).to.equal(400);
+    expect(res.body).to.deep.equal({ status: 400, error_code: 'BAD_REQUEST', error_message: 'Invalid request body' });
+  });
+
+  it('should answer 413 for a body over the size limit', async () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const error = await getBodyParserError(
+      bodyParser.json({ limit: '10b' }),
+      '{"key":"a long value"}',
+      'application/json',
+    );
+
+    middleware(error, { method: 'POST', originalUrl: '/' }, res, () => {});
+
+    expect(logger.calls.error).to.have.length(0);
+    expect(res.statusCode).to.equal(413);
+    expect(res.body.error_code).to.equal('PAYLOAD_TOO_LARGE');
   });
 
   it('should log Axios errors as a compact single line without dumping the body', () => {
@@ -402,6 +446,18 @@ describe('shouldReportErrorToSentry', () => {
     expect(shouldReportErrorToSentry(error)).to.equal(false);
     // a URIError raised by our own code (no 400 status) is still a bug
     expect(shouldReportErrorToSentry(new URIError('URI malformed'))).to.equal(true);
+  });
+
+  it('should not report request bodies rejected by body-parser', async () => {
+    const parseError = await getBodyParserError(bodyParser.json(), 'not json', 'application/json');
+    const tooLargeError = await getBodyParserError(bodyParser.json({ limit: '1b' }), '{}', 'application/json');
+    const charsetError = await getBodyParserError(bodyParser.json(), '{}', 'application/json; charset=klingon');
+
+    expect(shouldReportErrorToSentry(parseError)).to.equal(false);
+    expect(shouldReportErrorToSentry(tooLargeError)).to.equal(false);
+    expect(shouldReportErrorToSentry(charsetError)).to.equal(false);
+    // a SyntaxError raised by our own JSON.parse (no body-parser type) is still a bug
+    expect(shouldReportErrorToSentry(new SyntaxError('Unexpected token'))).to.equal(true);
   });
 
   it('should report unexpected errors', () => {

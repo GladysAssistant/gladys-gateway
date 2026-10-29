@@ -444,6 +444,12 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     const secret = speakeasy.generateSecret();
 
+    // Same construction as configureTwoFactor: the otpauth URL carries the base32
+    // encoding of `secret.base32` (speakeasy reads the given secret as ascii), so the
+    // value an authenticator app enrolls is NOT the value this server stores and
+    // verifies against. Rather than having clients decode the URL to recover the stored
+    // value, it is returned as its own field, to send back as `two_factor_secret` on
+    // PATCH /users/two-factor.
     const url = speakeasy.otpauthURL({
       secret: secret.base32,
       label: fullUser.email,
@@ -452,6 +458,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
     return {
       otpauth_url: url,
+      secret: secret.base32,
     };
   }
 

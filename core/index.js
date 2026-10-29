@@ -5,6 +5,7 @@ const tracer = require('tracer');
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 const { createAdapter } = require('@socket.io/redis-adapter');
+const { parseAllowedHosts, getSocketAllowRequest } = require('./common/allowed-hosts');
 
 // Services
 const Fingerprint = require('./service/fingerprint');
@@ -89,6 +90,7 @@ const CameraStreamAccessKeyAuth = require('./middleware/cameraStreamAccessKeyAut
 const CheckUserPlan = require('./middleware/checkUserPlan');
 const TTSRateLimit = require('./middleware/ttsRateLimit');
 const STTRateLimit = require('./middleware/sttRateLimit');
+const AllowedHostsMiddleware = require('./middleware/allowedHosts');
 
 // Routes
 const routes = require('./api/routes');
@@ -106,6 +108,10 @@ module.exports = async (port) => {
   // by the rate limiters and geoip lookups, is the client address the load
   // balancer saw and not a client-supplied X-Forwarded-For value.
   app.set('trust proxy', parseTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS));
+  // Unlike the previous reverse proxy, the load balancer forwards any Host:
+  // answer only the domains of ALLOWED_HOSTS (filter disabled when empty)
+  const allowedHosts = parseAllowedHosts(process.env.ALLOWED_HOSTS);
+  app.use(AllowedHostsMiddleware(logger, allowedHosts));
   // HTTPS only: the load balancer does not add the HSTS header itself
   app.use((req, res, next) => {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000');
@@ -124,6 +130,7 @@ module.exports = async (port) => {
   };
 
   const io = new Server(server, {
+    allowRequest: getSocketAllowRequest(allowedHosts),
     allowEIO3: true,
     maxHttpBufferSize: 25 * 1024 * 1024, // 25 MB
     cors: {

@@ -24,7 +24,7 @@ Two things have to be true before nginx takes the traffic:
 Then, on the VM, in a copy of this directory (`scp -r deploy/ vm:gladys-gateway/`; the directory does not need to be a git checkout, `.env` and `nginx/upstream.conf` are state maintained by the script):
 
 1. `cp .env.example .env` and set the two tags to that release.
-2. Create `gateway.env` with the environment of the gateway (database, Redis, secrets...). `SERVER_PORT` and `TRUSTED_PROXY_HOPS` are set by the compose file.
+2. Create `gateway.env` with the environment of the gateway (database, Redis, secrets...). `SERVER_PORT` and `TRUSTED_PROXY_HOPS` are set by the compose file. `ALLOWED_HOSTS` keeps working: nginx forwards the `Host` header unchanged, and `/ping`, which the script and the health checks call with the address of the VM, is always allowed.
 3. `docker compose up -d proxy gateway-blue`, then check from the VM that `curl -s http://127.0.0.1/ping` answers through nginx.
 4. Point the forwarding rule of the load balancer to port 80 of the VM, with the health check on `GET /ping`. The health check goes through nginx to the active slot: it fails when nginx or the active slot is down.
 5. Set the idle timeout of the load balancer in line with the `proxy_read_timeout` of `nginx/gateway.conf` (10 minutes): some dashboard calls relayed to an instance last up to 5 minutes.

@@ -42,6 +42,21 @@ function isMalformedUrlError(error) {
   return error instanceof URIError && (error.status === 400 || error.statusCode === 400);
 }
 
+// Invalid request body rejected by body-parser (e.g. a scanner POSTing binary data
+// with a JSON content-type, or a body over the size limit): body-parser flags its
+// client errors with a `type` (entity.parse.failed, entity.too.large...) and a 4xx status.
+const MALFORMED_BODY_ERROR_CODES = {
+  400: 'BAD_REQUEST',
+  413: 'PAYLOAD_TOO_LARGE',
+  415: 'UNSUPPORTED_MEDIA_TYPE',
+};
+
+function isMalformedBodyError(error) {
+  return Boolean(
+    error && error.expose === true && typeof error.type === 'string' && MALFORMED_BODY_ERROR_CODES[error.status],
+  );
+}
+
 /**
  * Sentry should only receive errors that are actual bugs.
  * Expected client errors (4xx we raise on purpose: 400, 401, 402, 403, 404, 409, 422, 429)
@@ -49,7 +64,12 @@ function isMalformedUrlError(error) {
  * as metrics instead) are handled by the error middleware and must not be reported.
  */
 function shouldReportErrorToSentry(error) {
-  if (isExpectedClientError(error) || isExpectedUpstreamError(error) || isMalformedUrlError(error)) {
+  if (
+    isExpectedClientError(error) ||
+    isExpectedUpstreamError(error) ||
+    isMalformedUrlError(error) ||
+    isMalformedBodyError(error)
+  ) {
     return false;
   }
   // generic 404 raised by third-party middlewares (e.g. express static / proxy)
@@ -90,6 +110,9 @@ function getErrorMiddleware(logger) {
       logger.warn(`404 Not Found ${context}`);
     } else if (isMalformedUrlError(error)) {
       logger.warn(`400 ${error.message} ${context}`);
+    } else if (isMalformedBodyError(error)) {
+      // never log the message: it can contain a chunk of the raw body
+      logger.warn(`${error.status} ${error.type} ${context}`);
     } else if (isAxiosError(error)) {
       // Upstream HTTP failures: one compact line, never dump config/body/tokens
       logger.error(`${formatAxiosError(error)} ${context}`);
@@ -120,6 +143,14 @@ function getErrorMiddleware(logger) {
       return res.status(badRequestError.getStatus()).json(badRequestError.jsonError());
     }
 
+    if (isMalformedBodyError(error)) {
+      return res.status(error.status).json({
+        status: error.status,
+        error_code: MALFORMED_BODY_ERROR_CODES[error.status],
+        error_message: 'Invalid request body',
+      });
+    }
+
     const serverError = new ServerError();
     return res.status(serverError.getStatus()).json(serverError.jsonError());
   };
@@ -131,4 +162,5 @@ module.exports.EXPECTED_UPSTREAM_ERRORS = EXPECTED_UPSTREAM_ERRORS;
 module.exports.isExpectedClientError = isExpectedClientError;
 module.exports.isExpectedUpstreamError = isExpectedUpstreamError;
 module.exports.isMalformedUrlError = isMalformedUrlError;
+module.exports.isMalformedBodyError = isMalformedBodyError;
 module.exports.shouldReportErrorToSentry = shouldReportErrorToSentry;

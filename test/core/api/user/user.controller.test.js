@@ -1118,7 +1118,56 @@ describe('GET /users/two-factor/new', () => {
       .expect(200)
       .then((response) => {
         expect(response.body).to.have.property('otpauth_url');
+        expect(response.body).to.have.property('secret');
+        // the otpauth URL carries the base32 encoding of the returned secret (speakeasy
+        // reads the secret as ascii): both must describe the same key
+        const urlSecret = new URL(response.body.otpauth_url).searchParams.get('secret');
+        expect(urlSecret).to.not.equal(response.body.secret);
+        expect(speakeasy.totp({ secret: urlSecret, encoding: 'base32' })).to.equal(
+          speakeasy.totp({ secret: response.body.secret }),
+        );
       }));
+
+  it('should return a secret that replaces the two factor with a code from an app that scanned the url', async () => {
+    const { body } = await request(TEST_BACKEND_APP)
+      .get('/users/two-factor/new')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+
+    // an authenticator app enrolls the secret of the otpauth URL, as base32
+    const urlSecret = new URL(body.otpauth_url).searchParams.get('secret');
+    const codeFromTheApp = speakeasy.totp({ secret: urlSecret, encoding: 'base32' });
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: body.secret,
+        two_factor_code: codeFromTheApp,
+        current_two_factor_code: speakeasy.totp({ secret: twoFactorEnabledUserSecret }),
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' });
+    expect(user.two_factor_secret).to.equal(body.secret);
+    // the app that scanned the URL now logs the user in
+    expect(speakeasy.totp.verify({ secret: user.two_factor_secret, token: codeFromTheApp })).to.equal(true);
+
+    // the url secret is not what the Gateway stores: sending it back would be refused
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: urlSecret,
+        two_factor_code: codeFromTheApp,
+        current_two_factor_code: codeFromTheApp,
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(403);
+  });
 });
 
 describe('PATCH /users/two-factor', () => {

@@ -10,3 +10,5 @@ apidoc
 coverage.lcov
 coverage
 dump.rdb
+# environment of the gateway on the VM (deploy/README.md)
+deploy/gateway.env

@@ -33,6 +33,12 @@ Docker images are only published from a Git tag, so a release can be rolled back
 
 Merging a regular pull request to `master` no longer publishes an image.
 
+## Deployment
+
+The gateway is deployed blue/green on a VM behind the DigitalOcean load balancer: nginx in front of two slots of the gateway image, switched by `deploy/deploy.sh`. The compose file, the nginx configuration, the runbook and the rules it implies for the code (additive database migrations, graceful shutdown, trusted proxy hops) are in [deploy/README.md](deploy/README.md).
+
+On `docker stop` (SIGTERM), the server drains instead of dying: `/ping` answers 503, the scheduled jobs stop, the websockets are closed by batches so that the instances and dashboards reconnect to the other slot, and the in-flight requests finish (`core/service/gracefulShutdown.js`, tuned by the `SHUTDOWN_*` environment variables). `TRUSTED_PROXY_HOPS` tells Express how many proxies add their hop to `X-Forwarded-For` (1 by default, the load balancer; 2 with nginx in front).
+
 ## Websocket relay
 
 A message from a user (dashboard, Open API, Google Home, Alexa) is relayed to the socket of the instance on the same node when it is connected there, without any round-trip to Redis (with an instance connected twice to that node, to its last connection). Otherwise the other nodes of the cluster are asked once: only the node holding the last connection of the instance (recorded in Redis when it authenticates) relays it, so a command never runs twice. The same-node shortcut does not look at that record: with several nodes, a user on the node still holding a dead connection of the instance (until its ping timeout) is answered by that connection's disconnection, not by the live connection on another node.

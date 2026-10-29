@@ -17,6 +17,8 @@ const AnalyticsService = require('./service/analytics');
 const OpenPanelService = require('./service/openpanel');
 const EmailList = require('./service/email-list');
 const Scheduler = require('./service/scheduler');
+const GracefulShutdown = require('./service/gracefulShutdown');
+const parseTrustedProxyHops = require('./common/trustedProxyHops');
 
 // Models
 const Ping = require('./api/ping/ping.model');
@@ -98,16 +100,27 @@ module.exports = async (port) => {
   const app = express();
   // The gateway runs on a VM that is not reachable from the internet: the only
   // way in is through the DigitalOcean load balancer, which terminates TLS.
-  // Trust exactly one hop (the load balancer) so that req.ip, used by the rate
-  // limiters and geoip lookups, is the client address the load balancer saw
-  // and not a client-supplied X-Forwarded-For value.
-  app.set('trust proxy', 1);
+  // Trust exactly the known hops (the load balancer, plus the nginx of
+  // deploy/docker-compose.yml when TRUSTED_PROXY_HOPS is 2) so that req.ip, used
+  // by the rate limiters and geoip lookups, is the client address the load
+  // balancer saw and not a client-supplied X-Forwarded-For value.
+  app.set('trust proxy', parseTrustedProxyHops(process.env.TRUSTED_PROXY_HOPS));
   // HTTPS only: the load balancer does not add the HSTS header itself
   app.use((req, res, next) => {
     res.setHeader('Strict-Transport-Security', 'max-age=31536000');
     next();
   });
   const server = createServer(app);
+
+  // Set while shutting down: /ping answers 503 so that the proxy / load balancer
+  // stops sending traffic here before the connections are closed
+  let draining = false;
+  const lifecycle = {
+    startDraining: () => {
+      draining = true;
+    },
+    isDraining: () => draining,
+  };
 
   const io = new Server(server, {
     allowEIO3: true,
@@ -231,7 +244,7 @@ module.exports = async (port) => {
   models.instanceWatchdogModel = InstanceWatchdog(logger, db, models.socketModel, services.mailService);
 
   const controllers = {
-    pingController: PingController(models.pingModel),
+    pingController: PingController(models.pingModel, lifecycle),
     userController: UserController(models.userModel, services.mailService, models.socketModel, models.instanceModel),
     socketController: SocketController(
       logger,
@@ -329,8 +342,30 @@ module.exports = async (port) => {
 
   server.listen(port);
 
+  async function closeConnections() {
+    await Promise.allSettled([
+      redisClient.quit(),
+      subClient.quit(),
+      rateLimitRedisClient.quit(),
+      legacyRedisClient.v4.quit(),
+    ]);
+    await db.instance.$pool.end();
+  }
+
+  const envInt = (name, fallback) => (process.env[name] === undefined ? fallback : parseInt(process.env[name], 10));
+  const { shutdown } = GracefulShutdown(
+    logger,
+    { server, io, scheduler, lifecycle, closeConnections },
+    {
+      drainDelayInMs: envInt('SHUTDOWN_DRAIN_DELAY_IN_MS', 5000),
+      disconnectWindowInMs: envInt('SHUTDOWN_DISCONNECT_WINDOW_IN_MS', 30000),
+      requestsTimeoutInMs: envInt('SHUTDOWN_REQUESTS_TIMEOUT_IN_MS', 15000),
+    },
+  );
+
   return {
     app,
+    server,
     io,
     db,
     redisClient,
@@ -339,5 +374,7 @@ module.exports = async (port) => {
     models,
     controllers,
     scheduler,
+    lifecycle,
+    shutdown,
   };
 };

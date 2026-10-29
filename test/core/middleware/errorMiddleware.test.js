@@ -197,6 +197,65 @@ describe('errorMiddleware', () => {
     expect(res.body).to.deep.equal({ status: 400, error_code: 'BAD_REQUEST', error_message: 'Malformed URL' });
   });
 
+  it('should warn and answer 400 when the client aborts the request while sending the body', () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const req = { method: 'POST', originalUrl: '/' };
+    const error = new Error('request aborted');
+    error.name = 'BadRequestError';
+    error.status = 400;
+    error.statusCode = 400;
+    error.type = 'request.aborted';
+    error.expose = true;
+
+    middleware(error, req, res, () => {});
+
+    expect(logger.calls.warn[0][0]).to.equal('400 request aborted POST / user=—');
+    expect(logger.calls.error).to.have.length(0);
+    expect(res.statusCode).to.equal(400);
+    expect(res.body).to.deep.equal({ status: 400, error_code: 'BAD_REQUEST', error_message: 'request aborted' });
+  });
+
+  it('should warn and answer 413 when the body exceeds the body-parser limit', () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const req = { method: 'POST', route: { path: '/stt' }, user: { id: 'user-1' } };
+    const error = new Error('request entity too large');
+    error.status = 413;
+    error.statusCode = 413;
+    error.type = 'entity.too.large';
+
+    middleware(error, req, res, () => {});
+
+    expect(logger.calls.warn[0][0]).to.equal('413 request entity too large POST /stt user=user-1');
+    expect(logger.calls.error).to.have.length(0);
+    expect(res.statusCode).to.equal(413);
+    expect(res.body).to.deep.equal({
+      status: 413,
+      error_code: 'PAYLOAD_TOO_LARGE',
+      error_message: 'request entity too large',
+    });
+  });
+
+  it('should still answer 500 and log a body-parser stream error as a bug', () => {
+    const logger = createLoggerSpy();
+    const middleware = getErrorMiddleware(logger);
+    const res = createMockRes();
+    const req = { method: 'POST', originalUrl: '/' };
+    const error = new Error('stream is not readable');
+    error.status = 500;
+    error.statusCode = 500;
+    error.type = 'stream.not.readable';
+
+    middleware(error, req, res, () => {});
+
+    expect(logger.calls.warn).to.have.length(0);
+    expect(logger.calls.error[0][0]).to.equal('Error: stream is not readable POST / user=—');
+    expect(res.statusCode).to.equal(500);
+  });
+
   it('should log Axios errors as a compact single line without dumping the body', () => {
     const logger = createLoggerSpy();
     const middleware = getErrorMiddleware(logger);
@@ -402,6 +461,39 @@ describe('shouldReportErrorToSentry', () => {
     expect(shouldReportErrorToSentry(error)).to.equal(false);
     // a URIError raised by our own code (no 400 status) is still a bug
     expect(shouldReportErrorToSentry(new URIError('URI malformed'))).to.equal(true);
+  });
+
+  it('should not report 4xx raised by body-parser while reading the request body', () => {
+    const aborted = new Error('request aborted');
+    aborted.status = 400;
+    aborted.statusCode = 400;
+    aborted.type = 'request.aborted';
+    expect(shouldReportErrorToSentry(aborted)).to.equal(false);
+
+    const invalidJson = new SyntaxError('Unexpected token } in JSON at position 10');
+    invalidJson.status = 400;
+    invalidJson.statusCode = 400;
+    invalidJson.type = 'entity.parse.failed';
+    expect(shouldReportErrorToSentry(invalidJson)).to.equal(false);
+
+    const tooLarge = new Error('request entity too large');
+    tooLarge.status = 413;
+    tooLarge.statusCode = 413;
+    tooLarge.type = 'entity.too.large';
+    expect(shouldReportErrorToSentry(tooLarge)).to.equal(false);
+
+    // a body-parser 500 (stream already consumed) is a bug on our side
+    const notReadable = new Error('stream is not readable');
+    notReadable.status = 500;
+    notReadable.statusCode = 500;
+    notReadable.type = 'stream.not.readable';
+    expect(shouldReportErrorToSentry(notReadable)).to.equal(true);
+
+    // an error carrying a type unknown to body-parser is still a bug
+    const other = new Error('boom');
+    other.status = 400;
+    other.type = 'something.else';
+    expect(shouldReportErrorToSentry(other)).to.equal(true);
   });
 
   it('should report unexpected errors', () => {

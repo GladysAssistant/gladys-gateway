@@ -3,6 +3,7 @@ const { RateLimiterRedis } = require('rate-limiter-flexible');
 const { UnauthorizedError, TooManyRequestsError } = require('../common/error');
 const { secureCompare } = require('../common/secure-compare');
 const asyncMiddleware = require('./asyncMiddleware');
+const { getRateLimitKey } = require('../common/rate-limit-key');
 
 if (!process.env.ADMIN_API_AUTHORIZATION_TOKEN) {
   throw new Error('ADMIN_API_AUTHORIZATION_TOKEN is not defined');
@@ -23,7 +24,7 @@ module.exports = function AdminApiAuth(logger, redisClient) {
   });
   return asyncMiddleware(async (req, res, next) => {
     // we check if the current ip is rate limited
-    const limiterResult = await limiter.get(req.ip);
+    const limiterResult = await limiter.get(getRateLimitKey(req.ip));
     if (limiterResult && limiterResult.consumedPoints > MAX_FAILS) {
       logger.warn(`AdminApiAuth: Client ${req.ip} has been querying too much this route`);
       throw new TooManyRequestsError('Too many requests.');
@@ -39,7 +40,7 @@ module.exports = function AdminApiAuth(logger, redisClient) {
 
     // if it's wrong, we consume one credit
     try {
-      await limiter.consume(req.ip);
+      await limiter.consume(getRateLimitKey(req.ip));
     } catch (e) {
       logger.warn(`AdminApiAuth: Client ${req.ip} has been querying too much this route`);
       logger.warn(e);

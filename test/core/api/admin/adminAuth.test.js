@@ -72,6 +72,29 @@ describe('Admin API authentication', () => {
       .expect(429);
   });
 
+  it('should rate limit wrong api keys per /64 for IPv6 clients', async () => {
+    // a client rotating addresses inside its /64 shares the same limit
+    for (let i = 1; i <= 5; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await request(TEST_BACKEND_APP)
+        .get('/admin/api/accounts')
+        .set('X-Forwarded-For', `2001:db8:1:2::${i}`)
+        .set('X-Admin-Api-Key', 'wrong-key')
+        .expect(401);
+    }
+    await request(TEST_BACKEND_APP)
+      .get('/admin/api/accounts')
+      .set('X-Forwarded-For', '2001:db8:1:2:abcd::6')
+      .set('X-Admin-Api-Key', 'wrong-key')
+      .expect(429);
+    // another /64 is not affected
+    await request(TEST_BACKEND_APP)
+      .get('/admin/api/accounts')
+      .set('X-Forwarded-For', '2001:db8:1:3::1')
+      .set('X-Admin-Api-Key', 'wrong-key')
+      .expect(401);
+  });
+
   it('should return 200 with the access token of the super admin', async () => {
     await request(TEST_BACKEND_APP)
       .get('/admin/api/accounts')

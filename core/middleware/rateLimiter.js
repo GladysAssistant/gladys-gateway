@@ -1,6 +1,7 @@
 const rateLimit = require('express-rate-limit');
 const RedisStore = require('rate-limit-redis');
 const asyncMiddleware = require('./asyncMiddleware');
+const { getRateLimitKey } = require('../common/rate-limit-key');
 
 const MAX_REQUEST_PER_HOUR = 100;
 
@@ -11,6 +12,7 @@ module.exports = function RateLimiterMiddleware(redisClient) {
       delayMs: 0, // disable delaying - full speed until the max limit is reached
       standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
       legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+      keyGenerator: (req) => getRateLimitKey(req.ip), // IPv6 clients are limited per /64
       store: new RedisStore({
         sendCommand: (...args) => redisClient.sendCommand(args),
       }),

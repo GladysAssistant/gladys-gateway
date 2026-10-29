@@ -169,7 +169,7 @@ describe('email-list service', () => {
         args.forEach((arg) => expect(arg).to.be.a('string'));
         expect(args.join(' ')).not.to.include(TEST_API_TOKEN);
       });
-      expect(logged[0][0]).to.include('status 500');
+      expect(logged[0][0]).to.include('500');
       expect(logged[1][0]).to.include('ECONNRESET');
     });
   });

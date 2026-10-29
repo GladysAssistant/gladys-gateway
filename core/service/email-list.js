@@ -1,4 +1,5 @@
 const axios = require('axios');
+const { isAxiosError, formatAxiosError } = require('./upstreamError');
 
 const LIST_GLADYS_PLUS_TRIAL = 'gladysPlusTrial';
 
@@ -12,8 +13,7 @@ const REQUEST_TIMEOUT_IN_MS = 10 * 1000;
 module.exports = function EmailListService(logger) {
   // The Axios error carries the request config, Authorization header included: never log it as is.
   function logFailure(action, email, e) {
-    const status = e.response ? e.response.status : 'no response';
-    logger.warn(`EmailList: ${action} failed for ${email} (${e.code || 'error'}, status ${status}): ${e.message}`);
+    logger.warn(`EmailList: ${action} failed for ${email}: ${isAxiosError(e) ? formatAxiosError(e) : e.message}`);
   }
 
   // Calls POST {EMAIL_LIST_API_URL}/api/v1/lists/:list/(subscribe|unsubscribe) with the API token.

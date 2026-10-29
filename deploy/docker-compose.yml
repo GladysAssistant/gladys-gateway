@@ -8,6 +8,8 @@
 # .env (copied from .env.example) holds the image tag of each slot and the active
 # one, maintained by deploy.sh. gateway.env holds the environment of the gateway
 # itself (database, Redis, secrets...): it is never committed.
+#
+# The Enedis worker (node worker.js) runs on another VM, it is not part of this file.
 
 name: gladys-gateway
 
@@ -57,18 +59,3 @@ services:
   gateway-green:
     <<: *gateway
     image: gladysassistant/gladys-gateway-server:${GREEN_TAG:?set GREEN_TAG in .env}
-
-  # Enedis synchronization worker (BullMQ): one replica, updated after the switch.
-  # Its jobs live in Redis, a job interrupted by a stop is taken again.
-  worker:
-    image: gladysassistant/gladys-gateway-server:${WORKER_TAG:?set WORKER_TAG in .env}
-    command: ['node', 'worker.js']
-    env_file: gateway.env
-    restart: unless-stopped
-    # a running Enedis job is given this long to finish
-    stop_grace_period: 120s
-    logging:
-      driver: json-file
-      options:
-        max-size: '50m'
-        max-file: '5'

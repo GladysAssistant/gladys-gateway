@@ -3,7 +3,7 @@
 # Blue/green deployment of the gateway on the VM (see README.md next to this file).
 #
 #   ./deploy.sh v1.6.0             deploy v1.6.0 on the inactive slot, switch nginx to it,
-#                                  bake, update the worker, then stop the previous slot
+#                                  bake, then stop the previous slot
 #   ./deploy.sh v1.6.0 --keep-old  same, but leave the previous slot running
 #   ./deploy.sh --switch blue      send the traffic to a slot (instant rollback while it runs)
 #   ./deploy.sh --stop-old         stop the inactive slot
@@ -152,11 +152,6 @@ deploy() {
     return
   fi
   bake "$target" "$active"
-
-  log "Updating the worker to $tag"
-  env_set WORKER_TAG "$tag"
-  docker compose up -d worker
-
   stop_old
   log "Done: gateway-$target ($tag) serves the traffic. Rollback: ./deploy.sh $(slot_tag "$active")"
 }
@@ -164,8 +159,7 @@ deploy() {
 status() {
   local active
   active=$(active_color)
-  printf 'active slot: gateway-%s\nblue:   %s\ngreen:  %s\nworker: %s\n\n' \
-    "$active" "$(slot_tag blue)" "$(slot_tag green)" "$(env_get WORKER_TAG)"
+  printf 'active slot: gateway-%s\nblue:   %s\ngreen:  %s\n\n' "$active" "$(slot_tag blue)" "$(slot_tag green)"
   docker compose ps
 }
 

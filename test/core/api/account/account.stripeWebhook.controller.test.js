@@ -768,12 +768,16 @@ describe('stripeWebhook', () => {
 
   describe('email list trial subscription', () => {
     const EMAIL_LIST_HOST = 'https://email-list.test.example.com';
-    const EMAIL_LIST_PATH = '/subscribers';
+    const EMAIL_LIST_SUBSCRIBE_PATH = '/api/v1/lists/gladys-plus-trial/subscribe';
+    const EMAIL_LIST_UNSUBSCRIBE_PATH = '/api/v1/lists/gladys-plus-trial/unsubscribe';
     let originalEmailListUrl;
+    let originalEmailListToken;
 
     beforeEach(() => {
       originalEmailListUrl = process.env.EMAIL_LIST_API_URL;
-      process.env.EMAIL_LIST_API_URL = `${EMAIL_LIST_HOST}${EMAIL_LIST_PATH}`;
+      originalEmailListToken = process.env.EMAIL_LIST_API_TOKEN;
+      process.env.EMAIL_LIST_API_URL = EMAIL_LIST_HOST;
+      process.env.EMAIL_LIST_API_TOKEN = 'test-email-list-token';
     });
 
     afterEach(() => {
@@ -781,6 +785,11 @@ describe('stripeWebhook', () => {
         delete process.env.EMAIL_LIST_API_URL;
       } else {
         process.env.EMAIL_LIST_API_URL = originalEmailListUrl;
+      }
+      if (originalEmailListToken === undefined) {
+        delete process.env.EMAIL_LIST_API_TOKEN;
+      } else {
+        process.env.EMAIL_LIST_API_TOKEN = originalEmailListToken;
       }
       // cleanAll() also wipes the persistent global nocks (e.g. backup DELETE) defined in
       // test/tasks/nock.js, so we restore them right after.
@@ -843,7 +852,7 @@ describe('stripeWebhook', () => {
 
       let receivedBody = null;
       const emailListScope = nock(EMAIL_LIST_HOST)
-        .post(EMAIL_LIST_PATH, (body) => {
+        .post(EMAIL_LIST_SUBSCRIBE_PATH, (body) => {
           receivedBody = body;
           return true;
         })
@@ -861,7 +870,6 @@ describe('stripeWebhook', () => {
       expect(receivedBody).to.deep.equal({
         email: 'newtrial@test.fr',
         firstname: 'Jane',
-        list: 'gladysPlusTrial',
         language: 'fr',
       });
       // the language of the checkout is kept for the emails sent before the account is activated
@@ -879,7 +887,7 @@ describe('stripeWebhook', () => {
         locale: 'fr-FR',
       });
 
-      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_SUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
@@ -901,7 +909,7 @@ describe('stripeWebhook', () => {
         locale: 'fr-FR',
       });
 
-      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_SUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
@@ -926,7 +934,7 @@ describe('stripeWebhook', () => {
       });
 
       // First call: ignore the email-list call (consume it with a mock).
-      nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      nock(EMAIL_LIST_HOST).post(EMAIL_LIST_SUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
@@ -974,7 +982,7 @@ describe('stripeWebhook', () => {
 
       let receivedBody = null;
       const emailListScope = nock(EMAIL_LIST_HOST)
-        .post(EMAIL_LIST_PATH, (body) => {
+        .post(EMAIL_LIST_SUBSCRIBE_PATH, (body) => {
           receivedBody = body;
           return true;
         })
@@ -992,7 +1000,6 @@ describe('stripeWebhook', () => {
       expect(receivedBody).to.deep.equal({
         email: 'newtrial@test.fr',
         firstname: 'Jane',
-        list: 'gladysPlusTrial',
         language: 'fr',
       });
     });
@@ -1030,7 +1037,7 @@ describe('stripeWebhook', () => {
         secret: process.env.STRIPE_ENDPOINT_SECRET,
       });
 
-      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_UNSUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
@@ -1094,7 +1101,7 @@ describe('stripeWebhook', () => {
 
       let receivedBody = null;
       const emailListScope = nock(EMAIL_LIST_HOST)
-        .post(EMAIL_LIST_PATH, (body) => {
+        .post(EMAIL_LIST_UNSUBSCRIBE_PATH, (body) => {
           receivedBody = body;
           return true;
         })
@@ -1112,9 +1119,6 @@ describe('stripeWebhook', () => {
       expect(emailListScope.isDone()).to.equal(true);
       expect(receivedBody).to.deep.equal({
         email: 'new-account-lost@gladysassistant.com',
-        list: 'gladysPlusTrial',
-        action: 'remove',
-        language: 'fr',
       });
     });
 
@@ -1151,7 +1155,7 @@ describe('stripeWebhook', () => {
         secret: process.env.STRIPE_ENDPOINT_SECRET,
       });
 
-      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_UNSUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')
@@ -1197,7 +1201,7 @@ describe('stripeWebhook', () => {
         secret: process.env.STRIPE_ENDPOINT_SECRET,
       });
 
-      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_PATH).reply(200, { ok: true });
+      const emailListScope = nock(EMAIL_LIST_HOST).post(EMAIL_LIST_UNSUBSCRIBE_PATH).reply(200, { ok: true });
 
       await request(TEST_BACKEND_APP)
         .post('/stripe/webhook')

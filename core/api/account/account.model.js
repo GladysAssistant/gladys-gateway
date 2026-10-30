@@ -42,6 +42,26 @@ module.exports = function AccountModel(
   emailListService,
   openPanelService,
 ) {
+  // The billing actions charge the payer (new subscription, yearly upgrade), end the
+  // subscription at once or replace the card: like inviting or revoking users, they are
+  // reserved to the admins of the account. A user removed from the account is refused too,
+  // even with an access token issued before the removal.
+  async function getAdminWithAccount(user) {
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'email', 'role', 'account_id'] },
+    );
+
+    if (userWithAccount === null || userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    return userWithAccount;
+  }
+
   async function getUsers(user) {
     // get the account_id of the currently connected user
     const userWithAccount = await db.t_user.findOne(
@@ -312,13 +332,8 @@ module.exports = function AccountModel(
   }
 
   async function subscribeMonthlyPlan(user, sourceId) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'email', 'account_id'] },
-    );
+    // get the account_id of the currently connected user, who must be admin
+    const userWithAccount = await getAdminWithAccount(user);
 
     // get the account to verify the user has not already subscribed
     const account = await db.t_account.findOne(
@@ -353,6 +368,11 @@ module.exports = function AccountModel(
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
     };
+    // The updates of a subscription are only applied once it is linked to the account: the
+    // first ones can reach the webhook before this write, its status is stored here
+    if (subscription.status) {
+      toUpdate.status = subscription.status;
+    }
 
     const accountUpdated = await db.t_account.update(userWithAccount.account_id, toUpdate, {
       fields: ['id', 'current_period_end'],
@@ -362,13 +382,8 @@ module.exports = function AccountModel(
   }
 
   async function updateCard(user, sourceId) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'email', 'account_id'] },
-    );
+    // get the account_id of the currently connected user, who must be admin
+    const userWithAccount = await getAdminWithAccount(user);
 
     // get the account
     const account = await db.t_account.findOne(
@@ -433,13 +448,8 @@ module.exports = function AccountModel(
   }
 
   async function cancelMonthlySubscription(user) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'email', 'account_id'] },
-    );
+    // get the account_id of the currently connected user, who must be admin
+    const userWithAccount = await getAdminWithAccount(user);
 
     // get the account
     const account = await db.t_account.findOne(
@@ -491,13 +501,8 @@ module.exports = function AccountModel(
   }
 
   async function upgradeFromMonthlyToYearly(user) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'email', 'account_id'] },
-    );
+    // get the account_id of the currently connected user, who must be admin
+    const userWithAccount = await getAdminWithAccount(user);
 
     // get the account
     const account = await db.t_account.findOne(
@@ -551,13 +556,8 @@ module.exports = function AccountModel(
   }
 
   async function subscribeAgainToMonthlySubscription(user) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'email', 'account_id'] },
-    );
+    // get the account_id of the currently connected user, who must be admin
+    const userWithAccount = await getAdminWithAccount(user);
 
     // get the account
     const account = await db.t_account.findOne(
@@ -583,6 +583,11 @@ module.exports = function AccountModel(
       stripe_subscription_id: subscription.id,
       current_period_end: new Date(subscription.current_period_end * 1000),
     };
+    // The updates of a subscription are only applied once it is linked to the account: the
+    // first ones can reach the webhook before this write, its status is stored here
+    if (subscription.status) {
+      toUpdate.status = subscription.status;
+    }
 
     const accountUpdated = await db.t_account.update(userWithAccount.account_id, toUpdate, {
       fields: ['id', 'current_period_end'],
@@ -679,6 +684,17 @@ module.exports = function AccountModel(
       }
 
       case 'customer.subscription.updated': {
+        // Only the subscription linked to the account drives its status, like in
+        // customer.subscription.deleted below. Otherwise, the end of another subscription of
+        // the customer (ignored there) is never applied, while its updates are: canceling
+        // the linked subscription and scheduling the cancellation of another one would set
+        // the account back to active for good.
+        if (event.data.object.id !== account.stripe_subscription_id) {
+          logger.warn(
+            `Stripe Webhook : subscription "${event.data.object.id}" updated but account ${account.id} is linked to "${account.stripe_subscription_id}", ignoring.`,
+          );
+          break;
+        }
         const stripeProductId = event.data.object.items?.data[0]?.price?.product;
         // Update status
         await db.t_account.update(
@@ -897,27 +913,49 @@ module.exports = function AccountModel(
       { fields: ['id', 'role', 'account_id'] },
     );
 
-    if (userIdToRevoke === null) {
+    if (userToRevoke === null) {
       throw new NotFoundError();
     }
 
-    // deleting user
-    const deletedUser = await db.t_user.update(userToRevoke.id, {
-      is_deleted: true,
+    return db.withTransaction(async (tx) => {
+      // deleting user
+      const deletedUser = await tx.t_user.update(userToRevoke.id, {
+        is_deleted: true,
+      });
+
+      // disonnect all connected devices
+      await tx.t_device.update(
+        {
+          user_id: userToRevoke.id,
+          revoked: false,
+        },
+        {
+          revoked: true,
+        },
+      );
+
+      // An Open API key reaches the instance of the account (MCP, device states, events...)
+      // without any device session: they are revoked with the user. Nobody else can revoke
+      // them, they are only listed to their owner.
+      await tx.t_open_api_key.update(
+        {
+          user_id: userToRevoke.id,
+          revoked: false,
+        },
+        {
+          revoked: true,
+        },
+      );
+
+      // The portal key opens the Stripe customer portal without any other authentication,
+      // the revoked user may know it: a new one is generated (the links to the portal in the
+      // billing emails already sent stop working)
+      await tx.t_account.update(userWithAccount.account_id, {
+        stripe_portal_key: crypto.randomUUID(),
+      });
+
+      return deletedUser;
     });
-
-    // disonnect all connected devices
-    await db.t_device.update(
-      {
-        user_id: userIdToRevoke,
-        revoked: false,
-      },
-      {
-        revoked: true,
-      },
-    );
-
-    return deletedUser;
   }
 
   /**

@@ -1,8 +1,6 @@
-const request = require('supertest');
 const { expect } = require('chai');
 const nock = require('nock');
-const configTest = require('../../tasks/config');
-const { mockAccessTokenRefresh } = require('./utils.test');
+const { mockAccessTokenRefresh, linkEnedisUsagePoints } = require('./utils.test');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
 const ACCOUNT_ID = 'b2d23f66-487d-493f-8acb-9c8adb400def';
@@ -80,15 +78,7 @@ const finalizeOauthProcess = async () => {
       issued_at: '1487075532179',
       refresh_token_issued_at: '1487075532179',
     });
-  await request(TEST_BACKEND_APP)
-    .post('/enedis/finalize')
-    .send({
-      code: 'someAuthCode',
-      usage_points_id: [queryParams.usage_point_id],
-    })
-    .set('Accept', 'application/json')
-    .set('Authorization', configTest.jwtAccessTokenDashboard)
-    .expect(200);
+  await linkEnedisUsagePoints([queryParams.usage_point_id]);
   mockAccessTokenRefresh();
 };
 

@@ -1106,6 +1106,17 @@ describe('GET /users/setup', () => {
           user_gladys_acccount_linked: false,
         });
       }));
+
+  it('should not return the stripe portal key to a user who is not admin', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { role: 'user' });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/users/setup')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.have.property('stripe_portal_key', null);
+  });
 });
 
 describe('GET /users/two-factor/new', () => {

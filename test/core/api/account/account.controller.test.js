@@ -1,7 +1,9 @@
+const crypto = require('crypto');
 const request = require('supertest');
 const nock = require('nock');
 const { expect } = require('chai');
 const configTest = require('../../../tasks/config');
+const { setupPersistentNocks } = require('../../../tasks/nock');
 
 describe('GET /accounts/users', () => {
   it('should return all users in same account as me', () =>
@@ -47,6 +49,128 @@ describe('POST /accounts/users/:id/revoke', () => {
       .then((response) => {
         expect(response.body).to.have.property('success', true);
       }));
+
+  it('should revoke the Open API keys of the revoked user', async () => {
+    const revokedUserId = '3b69f1c5-d36c-419d-884c-50b9dd6e33e4';
+    const openApiKey = 'open-api-key-of-the-revoked-user';
+    await TEST_DATABASE_INSTANCE.t_open_api_key.insert({
+      name: 'Home Assistant',
+      user_id: revokedUserId,
+      api_key_hash: crypto.createHash('sha256').update(openApiKey).digest('hex'),
+    });
+
+    await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${revokedUserId}/revoke`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+
+    const keys = await TEST_DATABASE_INSTANCE.t_open_api_key.find({ user_id: revokedUserId });
+    expect(keys).to.have.lengthOf(1);
+    expect(keys[0]).to.have.property('revoked', true);
+    await request(TEST_BACKEND_APP).post(`/v1/api/event/${openApiKey}`).send({}).expect(401);
+    // the keys of the other users of the account are untouched
+    const otherKeys = await TEST_DATABASE_INSTANCE.t_open_api_key.find({
+      user_id: 'a139e4a6-ec6c-442d-9730-0499155d38d4',
+    });
+    expect(otherKeys.map((key) => key.revoked)).to.deep.equal([false]);
+  });
+
+  it('should generate a new stripe portal key, the revoked user may know the previous one', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne('b2d23f66-487d-493f-8acb-9c8adb400def');
+    expect(account.stripe_portal_key).to.be.a('string');
+    expect(account.stripe_portal_key).to.not.equal('fee71731-5928-4f2f-a74b-c7858d39372f');
+    await request(TEST_BACKEND_APP)
+      .get('/accounts/stripe_customer_portal/fee71731-5928-4f2f-a74b-c7858d39372f')
+      .expect(404);
+  });
+
+  it('should return 404 when the user is not in the account', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/users/8f3a2c1e-6b4d-4e7f-9a1b-2c3d4e5f6a7b/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(404));
+});
+
+describe('POST /accounts/resubscribe', () => {
+  afterEach(() => {
+    // cleanAll() below also wipes the persistent global nocks of test/tasks/nock.js
+    nock.cleanAll();
+    setupPersistentNocks();
+  });
+
+  it('should link the new subscription to the account, with its status', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update('b2d23f66-487d-493f-8acb-9c8adb400def', {
+      stripe_customer_id: 'cus_canceled',
+      stripe_subscription_id: 'sub_canceled',
+      status: 'canceled',
+    });
+    // the persistent mock of POST /v1/subscriptions has no status
+    nock.cleanAll();
+    nock('https://api.stripe.com:443')
+      .post('/v1/subscriptions')
+      .reply(200, {
+        id: 'sub_again',
+        status: 'incomplete',
+        current_period_end: Math.floor(Date.now() / 1000) + 30 * 24 * 60 * 60,
+      });
+
+    await request(TEST_BACKEND_APP)
+      .post('/accounts/resubscribe')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    // its updates can reach the webhook before the subscription is linked: they are then
+    // ignored, the status of the new subscription must not wait for the next one
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne('b2d23f66-487d-493f-8acb-9c8adb400def');
+    expect(account).to.include({ stripe_subscription_id: 'sub_again', status: 'incomplete' });
+  });
+});
+
+describe('Billing actions of a user who is not admin', () => {
+  beforeEach(async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { role: 'user' });
+  });
+
+  [
+    ['post', '/accounts/subscribe', { stripe_source_id: 'stripe-source-id-sample' }],
+    ['post', '/accounts/resubscribe', {}],
+    ['post', '/accounts/upgrade-to-yearly', {}],
+    ['patch', '/accounts/source', { stripe_source_id: 'stripe-source-id-sample' }],
+    ['post', '/accounts/cancel', {}],
+  ].forEach(([method, route, body]) => {
+    it(`should refuse ${method.toUpperCase()} ${route}`, () => {
+      const agent = request(TEST_BACKEND_APP);
+      return agent[method](route)
+        .send(body)
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard)
+        .expect('Content-Type', /json/)
+        .expect(403);
+    });
+  });
+
+  it('should refuse the billing actions of a user removed from the account', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', {
+      role: 'admin',
+      is_deleted: true,
+    });
+    await request(TEST_BACKEND_APP)
+      .post('/accounts/cancel')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
 });
 
 describe('GET /accounts/invoices', () => {

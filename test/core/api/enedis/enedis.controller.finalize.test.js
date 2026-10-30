@@ -5,7 +5,7 @@ const configTest = require('../../../tasks/config');
 const { mockAccessTokenRefresh } = require('../../enedis/utils.test');
 
 describe('POST /enedis/finalize', () => {
-  it('should save refresh token in DB and return list of usage_points_id', async () => {
+  it('should refuse the legacy flow, which trusted the usage points ids sent by the client', async () => {
     const response = await request(TEST_BACKEND_APP)
       .post('/enedis/finalize')
       .send({
@@ -15,11 +15,22 @@ describe('POST /enedis/finalize', () => {
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
-      .expect(200);
-    expect(response.body).to.deep.equal({
-      usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
-    });
+      .expect(400);
+    expect(response.body).to.have.property('error_message', 'autorisation_id is required');
+    // nothing is linked to the account
+    const usagePoints = await TEST_DATABASE_INSTANCE.t_enedis_usage_point.find({});
+    expect(usagePoints).to.have.lengthOf(0);
+    const enedisDevices = await TEST_DATABASE_INSTANCE.t_device.find({ client_id: process.env.ENEDIS_GRANT_CLIENT_ID });
+    expect(enedisDevices).to.have.lengthOf(0);
   });
+  it('should refuse an autorisation_id that is not a string', () =>
+    request(TEST_BACKEND_APP)
+      .post('/enedis/finalize')
+      .send({ autorisation_id: ['someAutorisationId'] })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(400));
   it('should exchange autorisation_id for usage_points_id and return them (new DataConnect 2026 flow)', async () => {
     mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)

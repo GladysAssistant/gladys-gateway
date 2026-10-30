@@ -1605,3 +1605,51 @@ describe('stripeWebhook', () => {
     });
   });
 });
+
+describe('stripeWebhook customer.subscription.updated', () => {
+  const stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+
+  const sendSubscriptionUpdatedEvent = (subscriptionId, status) => {
+    const stringEvent = JSON.stringify({
+      id: 'evt_test_webhook',
+      object: 'event',
+      type: 'customer.subscription.updated',
+      data: {
+        object: {
+          id: subscriptionId,
+          customer: 'cus',
+          status,
+          current_period_end: (new Date().getTime() + 10 * 60 * 1000) / 1000,
+          items: { data: [{ price: { product: 'plus-plan-id' } }] },
+        },
+      },
+    });
+    return request(TEST_BACKEND_APP)
+      .post('/stripe/webhook')
+      .set('Accept', 'application/json')
+      .set(
+        'stripe-signature',
+        stripe.webhooks.generateTestHeaderString({ payload: stringEvent, secret: process.env.STRIPE_ENDPOINT_SECRET }),
+      )
+      .set('Content-type', 'application/json')
+      .send(stringEvent)
+      .expect(200);
+  };
+
+  it('should update the status of the account from its subscription', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update({ stripe_customer_id: 'cus' }, { status: 'past_due' });
+    await sendSubscriptionUpdatedEvent('sub', 'active');
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cus' });
+    expect(account).to.have.property('status', 'active');
+  });
+
+  it('should ignore the update of another subscription of the customer', async () => {
+    // the account follows "sub": the end of another subscription of the customer is
+    // ignored (customer.subscription.deleted), so its updates must be ignored too
+    await TEST_DATABASE_INSTANCE.t_account.update({ stripe_customer_id: 'cus' }, { status: 'canceled' });
+    await sendSubscriptionUpdatedEvent('sub_older', 'active');
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cus' });
+    expect(account).to.have.property('status', 'canceled');
+    expect(account).to.have.property('stripe_subscription_id', 'sub');
+  });
+});

@@ -91,6 +91,20 @@ describe('POST /accounts/users/:id/revoke', () => {
       .expect(404);
   });
 
+  it('should refuse an admin removed from the account, with an access token issued before', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { is_deleted: true });
+    await request(TEST_BACKEND_APP)
+      .post('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne('3b69f1c5-d36c-419d-884c-50b9dd6e33e4');
+    expect(user).to.have.property('is_deleted', false);
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne('b2d23f66-487d-493f-8acb-9c8adb400def');
+    expect(account).to.have.property('stripe_portal_key', 'fee71731-5928-4f2f-a74b-c7858d39372f');
+  });
+
   it('should return 404 when the user is not in the account', () =>
     request(TEST_BACKEND_APP)
       .post('/accounts/users/8f3a2c1e-6b4d-4e7f-9a1b-2c3d4e5f6a7b/revoke')

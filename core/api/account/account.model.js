@@ -893,17 +893,9 @@ module.exports = function AccountModel(
   }
 
   async function revokeUser(user, userIdToRevoke) {
-    // get the account_id of the currently connected user
-    const userWithAccount = await db.t_user.findOne(
-      {
-        id: user.id,
-      },
-      { fields: ['id', 'role', 'account_id'] },
-    );
-
-    if (userWithAccount.role !== 'admin') {
-      throw new ForbiddenError('You must be admin to perform this operation');
-    }
+    // get the account_id of the currently connected user, who must be admin: an admin removed
+    // from the account cannot revoke the others with an access token issued before the removal
+    const userWithAccount = await getAdminWithAccount(user);
 
     if (userIdToRevoke === user.id) {
       throw new ForbiddenError('You cannot remove yourself from an account');

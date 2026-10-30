@@ -101,6 +101,30 @@ describe('TTS API', () => {
     await getToken({ text: 'a'.repeat(5001) }).expect(400);
     await getToken({ text: 'a'.repeat(5000) }).expect(200);
   });
+  it('should not spend the monthly quota on an invalid text', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update('b2d23f66-487d-493f-8acb-9c8adb400def', { status: 'active' });
+    // reads the monthly quota spent by the account, whatever its size
+    const limiter = new RateLimiterRedis({
+      storeClient: TEST_LEGACY_REDIS_CLIENT,
+      keyPrefix: 'rate_limit:tts_api',
+      duration: 30 * 24 * 60 * 60,
+    });
+    const getToken = (body) =>
+      request(TEST_BACKEND_APP)
+        .post('/tts/token')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenInstance)
+        .send(body)
+        .expect('Content-Type', /json/);
+
+    await getToken({}).expect(400);
+    await getToken({ text: 'a'.repeat(5001) }).expect(400);
+    expect(await limiter.get('b2d23f66-487d-493f-8acb-9c8adb400def')).to.equal(null);
+
+    await getToken({ text: 'bonjour' }).expect(200);
+    const quotaSpent = await limiter.get('b2d23f66-487d-493f-8acb-9c8adb400def');
+    expect(quotaSpent).to.have.property('consumedPoints', 1);
+  });
   it('should return 401', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get(`/tts/toto/generate.mp3`)
@@ -134,7 +158,7 @@ describe('TTS API', () => {
       .post('/tts/token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
-      .send()
+      .send({ text: 'bonjour' })
       .expect('Content-Type', /json/)
       .expect(429);
     expect(response.body).to.deep.equal({

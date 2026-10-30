@@ -69,13 +69,18 @@ module.exports = function TTSController(redisClient) {
    *   "url": "https://url_of_the_file"
    * }
    */
-  async function getTemporaryToken(req, res, next) {
+  // Runs before the monthly quota is spent (see routes.js): an invalid request does not spend it
+  function validateTemporaryTokenRequest(req, res, next) {
     const { text } = req.body;
     if (typeof text !== 'string' || text.length === 0 || text.length > MAX_TEXT_LENGTH) {
       throw new BadRequestError(`The text must be a string of 1 to ${MAX_TEXT_LENGTH} characters.`);
     }
+    next();
+  }
+
+  async function getTemporaryToken(req, res, next) {
     const token = crypto.randomUUID();
-    await redisClient.set(`${TTS_TOKEN_PREFIX}:${token}`, text, {
+    await redisClient.set(`${TTS_TOKEN_PREFIX}:${token}`, req.body.text, {
       EX: TTS_TOKEN_TTL_IN_SECONDS,
     });
     const url = `${process.env.GLADYS_PLUS_BACKEND_URL}/tts/${token}/generate.mp3`;
@@ -84,6 +89,7 @@ module.exports = function TTSController(redisClient) {
 
   return {
     generate,
+    validateTemporaryTokenRequest,
     getTemporaryToken,
   };
 };

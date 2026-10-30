@@ -233,7 +233,9 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
   }
 
   async function refreshAlldata(userId) {
-    const user = await db.t_user.findOne({ id: userId }, { fields: ['id', 'account_id'] });
+    // a user removed from the account cannot spend its refreshes with an access token issued
+    // before the removal
+    const user = await db.t_user.findOne({ id: userId, is_deleted: false }, { fields: ['id', 'account_id'] });
     if (user === null) {
       throw new NotFoundError('User not found');
     }

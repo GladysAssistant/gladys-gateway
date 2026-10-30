@@ -18,6 +18,16 @@ describe('POST /v1/api/event/:open-api-key', () => {
       .set('Authorization', configTest.jwtAccessTokenDashboard)
       .expect('Content-Type', /json/)
       .expect(404));
+
+  it('should refuse access to the key of a user removed from the account', async () => {
+    // the key itself is not revoked, only its owner is removed
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { is_deleted: true });
+    await request(TEST_BACKEND_APP)
+      .post('/v1/api/event/01908032961c3ec3813abaa967c3b1ae5111d84628e2f94d500a1d7e8b812bdd90b2a08e327534db')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401);
+  });
 });
 
 describe('POST /v1/api/message/:open-api-key', () => {

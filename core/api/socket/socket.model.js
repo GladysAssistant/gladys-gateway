@@ -332,10 +332,12 @@ module.exports = function SocketModel(logger, db, redisClient, io, fingerprint, 
       );
     }
 
-    // we get the user and his account_id
+    // we get the user and his account_id. A user removed from the account cannot connect
+    // anymore, even with an access token issued before the removal
     const user = await db.t_user.findOne(
       {
         id: decoded.user_id,
+        is_deleted: false,
       },
       { fields: ['id', 'account_id', 'gladys_4_user_id'] },
     );

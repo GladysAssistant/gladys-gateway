@@ -189,6 +189,26 @@ describe('socket message routing', function Describe() {
     expect(latency).to.be.greaterThan(0);
   });
 
+  it('should survive a latency event sent without ack, by a user or an instance', async () => {
+    const socketInstance = await connectInstance();
+    const socketUser = await connectUser();
+
+    // the ack is missing: calling it would throw an uncaught exception and stop the server
+    socketUser.emit('latency', Date.now());
+    socketInstance.emit('latency', Date.now());
+
+    const [userLatency, instanceLatency] = await Promise.all([
+      new Promise((resolve) => {
+        socketUser.emit('latency', Date.now(), resolve);
+      }),
+      new Promise((resolve) => {
+        socketInstance.emit('latency', Date.now(), resolve);
+      }),
+    ]);
+    expect(userLatency).to.be.greaterThan(0);
+    expect(instanceLatency).to.be.greaterThan(0);
+  });
+
   it('should relay a message to the last connection of an instance connected twice', async () => {
     // the previous connection of the instance, not detected as dead yet by the server
     const previousSocketInstance = await connectInstance();

@@ -7,10 +7,13 @@ const {
   BULLMQ_PUBLISH_JOB_OPTIONS,
   ENEDIS_REFRESH_ALL_DATA_JOB_KEY,
   ENEDIS_DAILY_REFRESH_ALL_USERS_JOB_KEY,
+  ENEDIS_MAX_REFRESH_ALL_DATA_PER_ACCOUNT,
+  ENEDIS_REFRESH_ALL_DATA_LIMIT_WINDOW_IN_SECONDS,
 } = require('../../enedis/enedis.constants');
-const { ServerError } = require('../../common/error');
+const { ServerError, NotFoundError, TooManyRequestsError } = require('../../common/error');
 
 const ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'enedis-grant-access-token:';
+const ENEDIS_REFRESH_ALL_DATA_COUNT_REDIS_PREFIX = 'enedis_refresh_all_data_count';
 
 module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) {
   const { ENEDIS_GRANT_CLIENT_ID, ENEDIS_AUTHORIZE_URL } = process.env;
@@ -62,64 +65,6 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
     `;
     const instances = await db.query(getInstanceIdByUserId, [user.id]);
     return instances.length > 0 ? instances[0].account_id : null;
-  }
-
-  async function resetEnedisDevicesAndCreateNew(user) {
-    // Delete all devices that could exist prior to this operation
-    await db.t_device.update(
-      {
-        client_id: ENEDIS_GRANT_CLIENT_ID,
-        user_id: user.id,
-        revoked: false,
-        is_deleted: false,
-      },
-      {
-        revoked: true,
-        is_deleted: true,
-      },
-    );
-    // Clear Redis
-    const getInstanceIdByUserId = `
-      SELECT t_instance.id, t_instance.account_id
-      FROM t_user
-      INNER JOIN t_account ON t_account.id = t_user.account_id
-      INNER JOIN t_instance ON t_instance.account_id = t_account.id
-      WHERE t_user.id = $1
-      AND t_instance.primary_instance = true
-      AND t_instance.is_deleted = false;
-
-    `;
-    const instances = await db.query(getInstanceIdByUserId, [user.id]);
-
-    if (instances.length > 0) {
-      await redisClient.del(`${ENEDIS_GRANT_ACCESS_TOKEN_REDIS_PREFIX}:${instances[0].account_id}`);
-    }
-
-    // Create a new Enedis device
-    const newDevice = {
-      id: crypto.randomUUID(),
-      name: 'Enedis',
-      client_id: ENEDIS_GRANT_CLIENT_ID,
-      user_id: user.id,
-    };
-
-    await db.t_device.insert(newDevice);
-
-    return instances.length > 0 ? instances[0].account_id : null;
-  }
-
-  async function handleAcceptGrantMessage(authorizationCode, user, usagePointsIds = []) {
-    logger.info(`Enedis.handleAcceptGrantMessage : ${user.id}`);
-    const accountId = await resetEnedisDevicesAndCreateNew(user);
-
-    // Save usage points ids
-    await Promise.each(usagePointsIds, async (usagePointId) => {
-      await saveUsagePointIfNotExist(accountId, usagePointId);
-    });
-
-    return {
-      usage_points_id: usagePointsIds,
-    };
   }
 
   async function getUsagePointsOfAccount(accountId) {
@@ -275,7 +220,31 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
     return enedisSync;
   }
 
+  // Counts the refresh BEFORE publishing it, atomically (SET NX EX + INCR in one MULTI), so
+  // concurrent requests cannot all slip under the limit, and the key always carries a TTL
+  async function countRefreshOfAllData(accountId) {
+    const key = `${ENEDIS_REFRESH_ALL_DATA_COUNT_REDIS_PREFIX}:${accountId}`;
+    const [, refreshes] = await redisClient
+      .multi()
+      .set(key, 0, { NX: true, EX: ENEDIS_REFRESH_ALL_DATA_LIMIT_WINDOW_IN_SECONDS })
+      .incr(key)
+      .exec();
+    return refreshes;
+  }
+
   async function refreshAlldata(userId) {
+    // a user removed from the account cannot spend its refreshes with an access token issued
+    // before the removal
+    const user = await db.t_user.findOne({ id: userId, is_deleted: false }, { fields: ['id', 'account_id'] });
+    if (user === null) {
+      throw new NotFoundError('User not found');
+    }
+    // the limit is per account: every user of the account refreshes the same usage points
+    const refreshes = await countRefreshOfAllData(user.account_id);
+    if (refreshes > ENEDIS_MAX_REFRESH_ALL_DATA_PER_ACCOUNT) {
+      logger.warn(`Enedis: too many refreshes of all data for account ${user.account_id}`);
+      throw new TooManyRequestsError('Too many Enedis refreshes, try again later.');
+    }
     await queue.add(ENEDIS_REFRESH_ALL_DATA_JOB_KEY, { userId }, BULLMQ_PUBLISH_JOB_OPTIONS);
   }
 
@@ -284,7 +253,6 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
   }
 
   return {
-    handleAcceptGrantMessage,
     handleAcceptAuthorization,
     getRedirectUri,
     getDailyConsumption,

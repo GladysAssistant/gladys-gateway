@@ -1,9 +1,7 @@
-const request = require('supertest');
 const { expect } = require('chai');
 const dayjs = require('dayjs');
 const nock = require('nock');
-const configTest = require('../../tasks/config');
-const { mockAccessTokenRefresh } = require('./utils.test');
+const { mockAccessTokenRefresh, linkEnedisUsagePoints } = require('./utils.test');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
 const contractQueryParams = {
@@ -109,16 +107,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
         error: 'ERRE001150',
         error_description: 'No consent can be found for this customer and this usage point.',
       });
-    await request(TEST_BACKEND_APP)
-      .post('/enedis/finalize')
-      .send({
-        code: 'someAuthCode',
-        usage_points_id: ['16401220101758'],
-      })
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect('Content-Type', /json/)
-      .expect(200);
+    await linkEnedisUsagePoints(['16401220101758']);
     mockAccessTokenRefresh();
     mockAccessTokenRefresh();
     await enedisModel.dailyRefreshOfAllUsers();
@@ -168,16 +157,7 @@ describe('EnedisWorker.dailyRefreshAllUsers', function Describe() {
       .get('/customers_upc/v5/usage_points/contracts')
       .query(contractQueryParams)
       .reply(200, contractData);
-    await request(TEST_BACKEND_APP)
-      .post('/enedis/finalize')
-      .send({
-        code: 'someAuthCode',
-        usage_points_id: ['16401220101758'],
-      })
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect('Content-Type', /json/)
-      .expect(200);
+    await linkEnedisUsagePoints(['16401220101758']);
     mockAccessTokenRefresh();
     await enedisModel.enedisSyncData({
       name: 'daily-refresh-all-users',

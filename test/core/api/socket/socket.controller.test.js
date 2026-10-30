@@ -67,6 +67,26 @@ describe('socket', function Describe() {
     });
   });
 
+  it('should fail to connect as user, user removed from the account', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update('a139e4a6-ec6c-442d-9730-0499155d38d4', { is_deleted: true });
+    const jwtAccessToken = Jwt().generateAccessToken({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, [
+      'dashboard:read',
+      'dashboard:write',
+    ]);
+
+    const socket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+      auth: {
+        auth_type: 'user',
+        access_token: jwtAccessToken,
+      },
+    });
+
+    const data = await new Promise((resolve) => {
+      socket.on('user-authentication-failed', resolve);
+    });
+    expect(data).to.have.property('reason', 'USER_NOT_FOUND');
+  });
+
   it('should fail to connect as user, bad jwt', (done) => {
     const badJwt = jsonwebtoken.sign({ user_id: 'test', scope: ['dashboard:read', 'dashboard:write'] }, 'bad-secret', {
       algorithm: 'HS256',

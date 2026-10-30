@@ -20,6 +20,12 @@ const CONSTANTS = {
   // the quota being hourly), or for the default pause when Enedis does not send a usable one.
   ENEDIS_RATE_LIMITED_DEFAULT_PAUSE_IN_MS: 10 * 60 * 1000,
   ENEDIS_RATE_LIMITED_MAX_PAUSE_IN_MS: 60 * 60 * 1000,
+  // A refresh of all data (POST /enedis/refresh_all) publishes 2 jobs per week of history
+  // (2 years) and per usage point: about 14 minutes of the queue, shared by every account,
+  // for one usage point. The refreshes requested by an account are limited, so that one
+  // account cannot hold back the sync of all the others.
+  ENEDIS_MAX_REFRESH_ALL_DATA_PER_ACCOUNT: 3,
+  ENEDIS_REFRESH_ALL_DATA_LIMIT_WINDOW_IN_SECONDS: 24 * 60 * 60,
   BULLMQ_PUBLISH_JOB_OPTIONS: {
     removeOnComplete: {
       age: 24 * 60 * 60, // Keep 24 hours

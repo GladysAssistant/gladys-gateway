@@ -1,8 +1,6 @@
-const request = require('supertest');
 const { expect, assert } = require('chai');
 const nock = require('nock');
-const configTest = require('../../tasks/config');
-const { mockAccessTokenRefresh } = require('./utils.test');
+const { mockAccessTokenRefresh, linkEnedisUsagePoints } = require('./utils.test');
 const { initEnedisListener } = require('../../../core/enedis/enedisListener');
 
 const queryParams = {
@@ -67,16 +65,7 @@ describe('EnedisWorker.getContract', function Describe() {
         usage_points_id: '16401220101758,16401220101710,16401220101720',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
-    await request(TEST_BACKEND_APP)
-      .post('/enedis/finalize')
-      .send({
-        code: 'someAuthCode',
-        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
-      })
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect('Content-Type', /json/)
-      .expect(200);
+    await linkEnedisUsagePoints(['16401220101758', '16401220101710', '16401220101720']);
     // Then, send first request
     mockAccessTokenRefresh();
 
@@ -122,16 +111,7 @@ describe('EnedisWorker.getContract', function Describe() {
         refresh_token_issued_at: '1487075532179',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
-    await request(TEST_BACKEND_APP)
-      .post('/enedis/finalize')
-      .send({
-        code: 'someAuthCode',
-        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
-      })
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect('Content-Type', /json/)
-      .expect(200);
+    await linkEnedisUsagePoints(['16401220101758', '16401220101710', '16401220101720']);
     // Then, send first request
     mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(403);
@@ -162,16 +142,7 @@ describe('EnedisWorker.getContract', function Describe() {
         refresh_token_issued_at: '1487075532179',
         apigo_client_id: '73cd2d7f-e361-b7f6-48359493ed2c',
       });
-    await request(TEST_BACKEND_APP)
-      .post('/enedis/finalize')
-      .send({
-        code: 'someAuthCode',
-        usage_points_id: ['16401220101758', '16401220101710', '16401220101720'],
-      })
-      .set('Accept', 'application/json')
-      .set('Authorization', configTest.jwtAccessTokenDashboard)
-      .expect('Content-Type', /json/)
-      .expect(200);
+    await linkEnedisUsagePoints(['16401220101758', '16401220101710', '16401220101720']);
     // Then, send first request
     mockAccessTokenRefresh();
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`).get(enedisRoute).query(queryParams).reply(400);

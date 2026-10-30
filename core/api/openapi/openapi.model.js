@@ -99,16 +99,24 @@ module.exports = function OpenApiModel(logger, db) {
     return { name };
   }
 
+  // The key of a user removed from the account no longer gives access to the instance of
+  // the account, even when the key itself was not revoked
   async function findOpenApiKey(apiKey) {
     const apiKeyHash = crypto.createHash('sha256').update(apiKey).digest('hex');
-    return db.t_open_api_key.findOne(
-      {
-        api_key_hash: apiKeyHash,
-        is_deleted: false,
-        revoked: false,
-      },
-      { fields: ['id', 'name', 'user_id', 'created_at', 'last_used'] },
+    const apiKeys = await db.query(
+      `
+      SELECT t_open_api_key.id, t_open_api_key.name, t_open_api_key.user_id,
+      t_open_api_key.created_at, t_open_api_key.last_used
+      FROM t_open_api_key
+      JOIN t_user ON t_user.id = t_open_api_key.user_id
+      WHERE t_open_api_key.api_key_hash = $1
+      AND t_open_api_key.is_deleted = false
+      AND t_open_api_key.revoked = false
+      AND t_user.is_deleted = false
+    `,
+      [apiKeyHash],
     );
+    return apiKeys.length > 0 ? apiKeys[0] : null;
   }
 
   async function updateLastUsed(id) {

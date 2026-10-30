@@ -1,4 +1,12 @@
 module.exports = function SocketController(logger, socketModel, io, instanceModel, instanceWatchdogModel) {
+  // socket.io runs the listeners outside of any try/catch: calling the ack of an event sent
+  // without one would throw an uncaught exception and stop the whole server
+  function answerLatency(startTime, cb) {
+    if (typeof cb === 'function') {
+      cb(startTime);
+    }
+  }
+
   async function authenticateUser(socket, accessToken) {
     try {
       // we first authenticate the user thanks to his access token
@@ -13,9 +21,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
       socket.on('message', (message, callback) => socketModel.handleNewMessageFromUser(user, message, callback));
 
       // useful to calculate latency
-      socket.on('latency', (startTime, cb) => {
-        cb(startTime);
-      });
+      socket.on('latency', (startTime, cb) => answerLatency(startTime, cb));
 
       // we ask connected instance to refresh it's user list as a new user is connected
       socketModel.askInstanceToRefreshConnectedUsers(user.account_id);
@@ -56,9 +62,7 @@ module.exports = function SocketController(logger, socketModel, io, instanceMode
       );
 
       // useful to calculate latency
-      socket.on('latency', (startTime, cb) => {
-        cb(startTime);
-      });
+      socket.on('latency', (startTime, cb) => answerLatency(startTime, cb));
 
       logger.info(`Instance ${instance.id} connected in websockets, socket version = ${socket.conn.protocol}`);
 

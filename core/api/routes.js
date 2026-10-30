@@ -76,6 +76,7 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/tts/token',
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     middlewares.checkUserPlan('plus'),
+    controllers.ttsController.validateTemporaryTokenRequest,
     middlewares.ttsRateLimit,
     asyncMiddleware(controllers.ttsController.getTemporaryToken),
   );

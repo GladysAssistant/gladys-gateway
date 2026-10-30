@@ -56,6 +56,75 @@ describe('TTS API', () => {
     expect(Buffer.isBuffer(responseMp3File.body)).to.equal(true);
     expect(responseMp3File.body.equals(voiceFile)).to.equal(true);
   });
+  it('should limit the generations of a token, each one is paid', async () => {
+    const ttsProvider = nock(process.env.TEXT_TO_SPEECH_URL)
+      .post('/', { text: 'bonjour' })
+      .times(3)
+      .reply(200, voiceFile, {
+        'content-type': 'audio/mpeg',
+        'content-length': 36362,
+      });
+    await TEST_DATABASE_INSTANCE.t_account.update('b2d23f66-487d-493f-8acb-9c8adb400def', { status: 'active' });
+    const response = await request(TEST_BACKEND_APP)
+      .post('/tts/token')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .send({ text: 'bonjour' })
+      .expect(200);
+    const generate = () =>
+      request(TEST_BACKEND_APP).get(`/tts/${response.body.token}/generate.mp3`).responseType('arraybuffer');
+
+    // a speaker can fetch the file a few times
+    await generate().expect(200);
+    await generate().expect(200);
+    await generate().expect(200);
+    const refusedResponse = await generate().expect(429);
+    expect(JSON.parse(refusedResponse.body.toString())).to.deep.equal({
+      status: 429,
+      error_code: 'TOO_MANY_REQUESTS',
+      error_message: 'Too many generations with this TTS token.',
+    });
+    expect(ttsProvider.isDone()).to.equal(true);
+  });
+  it('should refuse a text that is missing, not a string or too long', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update('b2d23f66-487d-493f-8acb-9c8adb400def', { status: 'active' });
+    const getToken = (body) =>
+      request(TEST_BACKEND_APP)
+        .post('/tts/token')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenInstance)
+        .send(body)
+        .expect('Content-Type', /json/);
+
+    await getToken({}).expect(400);
+    await getToken({ text: { text: 'bonjour' } }).expect(400);
+    await getToken({ text: 'a'.repeat(5001) }).expect(400);
+    await getToken({ text: 'a'.repeat(5000) }).expect(200);
+  });
+  it('should not spend the monthly quota on an invalid text', async () => {
+    await TEST_DATABASE_INSTANCE.t_account.update('b2d23f66-487d-493f-8acb-9c8adb400def', { status: 'active' });
+    // reads the monthly quota spent by the account, whatever its size
+    const limiter = new RateLimiterRedis({
+      storeClient: TEST_LEGACY_REDIS_CLIENT,
+      keyPrefix: 'rate_limit:tts_api',
+      duration: 30 * 24 * 60 * 60,
+    });
+    const getToken = (body) =>
+      request(TEST_BACKEND_APP)
+        .post('/tts/token')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenInstance)
+        .send(body)
+        .expect('Content-Type', /json/);
+
+    await getToken({}).expect(400);
+    await getToken({ text: 'a'.repeat(5001) }).expect(400);
+    expect(await limiter.get('b2d23f66-487d-493f-8acb-9c8adb400def')).to.equal(null);
+
+    await getToken({ text: 'bonjour' }).expect(200);
+    const quotaSpent = await limiter.get('b2d23f66-487d-493f-8acb-9c8adb400def');
+    expect(quotaSpent).to.have.property('consumedPoints', 1);
+  });
   it('should return 401', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get(`/tts/toto/generate.mp3`)
@@ -89,7 +158,7 @@ describe('TTS API', () => {
       .post('/tts/token')
       .set('Accept', 'application/json')
       .set('Authorization', configTest.jwtAccessTokenInstance)
-      .send()
+      .send({ text: 'bonjour' })
       .expect('Content-Type', /json/)
       .expect(429);
     expect(response.body).to.deep.equal({

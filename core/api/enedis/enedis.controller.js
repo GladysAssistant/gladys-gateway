@@ -1,6 +1,6 @@
 const get = require('get-value');
 
-const { ServerError, ForbiddenError, ValidationError } = require('../../common/error');
+const { ServerError, ForbiddenError, ValidationError, BadRequestError } = require('../../common/error');
 const schema = require('../../common/schema');
 
 module.exports = function EnedisController(logger, enedisModel) {
@@ -42,19 +42,21 @@ module.exports = function EnedisController(logger, enedisModel) {
    * @api {post} /enedis/finalize Finalize Oauth 2.0 process
    * @apiName Finalize Oauth 2.0 process
    * @apiGroup Enedis
+   *
+   * @apiParam {String} autorisation_id The autorisation_id of the redirect URL of the Enedis consent
    */
   async function finalize(req, res) {
     logger.info(`Enedis.finalize`);
+    // DataConnect 2026 flow: the redirect URL contains an autorisation_id, exchanged with
+    // Enedis for the usage points ids (PRM) the customer consented to. The usage points ids
+    // are never taken from the client: the legacy flow did, so any account could link (and
+    // read the consumption of) any meter.
+    const { autorisation_id: autorisationId } = req.body;
+    if (typeof autorisationId !== 'string' || autorisationId.length === 0) {
+      throw new BadRequestError('autorisation_id is required');
+    }
     try {
-      let usagePoints;
-      if (req.body.autorisation_id) {
-        // New DataConnect 2026 flow: the redirect URL contains an autorisation_id
-        // to exchange for the usage points ids (PRM)
-        usagePoints = await enedisModel.handleAcceptAuthorization(req.body.autorisation_id, req.user);
-      } else {
-        // Legacy flow: the redirect URL contains an OAuth code and the usage points ids
-        usagePoints = await enedisModel.handleAcceptGrantMessage(req.body.code, req.user, req.body.usage_points_id);
-      }
+      const usagePoints = await enedisModel.handleAcceptAuthorization(autorisationId, req.user);
       res.json(usagePoints);
     } catch (e) {
       // Never log the error object itself here: an axios error carries the request body

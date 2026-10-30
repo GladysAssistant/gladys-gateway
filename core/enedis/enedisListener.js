@@ -98,16 +98,23 @@ const initEnedisListener = async () => {
       password: process.env.REDIS_PASSWORD,
     },
   });
+  // Stops taking jobs and waits for the running one to finish (worker.js calls it
+  // on SIGTERM / SIGINT). A job still running when Docker kills the container
+  // after the stop grace period is marked stalled and taken again by the next worker.
   const shutdown = async () => {
     await worker.close();
   };
-  process.on('SIGINT', shutdown);
+  const closeConnections = async () => {
+    await redisClient.quit();
+    await db.instance.$pool.end();
+  };
   logger.info(`Enedis worker: listening!`);
   return {
     db,
     enedisModel,
     worker,
     shutdown,
+    closeConnections,
   };
 };
 

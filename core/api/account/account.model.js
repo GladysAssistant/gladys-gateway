@@ -696,9 +696,11 @@ module.exports = function AccountModel(
           break;
         }
         const stripeProductId = event.data.object.items?.data[0]?.price?.product;
-        // Update status
-        await db.t_account.update(
-          account.id,
+        // Update status. The subscription id is part of the predicate: a re-subscription
+        // re-linking the account to a new subscription between the lookup above and this
+        // update must win.
+        const updatedAccounts = await db.t_account.update(
+          { id: account.id, stripe_subscription_id: event.data.object.id },
           {
             status: event.data.object.status,
             current_period_end:
@@ -711,6 +713,9 @@ module.exports = function AccountModel(
             fields: ['id'],
           },
         );
+        if (updatedAccounts.length === 0) {
+          logger.warn(`Stripe Webhook : account ${account.id} was re-linked in the meantime, ignoring update.`);
+        }
 
         break;
       }

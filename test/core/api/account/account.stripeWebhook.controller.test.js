@@ -1643,6 +1643,27 @@ describe('stripeWebhook customer.subscription.updated', () => {
     expect(account).to.have.property('status', 'active');
   });
 
+  it('should not apply the update of a subscription unlinked while the event is handled', async () => {
+    // a re-subscription links the account to a new subscription between the lookup of the
+    // account by the webhook and its update: the re-subscription must win
+    const { findOne } = TEST_DATABASE_INSTANCE.t_account;
+    TEST_DATABASE_INSTANCE.t_account.findOne = async (...args) => {
+      const account = await findOne.apply(TEST_DATABASE_INSTANCE.t_account, args);
+      await TEST_DATABASE_INSTANCE.t_account.update(
+        { stripe_customer_id: 'cus' },
+        { stripe_subscription_id: 'sub_again', status: 'incomplete' },
+      );
+      return account;
+    };
+    try {
+      await sendSubscriptionUpdatedEvent('sub', 'active');
+    } finally {
+      TEST_DATABASE_INSTANCE.t_account.findOne = findOne;
+    }
+    const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ stripe_customer_id: 'cus' });
+    expect(account).to.include({ stripe_subscription_id: 'sub_again', status: 'incomplete' });
+  });
+
   it('should ignore the update of another subscription of the customer', async () => {
     // the account follows "sub": the end of another subscription of the customer is
     // ignored (customer.subscription.deleted), so its updates must be ignored too

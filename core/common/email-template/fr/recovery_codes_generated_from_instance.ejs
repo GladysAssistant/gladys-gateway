@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Nouveaux codes de récupération générés depuis ta Gladys', preheader: 'De nouveaux codes de récupération viennent d\'être générés pour ton compte depuis ton instance Gladys.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">De nouveaux codes de récupération ont été générés</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Un nouveau jeu de <strong>codes de récupération</strong> pour la double authentification vient d'être généré pour ton compte Gladys Plus depuis ton instance Gladys<% if (instanceName) { %> <strong><%= instanceName %></strong><% } %>, par un administrateur connecté localement dessus.
+                      Les codes de récupération que tu avais peut-être avant ne fonctionnent plus : seuls les nouveaux sont valables.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Si c'est toi qui l'as demandé (par exemple parce que tu as perdu ton application d'authentification), tu peux ignorer cet email. Garde les nouveaux codes en lieu sûr.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>Si ce n'est pas toi, quelqu'un ayant un accès administrateur à ta Gladys essaie peut-être d'entrer dans ton compte Gladys Plus.</strong>
+                          Un code de récupération remplace seulement ton application d'authentification : ton mot de passe reste nécessaire pour se connecter. Change-le dès maintenant depuis Gladys Plus et réponds à cet email pour que je sécurise ton compte.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

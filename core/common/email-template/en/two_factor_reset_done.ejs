@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Your two-factor authentication was reset', preheader: 'The two-factor authentication of your Gladys Plus account was just reset.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your two-factor authentication was reset</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      The two-factor authentication of your Gladys Plus account was just reset with the link sent to this address.
+                      Your authenticator app and your recovery codes no longer work: at your next sign in, Gladys Plus asks you to set up a new app, then to save new recovery codes.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      If you did this, you can safely ignore this email.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>If you did not, your account may be compromised.</strong>
+                          Change your password now and reply to this email so I can secure your account.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

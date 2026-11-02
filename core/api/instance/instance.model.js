@@ -180,6 +180,12 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     return users;
   }
 
+  // Ids of every active instance of an account (primary or not)
+  async function getInstanceIdsByAccount(accountId) {
+    const instances = await db.t_instance.find({ account_id: accountId, is_deleted: false }, { fields: ['id'] });
+    return instances.map((instance) => instance.id);
+  }
+
   async function getPrimaryInstanceByAccount(accountId) {
     const instance = await db.t_instance.findOne(
       {
@@ -276,6 +282,7 @@ module.exports = function InstanceModel(logger, db, redisClient, jwtService, fin
     createInstance,
     getInstances,
     getInstanceById,
+    getInstanceIdsByAccount,
     getAccessToken,
     getUsers,
     getPrimaryInstanceByAccount,

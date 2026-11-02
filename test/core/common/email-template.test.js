@@ -39,6 +39,7 @@ function buildScope(templateName, language) {
     adminName: 'Tony',
     invitationUrlGladys4: 'https://gladysassistant.com/signup?invitation=token',
     resetPasswordUrlGladys4: 'https://gladysassistant.com/reset-password/token',
+    twoFactorResetUrlGladys4: 'https://plus.gladysassistant.com/reset-two-factor?token=token',
     newEmail: 'new-email@gladysassistant.com',
     updateCardLink: 'https://plus.gladysassistant.com/accounts/stripe_customer_portal/key',
     loginUrl: 'https://plus.gladysassistant.com',

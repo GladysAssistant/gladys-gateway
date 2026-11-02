@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Ta double authentification a été réinitialisée', preheader: 'La double authentification de ton compte Gladys Plus vient d\'être réinitialisée.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Ta double authentification a été réinitialisée</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      La double authentification de ton compte Gladys Plus vient d'être réinitialisée avec le lien envoyé à cette adresse.
+                      Ton application d'authentification et tes codes de récupération ne fonctionnent plus : à ta prochaine connexion, Gladys Plus te demandera de configurer une nouvelle application, puis d'enregistrer de nouveaux codes de récupération.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Si c'est toi, tu peux ignorer cet email.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>Si ce n'est pas toi, ton compte est peut-être compromis.</strong>
+                          Change ton mot de passe dès maintenant et réponds à cet email pour que je sécurise ton compte.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

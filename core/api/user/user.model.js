@@ -3,8 +3,15 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const srpServer = require('secure-remote-password/server');
-const { ValidationError, AlreadyExistError, NotFoundError, ForbiddenError } = require('../../common/error');
+const {
+  ValidationError,
+  AlreadyExistError,
+  NotFoundError,
+  ForbiddenError,
+  TooManyRequestsError,
+} = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { extractFirstname } = require('../../common/billing-email-scope');
 const schema = require('../../common/schema');
 const TwoFactorVerifier = require('../../common/two-factor');
 
@@ -15,6 +22,10 @@ const TWO_FACTOR_RECOVERY_CODE_COUNT = 10;
 // doesn't allow to brute-force the code itself
 const TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES = 16;
 const TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS = 4;
+// A two factor reset link is valid one hour; one request per minute per user at most
+const TWO_FACTOR_RESET_TOKEN_EXPIRY_IN_SECONDS = 60 * 60;
+const TWO_FACTOR_RESET_REQUEST_COOLDOWN_IN_SECONDS = 60;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // recovery codes are case-insensitive and can be entered with or without dash/spaces
 function hashTwoFactorRecoveryCode(recoveryCode) {
@@ -23,7 +34,15 @@ function hashTwoFactorRecoveryCode(recoveryCode) {
 }
 
 module.exports = function UserModel(logger, db, redisClient, jwtService, mailService) {
-  const { verifyTwoFactorCode, verifyCurrentTwoFactor } = TwoFactorVerifier(logger, redisClient);
+  const {
+    verifyTwoFactorCode,
+    verifyCurrentTwoFactor,
+    resetFailedTwoFactorAttempts,
+    takeTwoFactorResetCooldown,
+    storeTwoFactorResetRequest,
+    getTwoFactorResetRequestUserId,
+    clearTwoFactorResetRequest,
+  } = TwoFactorVerifier(logger, redisClient);
 
   /**
    * Create a new user with his email and language
@@ -363,6 +382,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       },
       { two_factor_enabled: true },
     );
+    await clearTwoFactorResetRequest(user.id);
 
     return {
       two_factor_enabled: true,
@@ -394,7 +414,37 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
   }
 
-  async function updateTwoFactor(user, twoFactorSecret, twoFactorCode, currentTwoFactorCode) {
+  // Removing the recovery code and verifying that it was there is done in one single SQL query,
+  // so 2 concurrent requests can never use the same recovery code twice.
+  async function consumeTwoFactorRecoveryCode(tx, userId, recoveryCode) {
+    if (typeof recoveryCode !== 'string' || recoveryCode.length === 0) {
+      return false;
+    }
+
+    const recoveryCodeHash = hashTwoFactorRecoveryCode(recoveryCode);
+
+    const usersUpdated = await tx.query(
+      `
+      UPDATE t_user
+      SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2)
+      WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
+      RETURNING id
+    `,
+      [userId, recoveryCodeHash],
+    );
+
+    return usersUpdated.length === 1;
+  }
+
+  // The current second factor is a code of the current app or, for a user who lost that
+  // app (logged in with a recovery code), one of their single-use recovery codes.
+  async function updateTwoFactor(
+    user,
+    twoFactorSecret,
+    twoFactorCode,
+    currentTwoFactorCode,
+    currentTwoFactorRecoveryCode,
+  ) {
     const userWithSecret = await db.t_user.findOne(
       {
         id: user.id,
@@ -402,8 +452,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       { fields: ['id', 'two_factor_enabled', 'two_factor_secret'] },
     );
 
-    // the current secret can only be replaced by someone who holds it
-    await verifyCurrentTwoFactor(userWithSecret, currentTwoFactorCode, 'replace the two factor secret');
+    const useRecoveryCode =
+      userWithSecret.two_factor_enabled === true &&
+      currentTwoFactorRecoveryCode !== undefined &&
+      currentTwoFactorRecoveryCode !== null;
+
+    // the current secret can only be replaced by someone who holds it (or a recovery code,
+    // checked below: it is consumed in the same transaction as the replacement)
+    if (!useRecoveryCode) {
+      await verifyCurrentTwoFactor(userWithSecret, currentTwoFactorCode, 'replace the two factor secret');
+    }
 
     if (typeof twoFactorSecret !== 'string' || twoFactorSecret.length === 0) {
       throw new ForbiddenError('A new two factor secret is required');
@@ -419,15 +477,29 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ForbiddenError();
     }
 
-    await db.t_user.update(
-      {
-        id: user.id,
-      },
-      {
-        two_factor_enabled: true,
-        two_factor_secret: twoFactorSecret,
-      },
-    );
+    const newTwoFactor = {
+      two_factor_enabled: true,
+      two_factor_secret: twoFactorSecret,
+    };
+
+    if (useRecoveryCode) {
+      // the recovery code is consumed with the replacement, so the user doesn't lose a
+      // recovery code if the replacement fails
+      await db.withTransaction(async (tx) => {
+        const recoveryCodeConsumed = await consumeTwoFactorRecoveryCode(tx, user.id, currentTwoFactorRecoveryCode);
+        if (!recoveryCodeConsumed) {
+          logger.info(`Replace two factor secret error: recovery code is not valid.`);
+          throw new ForbiddenError();
+        }
+        await tx.t_user.update({ id: user.id }, newTwoFactor);
+      });
+      // attempts burned on the lost app must not lock the new one out
+      await resetFailedTwoFactorAttempts(user.id);
+    } else {
+      await db.t_user.update({ id: user.id }, newTwoFactor);
+    }
+    // the user has a working app again: a pending reset link must not wipe it
+    await clearTwoFactorResetRequest(user.id);
 
     return {
       two_factor_enabled: true,
@@ -476,28 +548,6 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
   }
 
-  // Removing the recovery code and verifying that it was there is done in one single SQL query,
-  // so 2 concurrent requests can never use the same recovery code twice.
-  async function consumeTwoFactorRecoveryCode(tx, userId, recoveryCode) {
-    if (typeof recoveryCode !== 'string' || recoveryCode.length === 0) {
-      return false;
-    }
-
-    const recoveryCodeHash = hashTwoFactorRecoveryCode(recoveryCode);
-
-    const usersUpdated = await tx.query(
-      `
-      UPDATE t_user
-      SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2)
-      WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
-      RETURNING id
-    `,
-      [userId, recoveryCodeHash],
-    );
-
-    return usersUpdated.length === 1;
-  }
-
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent) {
     const userWithSecret = await db.t_user.findOne(
       {
@@ -522,6 +572,38 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return db.withTransaction((tx) => createDeviceSession(tx, userWithSecret, deviceName, userAgent));
   }
 
+  /**
+   * Generate a new set of recovery codes, store their hashes and return the codes.
+   * Any previously generated code is invalidated. The caller is responsible for
+   * checking the second factor (or what stands in for it) first.
+   */
+  async function storeNewTwoFactorRecoveryCodes(userId) {
+    const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
+
+    const recoveryCodes = [];
+    for (let i = 0; i < TWO_FACTOR_RECOVERY_CODE_COUNT; i += 1) {
+      const code = buffer
+        .slice(i * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES, (i + 1) * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES)
+        .toString('hex');
+      // the code is displayed in groups of characters so it's easier to read & type
+      recoveryCodes.push(code.match(new RegExp(`.{${TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS}}`, 'g')).join('-'));
+    }
+
+    // we only store a hash of the codes so it's not possible to use them
+    // if the DB is compromised in read-only (due to SQL injection for example)
+    // the reminder date is reset too: a user who later uses every code is reminded at once
+    await db.t_user.update(userId, {
+      two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
+      recovery_codes_reminder_sent_at: null,
+    });
+    // the user has a second factor again: a pending reset link must not wipe it
+    await clearTwoFactorResetRequest(userId);
+
+    return {
+      recovery_codes: recoveryCodes,
+    };
+  }
+
   async function generateTwoFactorRecoveryCodes(user, twoFactorCode) {
     const fullUser = await db.t_user.findOne(
       {
@@ -538,28 +620,68 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     // generating new ones requires the current second factor
     await verifyCurrentTwoFactor(fullUser, twoFactorCode, 'generate new recovery codes');
 
-    const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
+    return storeNewTwoFactorRecoveryCodes(user.id);
+  }
 
-    const recoveryCodes = [];
-    for (let i = 0; i < TWO_FACTOR_RECOVERY_CODE_COUNT; i += 1) {
-      const code = buffer
-        .slice(i * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES, (i + 1) * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES)
-        .toString('hex');
-      // the code is displayed in groups of characters so it's easier to read & type
-      recoveryCodes.push(code.match(new RegExp(`.{${TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS}}`, 'g')).join('-'));
+  /**
+   * Generate a new set of recovery codes for a user of the account of a Gladys instance.
+   *
+   * The instance stands in for the second factor here: it is authenticated by its own
+   * token, it belongs to the account, and this call is only reachable by an admin logged
+   * in locally on that instance (Gladys asks for their local password again). A user who
+   * lost both their two-factor app and their recovery codes gets back into their account
+   * this way without any human intervention. The user is notified by email, so a rotation
+   * they did not ask for cannot go unnoticed.
+   */
+  async function generateTwoFactorRecoveryCodesFromInstance(instance, userId) {
+    // a malformed id would make PostgreSQL throw (uuid column): not found is the right answer
+    if (typeof userId !== 'string' || !UUID_REGEX.test(userId)) {
+      throw new NotFoundError('User not found in the account of this instance');
     }
 
-    // we only store a hash of the codes so it's not possible to use them
-    // if the DB is compromised in read-only (due to SQL injection for example)
-    // the reminder date is reset too: a user who later uses every code is reminded at once
-    await db.t_user.update(user.id, {
-      two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
-      recovery_codes_reminder_sent_at: null,
-    });
+    const users = await db.query(
+      `
+      SELECT t_user.id, t_user.email, t_user.language, t_user.name, t_user.two_factor_enabled,
+        t_instance.name as instance_name
+      FROM t_user
+      JOIN t_instance ON t_instance.account_id = t_user.account_id
+      WHERE t_user.id = $1
+      AND t_instance.id = $2
+      AND t_instance.is_deleted = false
+      AND t_user.is_deleted = false
+      AND t_user.email_confirmed = true
+    `,
+      [userId, instance.id],
+    );
 
-    return {
-      recovery_codes: recoveryCodes,
-    };
+    if (users.length === 0) {
+      throw new NotFoundError('User not found in the account of this instance');
+    }
+
+    const [user] = users;
+
+    if (user.two_factor_enabled !== true) {
+      throw new ForbiddenError('Two Factor Authentication is not enabled');
+    }
+
+    const result = await storeNewTwoFactorRecoveryCodes(user.id);
+
+    logger.warn(`Two factor recovery codes of user ${user.id} generated from instance ${instance.id}`);
+
+    // Security notification: the codes stand in for the second factor of the account.
+    // The codes are already rotated, so a mail failure must not make the call fail: the
+    // admin would retry and rotate them once more for nothing.
+    try {
+      await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_generated_from_instance', {
+        firstname: extractFirstname(user.name),
+        instanceName: user.instance_name,
+      });
+    } catch (e) {
+      logger.error(`Unable to send the recovery codes notification email to user ${user.id}`);
+      logger.error(e);
+    }
+
+    return result;
   }
 
   async function loginTwoFactorRecoveryCode(user, recoveryCode, deviceName, userAgent) {
@@ -685,19 +807,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return userWithEmail;
   }
 
-  async function resetPassword(forgotPasswordToken, data) {
-    // first, we validate the data sent
-    const { error } = schema.resetPasswordSchema.validate(data, {
-      stripUnknown: true,
-      abortEarly: false,
-      presence: 'required',
-    });
-
-    if (error) {
-      logger.debug(error);
-      throw new ValidationError('resetPassword', error);
-    }
-
+  // The pending, unexpired reset password request of a raw token, or not found
+  async function getValidResetPasswordRequest(forgotPasswordToken) {
     const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
@@ -720,6 +831,155 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       logger.info(`Reset password: Token has expired`);
       throw new NotFoundError();
     }
+
+    return resetPasswordRequest;
+  }
+
+  async function getUserForTwoFactorReset(userId) {
+    const user = await db.t_user.findOne(
+      { id: userId, is_deleted: false, email_confirmed: true },
+      { fields: ['id', 'email', 'language', 'name', 'two_factor_enabled', 'account_id'] },
+    );
+    if (user === null) {
+      throw new NotFoundError('USER_NOT_FOUND');
+    }
+    return user;
+  }
+
+  /**
+   * Two factor reset by email, for a user who lost both their two-factor app and their
+   * recovery codes and has NO Gladys instance connected to the Gateway (lost or dead
+   * hardware, never linked): the instance is the preferred second factor of last resort
+   * (see generateTwoFactorRecoveryCodesFromInstance), so this path is refused while one
+   * is connected. The caller already proved the password (two factor token) or the
+   * mailbox (reset password token); the link sent here proves the mailbox again, so the
+   * reset needs password + mailbox, or mailbox alone from the reset password flow.
+   *
+   * A user has one pending link at a time: a new request replaces it, and recovering
+   * another way (recovery codes, new app, admin reset) drops it.
+   *
+   * `isInstanceConnected(user)` is given by the controller: the user model is created
+   * before the socket model.
+   */
+  async function requestTwoFactorReset(userId, isInstanceConnected) {
+    const user = await getUserForTwoFactorReset(userId);
+
+    if (user.two_factor_enabled !== true) {
+      throw new ForbiddenError('TWO_FACTOR_NOT_ENABLED');
+    }
+
+    if (await isInstanceConnected(user)) {
+      throw new ForbiddenError('INSTANCE_CONNECTED');
+    }
+
+    // atomic: two parallel requests cannot both pass
+    if (!(await takeTwoFactorResetCooldown(user.id, TWO_FACTOR_RESET_REQUEST_COOLDOWN_IN_SECONDS))) {
+      throw new TooManyRequestsError('TWO_FACTOR_RESET_ALREADY_REQUESTED');
+    }
+
+    const token = (await randomBytes(32)).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // only the hash is stored: reading Redis is not enough to use the link
+    await storeTwoFactorResetRequest(user.id, tokenHash, TWO_FACTOR_RESET_TOKEN_EXPIRY_IN_SECONDS);
+
+    logger.warn(`Two factor reset requested by email for user ${user.id}`);
+
+    try {
+      await mailService.send(user, 'two_factor_reset_link', {
+        firstname: extractFirstname(user.name),
+        twoFactorResetUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/reset-two-factor?token=${encodeURI(token)}`,
+      });
+    } catch (e) {
+      // no link received: nothing to keep, and the user can ask again right away
+      await clearTwoFactorResetRequest(user.id);
+      throw e;
+    }
+
+    return { success: true };
+  }
+
+  // Same request, from a reset password link: the user forgot their password AND lost
+  // their second factor. The reset password token proves the mailbox.
+  async function requestTwoFactorResetFromPasswordReset(forgotPasswordToken, isInstanceConnected) {
+    const resetPasswordRequest = await getValidResetPasswordRequest(forgotPasswordToken);
+    return requestTwoFactorReset(resetPasswordRequest.user_id, isInstanceConnected);
+  }
+
+  async function resetTwoFactor(token, isInstanceConnected) {
+    if (typeof token !== 'string' || token.length === 0) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const userId = await getTwoFactorResetRequestUserId(tokenHash);
+
+    if (userId === null) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    const user = await getUserForTwoFactorReset(userId);
+
+    // the instance came back online since the request: it is the way to go, the link is kept
+    if (await isInstanceConnected(user)) {
+      throw new ForbiddenError('INSTANCE_CONNECTED');
+    }
+
+    // the link is consumed first, whatever happens next: it is never usable twice
+    await clearTwoFactorResetRequest(user.id);
+
+    // nothing to reset (the user recovered another way meanwhile): the link is dead
+    if (user.two_factor_enabled !== true) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    // the user sets up a new two factor app at their next login (two-factor-configure scope).
+    // The condition is defense in depth against a concurrent recovery.
+    const usersUpdated = await db.query(
+      `
+      UPDATE t_user
+      SET two_factor_enabled = false, two_factor_secret = NULL, two_factor_recovery_codes = NULL,
+        recovery_codes_reminder_sent_at = NULL
+      WHERE id = $1 AND two_factor_enabled = true
+      RETURNING id
+    `,
+      [user.id],
+    );
+    if (usersUpdated.length === 0) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    await resetFailedTwoFactorAttempts(user.id);
+
+    logger.warn(`Two factor authentication of user ${user.id} reset by email`);
+
+    // Security notification: the reset is done, a mail failure must not fail the call
+    try {
+      await mailService.send(user, 'two_factor_reset_done', {
+        firstname: extractFirstname(user.name),
+      });
+    } catch (e) {
+      logger.error(`Unable to send the two factor reset notification email to user ${user.id}`);
+      logger.error(e);
+    }
+
+    return { two_factor_enabled: false };
+  }
+
+  async function resetPassword(forgotPasswordToken, data) {
+    // first, we validate the data sent
+    const { error } = schema.resetPasswordSchema.validate(data, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('resetPassword', error);
+    }
+
+    const resetPasswordRequest = await getValidResetPasswordRequest(forgotPasswordToken);
 
     const userWithSecret = await db.t_user.findOne(
       {
@@ -837,6 +1097,10 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     loginTwoFactor,
     loginTwoFactorRecoveryCode,
     generateTwoFactorRecoveryCodes,
+    generateTwoFactorRecoveryCodesFromInstance,
+    requestTwoFactorReset,
+    requestTwoFactorResetFromPasswordReset,
+    resetTwoFactor,
     getAccessToken,
     forgotPassword,
     resetPassword,

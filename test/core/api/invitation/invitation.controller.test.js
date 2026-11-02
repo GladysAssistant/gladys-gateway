@@ -83,6 +83,19 @@ describe('POST /invitations', () => {
     expect(response.body.gladys_4_user_id).to.equal(null);
   });
 
+  it('should not send invitation, gladys_4_user_id is a uuid in a form PostgreSQL rejects', () =>
+    request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        gladys_4_user_id: 'df033006:ee42:4b94:a324:3f558171c493',
+      })
+      .expect('Content-Type', /json/)
+      .expect(422));
+
   it('should not send invitation, gladys_4_user_id is not a uuid', () =>
     request(TEST_BACKEND_APP)
       .post('/invitations')
@@ -195,6 +208,36 @@ describe('POST /invitations/accept', () => {
     });
     expect(user.gladys_4_user_id).to.equal('5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b');
     expect(user.account_id).to.equal('b2d23f66-487d-493f-8acb-9c8adb400def');
+  });
+
+  it('should not accept an invitation whose Gladys user was taken by another user meanwhile', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update(
+      { id: '3b69f1c5-d36c-419d-884c-50b9dd6e33e4' },
+      { gladys_4_user_id: '5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b' },
+    );
+    await request(TEST_BACKEND_APP)
+      .post('/invitations/accept')
+      .set('Accept', 'application/json')
+      .send({
+        token: 'token-of-the-invitation-sent-for-a-gladys-user',
+        name: 'Happy',
+        language: 'en',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+      })
+      .expect('Content-Type', /json/)
+      .expect(409);
+    // nothing was written: the invitation is still pending, the user does not exist
+    const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({
+      id: 'c5d3a6e0-7b1f-4c2e-9a8d-2f4b6e8a1c3d',
+    });
+    expect(invitation.accepted).to.equal(false);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ email: 'invitedforgladysuser@gladysassistant.com' });
+    expect(user).to.equal(null);
   });
 
   it('should store accepted invitation email in lowercase even if invitation has mixed case', async () => {

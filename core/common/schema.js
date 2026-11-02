@@ -48,13 +48,13 @@ const instanceOfflineAlertSchema = Joi.object()
 const invitationSchema = Joi.object().keys({
   email: Joi.string().email(),
   role: Joi.string(),
-  gladys_4_user_id: Joi.string().guid().optional().allow(null),
+  gladys_4_user_id: Joi.string().guid({ separator: '-' }).optional().allow(null),
 });
 
 // PATCH /accounts/users/:id and PATCH /invitations/:id: the Gladys user (on the instance)
 // an admin links a user of the account, or a pending invitation, to. null unlinks.
 const gladysUserLinkSchema = Joi.object().keys({
-  gladys_4_user_id: Joi.string().guid().allow(null).required(),
+  gladys_4_user_id: Joi.string().guid({ separator: '-' }).allow(null).required(),
 });
 
 const resetPasswordSchema = Joi.object().keys({

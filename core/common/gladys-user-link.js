@@ -4,8 +4,12 @@ const { AlreadyExistError } = require('./error');
 // can be linked to a single user of the account, and carried by a single pending
 // invitation. Checked wherever the link is set by an admin: inviting for a Gladys user,
 // linking a user or a pending invitation to one.
-async function assertGladysUserNotLinked(db, accountId, gladys4UserId, { ignoreUserId, ignoreInvitationId } = {}) {
-  const users = await db.t_user.find(
+// Called inside the transaction that writes the link: the account row is locked first, so
+// two links for the same Gladys user cannot both pass the checks below before either is
+// written (a plain select-then-write would, at PostgreSQL's default isolation level).
+async function assertGladysUserNotLinked(tx, accountId, gladys4UserId, { ignoreUserId, ignoreInvitationId } = {}) {
+  await tx.query('SELECT id FROM t_account WHERE id = $1 FOR UPDATE', [accountId]);
+  const users = await tx.t_user.find(
     {
       gladys_4_user_id: gladys4UserId,
       account_id: accountId,
@@ -16,7 +20,7 @@ async function assertGladysUserNotLinked(db, accountId, gladys4UserId, { ignoreU
   if (users.some((user) => user.id !== ignoreUserId)) {
     throw new AlreadyExistError('user linked to gladys_4_user_id', gladys4UserId);
   }
-  const invitations = await db.t_invitation.find(
+  const invitations = await tx.t_invitation.find(
     {
       gladys_4_user_id: gladys4UserId,
       account_id: accountId,

@@ -142,8 +142,13 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       value.email_confirmation_token_hash = invitation.token_hash;
       value.role = invitation.role;
       // the admin invited them for a Gladys user of the instance: the new user is linked
-      // to it right away (an invitation without one leaves the user to pick theirs)
+      // to it right away (an invitation without one leaves the user to pick theirs). The
+      // Gladys user may have been taken since the invitation was sent (another user picked
+      // it on their first login): the link stays unique, the signup is refused (409)
       if (invitation.gladys_4_user_id) {
+        await assertGladysUserNotLinked(tx, invitation.account_id, invitation.gladys_4_user_id, {
+          ignoreInvitationId: invitation.id,
+        });
         value.gladys_4_user_id = invitation.gladys_4_user_id;
       }
 

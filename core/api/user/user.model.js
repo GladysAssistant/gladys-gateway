@@ -468,7 +468,37 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     };
   }
 
-  async function updateTwoFactor(user, twoFactorSecret, twoFactorCode, currentTwoFactorCode) {
+  // Removing the recovery code and verifying that it was there is done in one single SQL query,
+  // so 2 concurrent requests can never use the same recovery code twice.
+  async function consumeTwoFactorRecoveryCode(tx, userId, recoveryCode) {
+    if (typeof recoveryCode !== 'string' || recoveryCode.length === 0) {
+      return false;
+    }
+
+    const recoveryCodeHash = hashTwoFactorRecoveryCode(recoveryCode);
+
+    const usersUpdated = await tx.query(
+      `
+      UPDATE t_user
+      SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2)
+      WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
+      RETURNING id
+    `,
+      [userId, recoveryCodeHash],
+    );
+
+    return usersUpdated.length === 1;
+  }
+
+  // The current second factor is a code of the current app or, for a user who lost that
+  // app (logged in with a recovery code), one of their single-use recovery codes.
+  async function updateTwoFactor(
+    user,
+    twoFactorSecret,
+    twoFactorCode,
+    currentTwoFactorCode,
+    currentTwoFactorRecoveryCode,
+  ) {
     const userWithSecret = await db.t_user.findOne(
       {
         id: user.id,
@@ -476,8 +506,16 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       { fields: ['id', 'two_factor_enabled', 'two_factor_secret'] },
     );
 
-    // the current secret can only be replaced by someone who holds it
-    await verifyCurrentTwoFactor(userWithSecret, currentTwoFactorCode, 'replace the two factor secret');
+    const useRecoveryCode =
+      userWithSecret.two_factor_enabled === true &&
+      currentTwoFactorRecoveryCode !== undefined &&
+      currentTwoFactorRecoveryCode !== null;
+
+    // the current secret can only be replaced by someone who holds it (or a recovery code,
+    // checked below: it is consumed in the same transaction as the replacement)
+    if (!useRecoveryCode) {
+      await verifyCurrentTwoFactor(userWithSecret, currentTwoFactorCode, 'replace the two factor secret');
+    }
 
     if (typeof twoFactorSecret !== 'string' || twoFactorSecret.length === 0) {
       throw new ForbiddenError('A new two factor secret is required');
@@ -493,15 +531,25 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       throw new ForbiddenError();
     }
 
-    await db.t_user.update(
-      {
-        id: user.id,
-      },
-      {
-        two_factor_enabled: true,
-        two_factor_secret: twoFactorSecret,
-      },
-    );
+    const newTwoFactor = {
+      two_factor_enabled: true,
+      two_factor_secret: twoFactorSecret,
+    };
+
+    if (useRecoveryCode) {
+      // the recovery code is consumed with the replacement, so the user doesn't lose a
+      // recovery code if the replacement fails
+      await db.withTransaction(async (tx) => {
+        const recoveryCodeConsumed = await consumeTwoFactorRecoveryCode(tx, user.id, currentTwoFactorRecoveryCode);
+        if (!recoveryCodeConsumed) {
+          logger.info(`Replace two factor secret error: recovery code is not valid.`);
+          throw new ForbiddenError();
+        }
+        await tx.t_user.update({ id: user.id }, newTwoFactor);
+      });
+    } else {
+      await db.t_user.update({ id: user.id }, newTwoFactor);
+    }
 
     return {
       two_factor_enabled: true,
@@ -548,28 +596,6 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       encrypted_backup_key: userWithSecret.encrypted_backup_key,
       gladys_4_user_id: userWithSecret.gladys_4_user_id,
     };
-  }
-
-  // Removing the recovery code and verifying that it was there is done in one single SQL query,
-  // so 2 concurrent requests can never use the same recovery code twice.
-  async function consumeTwoFactorRecoveryCode(tx, userId, recoveryCode) {
-    if (typeof recoveryCode !== 'string' || recoveryCode.length === 0) {
-      return false;
-    }
-
-    const recoveryCodeHash = hashTwoFactorRecoveryCode(recoveryCode);
-
-    const usersUpdated = await tx.query(
-      `
-      UPDATE t_user
-      SET two_factor_recovery_codes = array_remove(two_factor_recovery_codes, $2)
-      WHERE id = $1 AND $2 = ANY(two_factor_recovery_codes)
-      RETURNING id
-    `,
-      [userId, recoveryCodeHash],
-    );
-
-    return usersUpdated.length === 1;
   }
 
   async function loginTwoFactor(user, twoFactorCode, deviceName, userAgent) {

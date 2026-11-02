@@ -1651,6 +1651,76 @@ describe('PATCH /users/two-factor', () => {
     expect(user.two_factor_enabled).to.equal(true);
   });
 
+  it('should update two factor with a recovery code instead of the current code, and consume it', async () => {
+    const secret = speakeasy.generateSecret();
+
+    const response = await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+        current_two_factor_recovery_code: '1a2b3-c4d5e',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body).to.have.property('two_factor_enabled', true);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(secret.base32);
+    expect(user.two_factor_enabled).to.equal(true);
+    // the recovery code is single-use: one left, and this one no longer logs in
+    expect(user.two_factor_recovery_codes).to.have.lengthOf(1);
+    await request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', 'my-browser')
+      .send({ two_factor_recovery_code: '1a2b3-c4d5e', device_name: 'my-device' })
+      .expect(403);
+  });
+
+  it('should return 403 and keep the current secret with a wrong recovery code', async () => {
+    const secret = speakeasy.generateSecret();
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+        current_two_factor_recovery_code: 'not-a-code',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+    expect(user.two_factor_recovery_codes).to.have.lengthOf(2);
+  });
+
+  it('should not consume the recovery code when the code of the new app is wrong', async () => {
+    const secret = speakeasy.generateSecret();
+
+    await request(TEST_BACKEND_APP)
+      .patch('/users/two-factor')
+      .send({
+        two_factor_secret: secret.base32,
+        two_factor_code: '000000',
+        current_two_factor_recovery_code: '1a2b3-c4d5e',
+      })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userId });
+    expect(user.two_factor_secret).to.equal(twoFactorEnabledUserSecret);
+    expect(user.two_factor_recovery_codes).to.have.lengthOf(2);
+  });
+
   it('should return 403 and keep the current secret without the current two factor code', async () => {
     const secret = speakeasy.generateSecret();
 

@@ -57,6 +57,11 @@ const gladysUserLinkSchema = Joi.object().keys({
   gladys_4_user_id: Joi.string().guid({ separator: '-' }).allow(null).required(),
 });
 
+// POST /accounts/users/:id/reset-two-factor: the admin confirms with their own code
+const resetUserTwoFactorSchema = Joi.object().keys({
+  two_factor_code: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
+});
+
 const resetPasswordSchema = Joi.object().keys({
   srp_salt: Joi.string(),
   srp_verifier: Joi.string(),
@@ -80,6 +85,7 @@ module.exports.signupSchema = signupSchema;
 module.exports.updateUserSchema = updateUserSchema;
 module.exports.invitationSchema = invitationSchema;
 module.exports.gladysUserLinkSchema = gladysUserLinkSchema;
+module.exports.resetUserTwoFactorSchema = resetUserTwoFactorSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;

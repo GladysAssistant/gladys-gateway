@@ -19,7 +19,8 @@ const {
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
-const { instanceOfflineAlertSchema, gladysUserLinkSchema } = require('../../common/schema');
+const { instanceOfflineAlertSchema, gladysUserLinkSchema, resetUserTwoFactorSchema } = require('../../common/schema');
+const TwoFactorVerifier = require('../../common/two-factor');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -940,6 +941,78 @@ module.exports = function AccountModel(
     });
   }
 
+  // Reset the second factor of a user of the account who lost their authenticator and
+  // their recovery codes, as an admin of the account. The TOTP secret and the recovery
+  // codes are erased: the user signs in with their password and sets up a new
+  // authenticator at their next login. Their encryption keys do not change, so the
+  // instance keeps accepting them. The admin confirms with their OWN current code (an
+  // access token alone must not be enough to weaken another user's account), never for
+  // themselves (recovery codes or the support), and the user is told by email.
+  async function resetUserTwoFactor(user, userIdToReset, body) {
+    const { error, value } = resetUserTwoFactorSchema.validate(body, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw new ValidationError('user', error);
+    }
+
+    const admin = await db.t_user.findOne(
+      {
+        id: user.id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'email', 'role', 'account_id', 'two_factor_enabled', 'two_factor_secret'] },
+    );
+
+    if (admin === null || admin.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    if (userIdToReset === admin.id) {
+      throw new ForbiddenError('You cannot reset your own two factor authentication');
+    }
+
+    const userToReset = await db.t_user.findOne(
+      {
+        id: userIdToReset,
+        account_id: admin.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'email', 'language', 'two_factor_enabled'] },
+    );
+
+    if (userToReset === null) {
+      throw new NotFoundError();
+    }
+
+    const { verifyCurrentTwoFactor } = TwoFactorVerifier(logger, redisClient);
+    await verifyCurrentTwoFactor(admin, value.two_factor_code, 'reset the two factor authentication of a user');
+
+    await db.t_user.update(userToReset.id, {
+      two_factor_enabled: false,
+      two_factor_secret: null,
+      two_factor_recovery_codes: null,
+    });
+
+    logger.warn(`Two factor authentication of user ${userToReset.id} reset by admin ${admin.id}`);
+    telegramService.sendAlert(
+      `User ${admin.email} (${admin.name}) reset the two factor authentication of ${userToReset.email}.`,
+    );
+
+    await mailService.send({ email: userToReset.email, language: userToReset.language }, 'two_factor_reset', {
+      firstname: userToReset.name,
+      adminName: admin.name,
+      loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+    });
+
+    return {
+      id: userToReset.id,
+      two_factor_enabled: false,
+    };
+  }
+
   async function revokeUser(user, userIdToRevoke) {
     // get the account_id of the currently connected user, who must be admin: an admin removed
     // from the account cannot revoke the others with an access token issued before the removal
@@ -1088,6 +1161,7 @@ module.exports = function AccountModel(
     getUsers,
     updateCard,
     updateUserGladysUser,
+    resetUserTwoFactor,
     revokeUser,
     updateInstanceOfflineAlert,
     subscribeMonthlyPlan,

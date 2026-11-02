@@ -288,6 +288,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.updateUserGladysUser),
   );
+  app.post(
+    '/accounts/users/:id/reset-two-factor',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.resetUserTwoFactor),
+  );
   app.patch(
     '/accounts/instance-offline-alert',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),

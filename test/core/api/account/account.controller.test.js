@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const speakeasy = require('speakeasy');
 const request = require('supertest');
 const nock = require('nock');
 const { expect } = require('chai');
@@ -158,6 +159,86 @@ describe('PATCH /accounts/users/:id', () => {
       .expect('Content-Type', /json/)
       .expect(403);
   });
+});
+
+describe('POST /accounts/users/:id/reset-two-factor', () => {
+  // the admin of jwtAccessTokenDashboard has two factor enabled with this secret
+  const adminTwoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+  const userToResetId = '3b69f1c5-d36c-419d-884c-50b9dd6e33e4';
+
+  const enableTwoFactorOnUserToReset = () =>
+    TEST_DATABASE_INSTANCE.t_user.update(
+      { id: userToResetId },
+      { two_factor_enabled: true, two_factor_recovery_codes: ['hash-1', 'hash-2'] },
+    );
+
+  it('should reset the two factor of a user of the account', async () => {
+    await enableTwoFactorOnUserToReset();
+    const response = await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ id: userToResetId, two_factor_enabled: false });
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userToResetId });
+    expect(user.two_factor_enabled).to.equal(false);
+    expect(user.two_factor_secret).to.equal(null);
+    expect(user.two_factor_recovery_codes).to.equal(null);
+  });
+
+  it('should return 403 with a wrong two factor code of the admin, and keep the user untouched', async () => {
+    await enableTwoFactorOnUserToReset();
+    await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: '000000' })
+      .expect('Content-Type', /json/)
+      .expect(403);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userToResetId });
+    expect(user.two_factor_enabled).to.equal(true);
+    expect(user.two_factor_secret).to.equal(adminTwoFactorSecret);
+  });
+
+  it('should return 422 without the two factor code of the admin', () =>
+    request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({})
+      .expect('Content-Type', /json/)
+      .expect(422));
+
+  it('should return 403 when the admin resets their own two factor', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/users/a139e4a6-ec6c-442d-9730-0499155d38d4/reset-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(403));
+
+  it('should return 403 when the user is not admin', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, { role: 'user' });
+    await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
+
+  it('should return 404 for a user who is not in the account', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/users/00000000-0000-4000-8000-000000000000/reset-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(404));
 });
 
 describe('POST /accounts/users/:id/revoke', () => {

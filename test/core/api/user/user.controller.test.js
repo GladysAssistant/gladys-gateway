@@ -634,6 +634,23 @@ describe('POST /instances/users/:user_id/two-factor/recovery-codes', () => {
     expect(sentEmails).to.have.lengthOf(0);
   });
 
+  it('should return 404 when the instance was deleted (its token is still valid)', async () => {
+    await TEST_DATABASE_INSTANCE.t_instance.update(
+      { id: '0bc53f3c-1e11-40d3-99a4-bd392a666eaf' },
+      { is_deleted: true },
+    );
+
+    await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(404);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+    expect(user.two_factor_recovery_codes).to.include(EXISTING_RECOVERY_CODE_HASH);
+  });
+
   it('should return 404 for a revoked user of the account', async () => {
     await TEST_DATABASE_INSTANCE.t_user.update({ id: USER_WITH_TWO_FACTOR }, { is_deleted: true });
 
@@ -793,6 +810,52 @@ describe('two factor reset by email', () => {
       expect(sentEmails).to.have.lengthOf(1);
     });
 
+    it('should email a reset link to a user of an account without any instance', async () => {
+      const lonelyUser = await TEST_DATABASE_INSTANCE.t_user.insert({
+        email: 'no-instance@gladysassistant.com',
+        email_confirmation_token_hash: 'hash',
+        email_confirmed: true,
+        language: 'fr',
+        name: 'Lonely',
+        role: 'admin',
+        account_id: 'be2b9666-5c72-451e-98f4-efca76ffef54',
+        two_factor_enabled: true,
+        two_factor_secret: twoFactorEnabledUserSecret,
+      });
+      const twoFactorToken = Jwt().generateTwoFactorToken({ id: lonelyUser.id });
+
+      await requestReset(twoFactorToken).expect(200);
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0].email).to.equal('no-instance@gladysassistant.com');
+      expect(sentEmails[0].language).to.equal('fr');
+    });
+
+    it('should replace the previous link of the user with the new one', async () => {
+      await requestReset().expect(200);
+      const firstToken = getTokenFromEmail(sentEmails[0]);
+      await TEST_REDIS_CLIENT.del(`two_factor_reset:cooldown:${USER_WITH_TWO_FACTOR}`);
+      await requestReset().expect(200);
+      const secondToken = getTokenFromEmail(sentEmails[1]);
+      expect(secondToken).to.not.equal(firstToken);
+
+      await reset(firstToken).expect(404);
+      await reset(secondToken).expect(200);
+    });
+
+    it('should keep nothing when the email cannot be sent, so the user can ask again at once', async () => {
+      TEST_SERVICES.mailService.send = async () => {
+        throw new Error('SMTP down');
+      };
+      await requestReset().expect(500);
+
+      TEST_SERVICES.mailService.send = async (user, template, scope) => {
+        sentEmails.push({ email: user.email, language: user.language, template, scope });
+      };
+      // no cooldown left over
+      await requestReset().expect(200);
+      expect(sentEmails).to.have.lengthOf(1);
+    });
+
     it('should return 429 on a second request within the cooldown', async () => {
       await requestReset().expect(200);
       const response = await requestReset().expect('Content-Type', /json/).expect(429);
@@ -919,6 +982,111 @@ describe('two factor reset by email', () => {
       await reset(token).expect(200);
       user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
       expect(user.two_factor_enabled).to.equal(false);
+    });
+
+    it('should refuse and consume the link once two factor is already off', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+      // reset meanwhile by another path (an admin of the account, for example)
+      await TEST_DATABASE_INSTANCE.t_user.update(
+        { id: USER_WITH_TWO_FACTOR },
+        { two_factor_enabled: false, two_factor_secret: null, two_factor_recovery_codes: null },
+      );
+      // ... and a new app configured since
+      await TEST_DATABASE_INSTANCE.t_user.update(
+        { id: USER_WITH_TWO_FACTOR },
+        { two_factor_enabled: true, two_factor_secret: 'NEWSECRET' },
+      );
+      // the user model does not know it: simulate the state right after the other reset
+      await TEST_DATABASE_INSTANCE.t_user.update({ id: USER_WITH_TWO_FACTOR }, { two_factor_enabled: false });
+
+      await reset(token).expect(404);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_secret).to.equal('NEWSECRET');
+      // consumed: it will not fire later either
+      await TEST_DATABASE_INSTANCE.t_user.update({ id: USER_WITH_TWO_FACTOR }, { two_factor_enabled: true });
+      await reset(token).expect(404);
+      expect(sentEmails).to.have.lengthOf(1);
+    });
+
+    it('should drop the pending link when new recovery codes are generated from the instance', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+
+      await request(TEST_BACKEND_APP)
+        .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenInstance)
+        .expect(200);
+
+      await reset(token).expect(404);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+      expect(user.two_factor_recovery_codes).to.have.lengthOf(10);
+    });
+
+    it('should drop the pending link when the two factor app is replaced', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+
+      const secret = speakeasy.generateSecret();
+      await request(TEST_BACKEND_APP)
+        .patch('/users/two-factor')
+        .send({
+          two_factor_secret: secret.base32,
+          two_factor_code: speakeasy.totp({ secret: secret.base32 }),
+          current_two_factor_recovery_code: '1a2b3-c4d5e',
+        })
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtAccessTokenDashboard)
+        .expect(200);
+
+      await reset(token).expect(404);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+      expect(user.two_factor_secret).to.equal(secret.base32);
+    });
+
+    it('should return 404 and forget a token key that is no longer the current link of the user', async () => {
+      // a token key left behind (Redis restored from a dump, for example) while the user's
+      // current link is another one, or none
+      const staleToken = 'a'.repeat(64);
+      const staleHash = crypto.createHash('sha256').update(staleToken).digest('hex');
+      await TEST_REDIS_CLIENT.set(`two_factor_reset:token:${staleHash}`, USER_WITH_TWO_FACTOR, { EX: 60 });
+
+      await reset(staleToken).expect(404);
+      expect(await TEST_REDIS_CLIENT.get(`two_factor_reset:token:${staleHash}`)).to.equal(null);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+    });
+
+    it('should return 404 when the user was revoked after asking for the link', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+      await TEST_DATABASE_INSTANCE.t_user.update({ id: USER_WITH_TWO_FACTOR }, { is_deleted: true });
+
+      await reset(token).expect(404);
+    });
+
+    it('should return 404 when a concurrent recovery turned two factor off meanwhile', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+      // the row is read with two factor on, but the guarded UPDATE finds it off
+      const originalQuery = TEST_DATABASE_INSTANCE.query;
+      TEST_DATABASE_INSTANCE.query = async (...args) => {
+        if (String(args[0]).includes('two_factor_enabled = true')) {
+          return [];
+        }
+        return originalQuery.apply(TEST_DATABASE_INSTANCE, args);
+      };
+      try {
+        await reset(token).expect(404);
+      } finally {
+        TEST_DATABASE_INSTANCE.query = originalQuery;
+      }
+      // the link was consumed anyway
+      await reset(token).expect(404);
+      expect(sentEmails).to.have.lengthOf(1);
     });
 
     it('should return 404 for an unknown, missing or malformed token', async () => {

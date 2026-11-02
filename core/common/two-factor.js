@@ -6,6 +6,7 @@ const { ForbiddenError, TooManyRequestsError } = require('./error');
 const TWO_FACTOR_MAX_FAILED_ATTEMPTS = 5;
 const TWO_FACTOR_FAILED_ATTEMPTS_WINDOW_IN_SECONDS = 15 * 60;
 const TWO_FACTOR_FAILED_ATTEMPTS_REDIS_PREFIX = 'two_factor_failed_attempts';
+const TWO_FACTOR_RESET_REDIS_PREFIX = 'two_factor_reset';
 
 // Verification of a user's TOTP code, with the per-user failed attempts limit: shared by
 // the login and the sensitive operations of the user, and by the account operations an
@@ -72,9 +73,77 @@ module.exports = function TwoFactorVerifier(logger, redisClient) {
     await verifyTwoFactorCode(userWithSecret.id, userWithSecret.two_factor_secret, twoFactorCode);
   }
 
+  // --- pending reset by email (see userModel.requestTwoFactorReset) ---
+  // One pending link per user: `user:<id>` holds the hash of the current link and
+  // `token:<hash>` the user it belongs to. A new request replaces the link, and any
+  // path that gives the user a working second factor again drops it: a leftover link
+  // must never wipe a two factor the user just set up.
+
+  function getTwoFactorResetUserKey(userId) {
+    return `${TWO_FACTOR_RESET_REDIS_PREFIX}:user:${userId}`;
+  }
+
+  function getTwoFactorResetTokenKey(tokenHash) {
+    return `${TWO_FACTOR_RESET_REDIS_PREFIX}:token:${tokenHash}`;
+  }
+
+  function getTwoFactorResetCooldownKey(userId) {
+    return `${TWO_FACTOR_RESET_REDIS_PREFIX}:cooldown:${userId}`;
+  }
+
+  // Takes the cooldown atomically (SET NX EX): false when one is already running
+  async function takeTwoFactorResetCooldown(userId, cooldownInSeconds) {
+    const result = await redisClient.set(getTwoFactorResetCooldownKey(userId), '1', {
+      NX: true,
+      EX: cooldownInSeconds,
+    });
+    return result !== null;
+  }
+
+  // Stores the link of a user, replacing (and invalidating) the previous one
+  async function storeTwoFactorResetRequest(userId, tokenHash, expiryInSeconds) {
+    const previousTokenHash = await redisClient.get(getTwoFactorResetUserKey(userId));
+    const multi = redisClient.multi();
+    if (previousTokenHash !== null) {
+      multi.del(getTwoFactorResetTokenKey(previousTokenHash));
+    }
+    multi.set(getTwoFactorResetUserKey(userId), tokenHash, { EX: expiryInSeconds });
+    multi.set(getTwoFactorResetTokenKey(tokenHash), userId, { EX: expiryInSeconds });
+    await multi.exec();
+  }
+
+  // The user of a link, only while it is their current one; null otherwise
+  async function getTwoFactorResetRequestUserId(tokenHash) {
+    const userId = await redisClient.get(getTwoFactorResetTokenKey(tokenHash));
+    if (userId === null) {
+      return null;
+    }
+    const currentTokenHash = await redisClient.get(getTwoFactorResetUserKey(userId));
+    if (currentTokenHash !== tokenHash) {
+      await redisClient.del(getTwoFactorResetTokenKey(tokenHash));
+      return null;
+    }
+    return userId;
+  }
+
+  // Drops the pending link and the cooldown of a user: the reset is done, or the user
+  // got a second factor back another way (recovery codes, new app, admin reset)
+  async function clearTwoFactorResetRequest(userId) {
+    const tokenHash = await redisClient.get(getTwoFactorResetUserKey(userId));
+    const multi = redisClient.multi().del(getTwoFactorResetUserKey(userId)).del(getTwoFactorResetCooldownKey(userId));
+    if (tokenHash !== null) {
+      multi.del(getTwoFactorResetTokenKey(tokenHash));
+    }
+    await multi.exec();
+  }
+
   return {
     verifyTwoFactorCode,
     verifyCurrentTwoFactor,
     resetFailedTwoFactorAttempts,
+    takeTwoFactorResetCooldown,
+    storeTwoFactorResetRequest,
+    getTwoFactorResetRequestUserId,
+    clearTwoFactorResetRequest,
   };
 };

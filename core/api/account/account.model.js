@@ -987,7 +987,7 @@ module.exports = function AccountModel(
       throw new NotFoundError();
     }
 
-    const { verifyCurrentTwoFactor } = TwoFactorVerifier(logger, redisClient);
+    const { verifyCurrentTwoFactor, clearTwoFactorResetRequest } = TwoFactorVerifier(logger, redisClient);
     await verifyCurrentTwoFactor(admin, value.two_factor_code, 'reset the two factor authentication of a user');
 
     await db.t_user.update(userToReset.id, {
@@ -995,6 +995,8 @@ module.exports = function AccountModel(
       two_factor_secret: null,
       two_factor_recovery_codes: null,
     });
+    // a reset link the user asked for by email meanwhile must not fire on the new app
+    await clearTwoFactorResetRequest(userToReset.id);
 
     logger.warn(`Two factor authentication of user ${userToReset.id} reset by admin ${admin.id}`);
     telegramService.sendAlert(

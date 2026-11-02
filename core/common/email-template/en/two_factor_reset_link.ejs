@@ -14,10 +14,11 @@
 <%- include('../partials/link-fallback', { url: twoFactorResetUrlGladys4 }) %>
                     <p class="gl-p" style="<%- s.p %>">
                       Once done, sign in again with your password: Gladys Plus will ask you to set up a new authenticator app, then to save new recovery codes.
+                      If you also forgot your password, go back to the reset password page you came from (its link stays valid for two hours) to choose a new one first.
                     </p>
 
 <%- include('../partials/tile-start', { variant: 'danger' }) %>
-                          <strong>If you did not ask for this, do not click the link and change your password now.</strong>
-                          Someone who knows your password is trying to get into your account. Reply to this email so I can secure it.
+                          <strong>If you did not ask for this, do not click the link.</strong>
+                          Someone who knows your Gladys Plus password, or who can read this mailbox, may be trying to get into your account: change your password and secure your mailbox now, and reply to this email so I can help.
 <%- include('../partials/tile-end') %>
 <%- include('../partials/footer') %>

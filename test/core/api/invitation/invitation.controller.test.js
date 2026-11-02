@@ -20,6 +20,7 @@ describe('POST /invitations', () => {
       email: 'pepper.potts@starkindustries.com',
       role: 'user',
       account_id: 'b2d23f66-487d-493f-8acb-9c8adb400def',
+      gladys_4_user_id: null,
       is_invitation: true,
       created_at: response.body.created_at,
     });
@@ -43,6 +44,89 @@ describe('POST /invitations', () => {
       id: response.body.id,
     });
     expect(invitation.email).to.equal('pepper.potts.mixed@starkindustries.com');
+  });
+
+  it('should send invitation for a Gladys user of the instance', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493',
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.include({
+      email: 'happy.hogan@starkindustries.com',
+      role: 'user',
+      gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493',
+      is_invitation: true,
+    });
+    const invitation = await TEST_DATABASE_INSTANCE.t_invitation.findOne({ id: response.body.id });
+    expect(invitation.gladys_4_user_id).to.equal('df033006-ee42-4b94-a324-3f558171c493');
+  });
+
+  it('should send invitation without Gladys user (null)', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        gladys_4_user_id: null,
+      })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body.gladys_4_user_id).to.equal(null);
+  });
+
+  it('should not send invitation, gladys_4_user_id is not a uuid', () =>
+    request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        gladys_4_user_id: 'not-a-uuid',
+      })
+      .expect('Content-Type', /json/)
+      .expect(422));
+
+  it('should not send invitation, an invitation is already pending for this Gladys user', () =>
+    request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        // the fixture invitation is pending for this Gladys user
+        gladys_4_user_id: '5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b',
+      })
+      .expect('Content-Type', /json/)
+      .expect(409));
+
+  it('should not send invitation, a user is already linked to this Gladys user', async () => {
+    // the user of jwtAccessTokenDashboard, linked to a Gladys user
+    await TEST_DATABASE_INSTANCE.t_user.update(
+      { id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' },
+      { gladys_4_user_id: '7b2c3d4e-5f60-4718-9a2b-3c4d5e6f7a8b' },
+    );
+    await request(TEST_BACKEND_APP)
+      .post('/invitations')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({
+        email: 'happy.hogan@starkindustries.com',
+        role: 'user',
+        gladys_4_user_id: '7b2c3d4e-5f60-4718-9a2b-3c4d5e6f7a8b',
+      })
+      .expect('Content-Type', /json/)
+      .expect(409);
   });
 
   it('should not send invitation, wrong email', () =>
@@ -84,6 +168,34 @@ describe('POST /invitations/accept', () => {
           message: 'User created with success.',
         });
       }));
+
+  it('should link the user created from an invitation sent for a Gladys user', async () => {
+    const token = 'token-of-the-invitation-sent-for-a-gladys-user';
+    await request(TEST_BACKEND_APP)
+      .post('/invitations/accept')
+      .set('Accept', 'application/json')
+      .send({
+        token,
+        name: 'Happy',
+        language: 'en',
+        // ignored: the invitation decides which Gladys user the new user is linked to
+        gladys_4_user_id: '00000000-0000-4000-8000-000000000000',
+        srp_salt: 'sfds',
+        srp_verifier: 'dfdf',
+        rsa_public_key: 'public-key',
+        rsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+        ecdsa_public_key: 'public-key',
+        ecdsa_encrypted_private_key: 'this-is-the-encrypted-private-key',
+      })
+      .expect('Content-Type', /json/)
+      .expect(201);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({
+      email: 'invitedforgladysuser@gladysassistant.com',
+    });
+    expect(user.gladys_4_user_id).to.equal('5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b');
+    expect(user.account_id).to.equal('b2d23f66-487d-493f-8acb-9c8adb400def');
+  });
 
   it('should store accepted invitation email in lowercase even if invitation has mixed case', async () => {
     const token =

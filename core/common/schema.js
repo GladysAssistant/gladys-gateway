@@ -43,9 +43,12 @@ const instanceOfflineAlertSchema = Joi.object()
   })
   .min(1);
 
+// gladys_4_user_id: the Gladys user (on the instance) the invitation is for. The user
+// created from the invitation is linked to it, so they do not pick one themselves.
 const invitationSchema = Joi.object().keys({
   email: Joi.string().email(),
   role: Joi.string(),
+  gladys_4_user_id: Joi.string().guid().optional().allow(null),
 });
 
 const resetPasswordSchema = Joi.object().keys({

@@ -77,9 +77,11 @@ module.exports = function AccountModel(
         account_id: userWithAccount.account_id,
         is_deleted: false,
       },
-      { fields: ['id', 'name', 'profile_url', 'email', 'role', 'created_at'] },
+      { fields: ['id', 'name', 'profile_url', 'email', 'role', 'gladys_4_user_id', 'created_at'] },
     );
 
+    // gladys_4_user_id: the Gladys user (on the instance) a user or an invitation is linked to,
+    // so Gladys shows them on that user's card
     const usersNotAccepted = await db.t_invitation.find(
       {
         account_id: userWithAccount.account_id,
@@ -87,7 +89,7 @@ module.exports = function AccountModel(
         is_deleted: false,
         accepted: false,
       },
-      { field: ['id', 'email', 'account_id', 'role', 'created_at'] },
+      { fields: ['id', 'email', 'account_id', 'role', 'gladys_4_user_id', 'created_at'] },
     );
 
     const allUsers = [];

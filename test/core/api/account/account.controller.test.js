@@ -18,6 +18,15 @@ describe('GET /accounts/users', () => {
         response.body.forEach((user) => {
           expect(user).to.have.property('email');
           expect(user).to.have.property('is_invitation');
+          // the Gladys user each user or invitation is linked to
+          expect(user).to.have.property('gladys_4_user_id');
+          // an invitation never exposes its token hash
+          expect(user).to.not.have.property('token_hash');
+        });
+        const invitation = response.body.find((user) => user.id === 'c5d3a6e0-7b1f-4c2e-9a8d-2f4b6e8a1c3d');
+        expect(invitation).to.include({
+          is_invitation: true,
+          gladys_4_user_id: '5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b',
         });
       }));
 });

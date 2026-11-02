@@ -22,6 +22,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       // clean email
       const email = normalizeEmail(value.email);
       const { role } = value;
+      const gladys4UserId = value.gladys_4_user_id || null;
 
       // first we get the user to see if he is allowed to do that
       const userWithAccount = await tx.t_user.findOne(
@@ -63,6 +64,35 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
         throw new AlreadyExistError();
       }
 
+      // the invitation is for a Gladys user of the instance: one Gladys Plus user per
+      // Gladys user, so neither a user nor a pending invitation may already be linked to it
+      if (gladys4UserId !== null) {
+        const userAlreadyLinked = await tx.t_user.findOne(
+          {
+            gladys_4_user_id: gladys4UserId,
+            account_id: userWithAccount.account_id,
+            is_deleted: false,
+          },
+          { fields: ['id'] },
+        );
+        if (userAlreadyLinked !== null) {
+          throw new AlreadyExistError('user linked to gladys_4_user_id', gladys4UserId);
+        }
+        const invitationAlreadyLinked = await tx.t_invitation.findOne(
+          {
+            gladys_4_user_id: gladys4UserId,
+            account_id: userWithAccount.account_id,
+            revoked: false,
+            accepted: false,
+            is_deleted: false,
+          },
+          { fields: ['id'] },
+        );
+        if (invitationAlreadyLinked !== null) {
+          throw new AlreadyExistError('invitation for gladys_4_user_id', gladys4UserId);
+        }
+      }
+
       // generate email confirmation token
       const token = (await randomBytes(64)).toString('hex');
 
@@ -73,6 +103,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       const insertedInvitation = await tx.t_invitation.insert({
         email,
         role,
+        gladys_4_user_id: gladys4UserId,
         token_hash: tokenHash,
         account_id: userWithAccount.account_id,
       });
@@ -132,6 +163,11 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       value.account_id = invitation.account_id;
       value.email_confirmation_token_hash = invitation.token_hash;
       value.role = invitation.role;
+      // the admin invited them for a Gladys user of the instance: the new user is linked
+      // to it right away (an invitation without one leaves the user to pick theirs)
+      if (invitation.gladys_4_user_id) {
+        value.gladys_4_user_id = invitation.gladys_4_user_id;
+      }
 
       // set gravatar image for the user
       const emailHash = crypto.createHash('md5').update(value.email).digest('hex');

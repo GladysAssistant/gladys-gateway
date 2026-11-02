@@ -8,13 +8,17 @@ module.exports = function InvitationController(invitationModel) {
    *
    *
    * @apiParam {String} email Email of the user invited
+   * @apiParam {String="admin","user"} role Role in the Gladys Plus account
+   * @apiParam {String} [gladys_4_user_id] Id of the Gladys user (on the instance) the
+   * invitation is for: the user created from it is linked to that Gladys user
    *
    * @apiSuccessExample {json} Success-Response:
    * HTTP/1.1 200 OK
    *
    * {
    *   "email": "pepper.potts@starkindustries.com",
-   *   "account_id": "2088d7fa-8dd4-4f2c-ad98-f657487b6447"
+   *   "account_id": "2088d7fa-8dd4-4f2c-ad98-f657487b6447",
+   *   "gladys_4_user_id": "df033006-ee42-4b94-a324-3f558171c493"
    * }
    */
   async function inviteUser(req, res, next) {
@@ -24,6 +28,7 @@ module.exports = function InvitationController(invitationModel) {
       email: invitation.email,
       role: invitation.role,
       account_id: invitation.account_id,
+      gladys_4_user_id: invitation.gladys_4_user_id,
       is_invitation: true,
       created_at: invitation.created_at,
     });

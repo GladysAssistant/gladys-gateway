@@ -157,6 +157,22 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(controllers.userController.forgotPassword),
   );
   app.post('/users/reset-password', middlewares.rateLimiter, asyncMiddleware(controllers.userController.resetPassword));
+  app.post(
+    '/users/reset-password/:token/two-factor/reset-request',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.userController.requestTwoFactorResetFromPasswordReset),
+  );
+  app.post(
+    '/users/two-factor/reset-request',
+    middlewares.rateLimiter,
+    asyncMiddleware(middlewares.twoFactorTokenAuth),
+    asyncMiddleware(controllers.userController.requestTwoFactorReset),
+  );
+  app.post(
+    '/users/two-factor/reset',
+    middlewares.rateLimiter,
+    asyncMiddleware(controllers.userController.resetTwoFactor),
+  );
   app.get(
     '/users/reset-password/:token',
     middlewares.rateLimiter,

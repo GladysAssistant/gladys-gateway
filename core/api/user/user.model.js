@@ -26,6 +26,10 @@ const TWO_FACTOR_RECOVERY_CODE_COUNT = 10;
 // doesn't allow to brute-force the code itself
 const TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES = 16;
 const TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS = 4;
+// A two factor reset link is valid one hour; one request per minute per user at most
+const TWO_FACTOR_RESET_TOKEN_EXPIRY_IN_SECONDS = 60 * 60;
+const TWO_FACTOR_RESET_REQUEST_COOLDOWN_IN_SECONDS = 60;
+const TWO_FACTOR_RESET_REDIS_PREFIX = 'two_factor_reset';
 const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // recovery codes are case-insensitive and can be entered with or without dash/spaces
@@ -824,19 +828,8 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return userWithEmail;
   }
 
-  async function resetPassword(forgotPasswordToken, data) {
-    // first, we validate the data sent
-    const { error } = schema.resetPasswordSchema.validate(data, {
-      stripUnknown: true,
-      abortEarly: false,
-      presence: 'required',
-    });
-
-    if (error) {
-      logger.debug(error);
-      throw new ValidationError('resetPassword', error);
-    }
-
+  // The pending, unexpired reset password request of a raw token, or not found
+  async function getValidResetPasswordRequest(forgotPasswordToken) {
     const tokenHash = crypto.createHash('sha256').update(forgotPasswordToken).digest('hex');
 
     const resetPasswordRequest = await db.t_reset_password.findOne({
@@ -859,6 +852,147 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       logger.info(`Reset password: Token has expired`);
       throw new NotFoundError();
     }
+
+    return resetPasswordRequest;
+  }
+
+  function getTwoFactorResetTokenKey(tokenHash) {
+    return `${TWO_FACTOR_RESET_REDIS_PREFIX}:token:${tokenHash}`;
+  }
+
+  function getTwoFactorResetCooldownKey(userId) {
+    return `${TWO_FACTOR_RESET_REDIS_PREFIX}:cooldown:${userId}`;
+  }
+
+  async function getUserForTwoFactorReset(userId) {
+    const user = await db.t_user.findOne(
+      { id: userId, is_deleted: false, email_confirmed: true },
+      { fields: ['id', 'email', 'language', 'name', 'two_factor_enabled', 'account_id'] },
+    );
+    if (user === null) {
+      throw new NotFoundError('USER_NOT_FOUND');
+    }
+    return user;
+  }
+
+  /**
+   * Two factor reset by email, for a user who lost both their two-factor app and their
+   * recovery codes and has NO Gladys instance connected to the Gateway (lost or dead
+   * hardware, never linked): the instance is the preferred second factor of last resort
+   * (see generateTwoFactorRecoveryCodesFromInstance), so this path is refused while one
+   * is connected. The caller already proved the password (two factor token) or the
+   * mailbox (reset password token); the link sent here proves the mailbox again, so the
+   * reset needs password + mailbox, or mailbox alone from the reset password flow.
+   *
+   * `isInstanceConnected(user)` is given by the controller: the user model is created
+   * before the socket model.
+   */
+  async function requestTwoFactorReset(userId, isInstanceConnected) {
+    const user = await getUserForTwoFactorReset(userId);
+
+    if (user.two_factor_enabled !== true) {
+      throw new ForbiddenError('TWO_FACTOR_NOT_ENABLED');
+    }
+
+    if (await isInstanceConnected(user)) {
+      throw new ForbiddenError('INSTANCE_CONNECTED');
+    }
+
+    const cooldownKey = getTwoFactorResetCooldownKey(user.id);
+    if ((await redisClient.get(cooldownKey)) !== null) {
+      throw new TooManyRequestsError('TWO_FACTOR_RESET_ALREADY_REQUESTED');
+    }
+
+    const token = (await randomBytes(32)).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    // only the hash is stored: reading Redis is not enough to use the link
+    await redisClient.set(getTwoFactorResetTokenKey(tokenHash), user.id, {
+      EX: TWO_FACTOR_RESET_TOKEN_EXPIRY_IN_SECONDS,
+    });
+    await redisClient.set(cooldownKey, '1', { EX: TWO_FACTOR_RESET_REQUEST_COOLDOWN_IN_SECONDS });
+
+    logger.warn(`Two factor reset requested by email for user ${user.id}`);
+
+    await mailService.send(user, 'two_factor_reset', {
+      firstname: extractFirstname(user.name),
+      twoFactorResetUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/reset-two-factor?token=${encodeURI(token)}`,
+    });
+
+    return { success: true };
+  }
+
+  // Same request, from a reset password link: the user forgot their password AND lost
+  // their second factor. The reset password token proves the mailbox.
+  async function requestTwoFactorResetFromPasswordReset(forgotPasswordToken, isInstanceConnected) {
+    if (typeof forgotPasswordToken !== 'string' || forgotPasswordToken.length === 0) {
+      throw new NotFoundError();
+    }
+    const resetPasswordRequest = await getValidResetPasswordRequest(forgotPasswordToken);
+    return requestTwoFactorReset(resetPasswordRequest.user_id, isInstanceConnected);
+  }
+
+  async function resetTwoFactor(token, isInstanceConnected) {
+    if (typeof token !== 'string' || token.length === 0) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+    const tokenKey = getTwoFactorResetTokenKey(tokenHash);
+    const userId = await redisClient.get(tokenKey);
+
+    if (userId === null) {
+      throw new NotFoundError('TOKEN_NOT_FOUND');
+    }
+
+    const user = await getUserForTwoFactorReset(userId);
+
+    // the instance came back online since the request: it is the way to go, the link is kept
+    if (await isInstanceConnected(user)) {
+      throw new ForbiddenError('INSTANCE_CONNECTED');
+    }
+
+    // the user sets up a new two factor app at their next login (two-factor-configure scope)
+    await db.t_user.update(user.id, {
+      two_factor_enabled: false,
+      two_factor_secret: null,
+      two_factor_recovery_codes: null,
+      recovery_codes_reminder_sent_at: null,
+    });
+
+    // single use
+    await redisClient.del(tokenKey);
+    await resetFailedTwoFactorAttempts(user.id);
+
+    logger.warn(`Two factor authentication of user ${user.id} reset by email`);
+
+    // Security notification: the reset is done, a mail failure must not fail the call
+    try {
+      await mailService.send(user, 'two_factor_reset_done', {
+        firstname: extractFirstname(user.name),
+      });
+    } catch (e) {
+      logger.error(`Unable to send the two factor reset notification email to user ${user.id}`);
+      logger.error(e);
+    }
+
+    return { two_factor_enabled: false };
+  }
+
+  async function resetPassword(forgotPasswordToken, data) {
+    // first, we validate the data sent
+    const { error } = schema.resetPasswordSchema.validate(data, {
+      stripUnknown: true,
+      abortEarly: false,
+      presence: 'required',
+    });
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('resetPassword', error);
+    }
+
+    const resetPasswordRequest = await getValidResetPasswordRequest(forgotPasswordToken);
 
     const userWithSecret = await db.t_user.findOne(
       {
@@ -977,6 +1111,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     loginTwoFactorRecoveryCode,
     generateTwoFactorRecoveryCodes,
     generateTwoFactorRecoveryCodesFromInstance,
+    requestTwoFactorReset,
+    requestTwoFactorResetFromPasswordReset,
+    resetTwoFactor,
     getAccessToken,
     forgotPassword,
     resetPassword,

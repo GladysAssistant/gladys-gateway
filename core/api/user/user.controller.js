@@ -326,6 +326,70 @@ module.exports = function UserController(userModel, mailService, socketModel, in
     res.json(await userModel.generateTwoFactorRecoveryCodesFromInstance(req.instance, req.params.user_id));
   }
 
+  // Is an instance of the account of this user connected to the Gateway right now?
+  // (the user model cannot ask the socket model itself: it is created before it)
+  async function isInstanceOfUserConnected(user) {
+    const instanceIds = await instanceModel.getInstanceIdsByAccount(user.account_id);
+    if (instanceIds.length === 0) {
+      return false;
+    }
+    const connectedInstanceIds = await socketModel.getConnectedInstanceIds();
+    return instanceIds.some((instanceId) => connectedInstanceIds.has(instanceId));
+  }
+
+  /**
+   * @api {post} /users/two-factor/reset-request Request a two factor reset by email
+   * @apiName Request a two factor reset by email
+   * @apiGroup User
+   *
+   * @apiDescription Authenticated with the two factor token (password step passed).
+   * For a user who lost both their two-factor app and their recovery codes, and has no
+   * Gladys instance connected to the Gateway: sends them an email with a single-use link
+   * (valid one hour) that disables two factor on the account. Refused (403
+   * INSTANCE_CONNECTED) while an instance of the account is connected: the recovery
+   * codes are then generated from the instance instead.
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * { "success": true }
+   */
+  async function requestTwoFactorReset(req, res, next) {
+    res.json(await userModel.requestTwoFactorReset(req.user.id, isInstanceOfUserConnected));
+  }
+
+  /**
+   * @api {post} /users/reset-password/:token/two-factor/reset-request Two factor reset from a reset password link
+   * @apiName Request a two factor reset from a reset password link
+   * @apiGroup User
+   *
+   * @apiDescription Same as /users/two-factor/reset-request, for a user who forgot their
+   * password too: the (unexpired, unused) reset password token stands for the password step.
+   */
+  async function requestTwoFactorResetFromPasswordReset(req, res, next) {
+    res.json(await userModel.requestTwoFactorResetFromPasswordReset(req.params.token, isInstanceOfUserConnected));
+  }
+
+  /**
+   * @api {post} /users/two-factor/reset Reset two factor with the emailed token
+   * @apiName Reset two factor with the emailed token
+   * @apiGroup User
+   *
+   * @apiParam {String} token The token of the link received by email
+   *
+   * @apiDescription Disables two factor on the account (secret and recovery codes
+   * removed): the user sets up a new app at their next login. The token is single-use.
+   * Refused (403 INSTANCE_CONNECTED) if an instance of the account came back online.
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * { "two_factor_enabled": false }
+   */
+  async function resetTwoFactor(req, res, next) {
+    res.json(await userModel.resetTwoFactor(req.body.token, isInstanceOfUserConnected));
+  }
+
   /**
    * @api {post} /users/login-recovery-code Login with two factor recovery code
    * @apiName Login with two factor recovery code
@@ -494,6 +558,9 @@ module.exports = function UserController(userModel, mailService, socketModel, in
     loginTwoFactorRecoveryCode,
     generateTwoFactorRecoveryCodes,
     generateTwoFactorRecoveryCodesFromInstance,
+    requestTwoFactorReset,
+    requestTwoFactorResetFromPasswordReset,
+    resetTwoFactor,
     getAccessToken,
     forgotPassword,
     resetPassword,

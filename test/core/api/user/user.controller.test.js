@@ -1,4 +1,5 @@
 const request = require('supertest');
+const { io } = require('socket.io-client');
 const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const jwt = require('jsonwebtoken');
@@ -677,6 +678,248 @@ describe('POST /instances/users/:user_id/two-factor/recovery-codes', () => {
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
       .expect(401));
+});
+
+describe('two factor reset by email', () => {
+  const USER_WITH_TWO_FACTOR = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
+  const INSTANCE_OF_THE_ACCOUNT = '0bc53f3c-1e11-40d3-99a4-bd392a666eaf';
+  // raw token of the valid reset password request of USER_WITH_TWO_FACTOR (fixtures)
+  const RESET_PASSWORD_TOKEN =
+    'd295b5bcc79c7951a95c24a719a778b6dc18334a9fe175a2807513d6e4d1b9a849fad6fab13adc00cf094636c5ad62263a0469d19447a42a82bd729f8c8e7b07';
+  // raw token of the expired reset password request (fixtures)
+  const EXPIRED_RESET_PASSWORD_TOKEN =
+    '237078dab6815cf2a13b8af3c97d979394b928e5be7b2e9fcb1ac1a8645acf33d9ed9965560ea90cc1e1fde5fedd5041fec41b0e2a986d50cfa9314f183d740b';
+
+  let sentEmails;
+  let originalSend;
+  let instanceSocket;
+
+  // the fixture instance connects to the Gateway, like a Gladys at home
+  function connectInstance() {
+    return new Promise((resolve) => {
+      const accessToken = Jwt().generateAccessTokenInstance({ id: INSTANCE_OF_THE_ACCOUNT });
+      instanceSocket = io(`http://localhost:${process.env.SERVER_PORT}`, {
+        auth: { auth_type: 'instance', access_token: accessToken },
+      });
+      instanceSocket.on('instance-authenticated', () => resolve());
+    });
+  }
+
+  function disconnectInstance() {
+    return new Promise((resolve) => {
+      if (!instanceSocket) {
+        resolve();
+        return;
+      }
+      instanceSocket.on('disconnect', () => resolve());
+      instanceSocket.disconnect();
+      instanceSocket = null;
+    });
+  }
+
+  function requestReset(twoFactorToken = configTest.jwtTwoFactorToken) {
+    return request(TEST_BACKEND_APP)
+      .post('/users/two-factor/reset-request')
+      .set('Accept', 'application/json')
+      .set('Authorization', twoFactorToken);
+  }
+
+  function reset(token) {
+    return request(TEST_BACKEND_APP).post('/users/two-factor/reset').set('Accept', 'application/json').send({ token });
+  }
+
+  function getTokenFromEmail(email) {
+    const url = new URL(email.scope.twoFactorResetUrlGladys4, 'https://plus.gladysassistant.com');
+    return url.searchParams.get('token');
+  }
+
+  beforeEach(async () => {
+    const { mailService } = TEST_SERVICES;
+    originalSend = mailService.send;
+    sentEmails = [];
+    mailService.send = async (user, template, scope) => {
+      sentEmails.push({ email: user.email, language: user.language, template, scope });
+    };
+    // the one-minute cooldown between two requests of the same user must not leak between tests
+    await TEST_REDIS_CLIENT.del(`two_factor_reset:cooldown:${USER_WITH_TWO_FACTOR}`);
+  });
+
+  afterEach(async () => {
+    TEST_SERVICES.mailService.send = originalSend;
+    await disconnectInstance();
+  });
+
+  describe('POST /users/two-factor/reset-request', () => {
+    it('should email a reset link when no instance of the account is connected', async () => {
+      const response = await requestReset().expect('Content-Type', /json/).expect(200);
+      expect(response.body).to.deep.equal({ success: true });
+
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+      expect(sentEmails[0].template).to.equal('two_factor_reset');
+      expect(sentEmails[0].scope.firstname).to.equal('Tony');
+      expect(sentEmails[0].scope.twoFactorResetUrlGladys4).to.include('/reset-two-factor?token=');
+      expect(getTokenFromEmail(sentEmails[0])).to.match(/^[0-9a-f]{64}$/);
+
+      // two factor is still enabled until the link is used
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+    });
+
+    it('should return 403 INSTANCE_CONNECTED while an instance of the account is connected', async () => {
+      await connectInstance();
+
+      const response = await requestReset().expect('Content-Type', /json/).expect(403);
+      expect(response.body.error_message).to.equal('INSTANCE_CONNECTED');
+      expect(sentEmails).to.have.lengthOf(0);
+    });
+
+    it('should email a reset link again once the instance is disconnected', async () => {
+      await connectInstance();
+      await requestReset().expect(403);
+      await disconnectInstance();
+
+      await requestReset().expect(200);
+      expect(sentEmails).to.have.lengthOf(1);
+    });
+
+    it('should return 429 on a second request within the cooldown', async () => {
+      await requestReset().expect(200);
+      const response = await requestReset().expect('Content-Type', /json/).expect(429);
+      expect(response.body.error_message).to.equal('TWO_FACTOR_RESET_ALREADY_REQUESTED');
+      expect(sentEmails).to.have.lengthOf(1);
+    });
+
+    it('should return 403 when two factor is not enabled', async () => {
+      // user "email-confirmed@gladysprojet.com", two factor not enabled
+      const twoFactorToken = Jwt().generateTwoFactorToken({ id: 'bdb1a902-a65e-46f9-8c2a-5c09840e2e10' });
+      const response = await requestReset(twoFactorToken).expect('Content-Type', /json/).expect(403);
+      expect(response.body.error_message).to.equal('TWO_FACTOR_NOT_ENABLED');
+      expect(sentEmails).to.have.lengthOf(0);
+    });
+
+    it('should return 401 without the two factor token (the password step is required)', async () => {
+      await request(TEST_BACKEND_APP)
+        .post('/users/two-factor/reset-request')
+        .set('Accept', 'application/json')
+        .expect('Content-Type', /json/)
+        .expect(401);
+      await requestReset(configTest.jwtAccessTokenDashboard).expect(401);
+      expect(sentEmails).to.have.lengthOf(0);
+    });
+  });
+
+  describe('POST /users/reset-password/:token/two-factor/reset-request', () => {
+    it('should email a reset link from a valid reset password link', async () => {
+      const response = await request(TEST_BACKEND_APP)
+        .post(`/users/reset-password/${RESET_PASSWORD_TOKEN}/two-factor/reset-request`)
+        .set('Accept', 'application/json')
+        .expect('Content-Type', /json/)
+        .expect(200);
+      expect(response.body).to.deep.equal({ success: true });
+      expect(sentEmails).to.have.lengthOf(1);
+      expect(sentEmails[0].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+      expect(sentEmails[0].template).to.equal('two_factor_reset');
+
+      // the reset password link itself is still usable afterwards
+      await request(TEST_BACKEND_APP)
+        .get(`/users/reset-password/${RESET_PASSWORD_TOKEN}`)
+        .set('Accept', 'application/json')
+        .expect(200);
+    });
+
+    it('should return 404 for an expired, unknown or malformed reset password link', async () => {
+      await request(TEST_BACKEND_APP)
+        .post(`/users/reset-password/${EXPIRED_RESET_PASSWORD_TOKEN}/two-factor/reset-request`)
+        .set('Accept', 'application/json')
+        .expect(404);
+      await request(TEST_BACKEND_APP)
+        .post('/users/reset-password/not-a-token/two-factor/reset-request')
+        .set('Accept', 'application/json')
+        .expect(404);
+      expect(sentEmails).to.have.lengthOf(0);
+    });
+
+    it('should return 403 INSTANCE_CONNECTED while an instance of the account is connected', async () => {
+      await connectInstance();
+      const response = await request(TEST_BACKEND_APP)
+        .post(`/users/reset-password/${RESET_PASSWORD_TOKEN}/two-factor/reset-request`)
+        .set('Accept', 'application/json')
+        .expect(403);
+      expect(response.body.error_message).to.equal('INSTANCE_CONNECTED');
+      expect(sentEmails).to.have.lengthOf(0);
+    });
+  });
+
+  describe('POST /users/two-factor/reset', () => {
+    it('should disable two factor with the emailed token, once, and notify the user', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+
+      const response = await reset(token).expect('Content-Type', /json/).expect(200);
+      expect(response.body).to.deep.equal({ two_factor_enabled: false });
+
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(false);
+      expect(user.two_factor_secret).to.equal(null);
+      expect(user.two_factor_recovery_codes).to.equal(null);
+
+      expect(sentEmails).to.have.lengthOf(2);
+      expect(sentEmails[1].template).to.equal('two_factor_reset_done');
+      expect(sentEmails[1].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
+      expect(sentEmails[1].scope).to.deep.equal({ firstname: 'Tony' });
+
+      // the link is single-use
+      await reset(token).expect(404);
+
+      // the recovery codes no longer log in either
+      await request(TEST_BACKEND_APP)
+        .post('/users/login-recovery-code')
+        .set('Accept', 'application/json')
+        .set('Authorization', configTest.jwtTwoFactorToken)
+        .set('user-agent', 'my-browser')
+        .send({ two_factor_recovery_code: '1a2b3c4d5e', device_name: 'my-device' })
+        .expect(403);
+    });
+
+    it('should still disable two factor when the notification email cannot be sent', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+      TEST_SERVICES.mailService.send = async () => {
+        throw new Error('SMTP down');
+      };
+
+      await reset(token).expect(200);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(false);
+    });
+
+    it('should return 403 INSTANCE_CONNECTED and keep the link when the instance came back online', async () => {
+      await requestReset().expect(200);
+      const token = getTokenFromEmail(sentEmails[0]);
+
+      await connectInstance();
+      const response = await reset(token).expect('Content-Type', /json/).expect(403);
+      expect(response.body.error_message).to.equal('INSTANCE_CONNECTED');
+      let user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+
+      // the instance went away again: the link still works
+      await disconnectInstance();
+      await reset(token).expect(200);
+      user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(false);
+    });
+
+    it('should return 404 for an unknown, missing or malformed token', async () => {
+      await reset('0000000000000000000000000000000000000000000000000000000000000000').expect(404);
+      await reset(undefined).expect(404);
+      await reset({ not: 'a string' }).expect(404);
+      await reset('').expect(404);
+      const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+      expect(user.two_factor_enabled).to.equal(true);
+    });
+  });
 });
 
 describe('POST /users/login-recovery-code', () => {

@@ -44,6 +44,10 @@ const SUBJECTS = {
     en: 'Action needed: update your card to keep Gladys Plus',
     fr: 'Mets à jour ta carte pour garder Gladys Plus',
   },
+  recovery_codes_generated_from_instance: {
+    en: 'Gladys Plus - New recovery codes generated from your Gladys',
+    fr: 'Gladys Plus - Nouveaux codes de récupération générés depuis ta Gladys',
+  },
   recovery_codes_reminder: {
     en: 'Remember to generate your Gladys Plus recovery codes',
     fr: 'Pense à générer tes codes de récupération Gladys Plus',

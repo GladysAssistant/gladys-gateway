@@ -212,6 +212,12 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenInstanceAuth),
     asyncMiddleware(controllers.instanceController.getUsers),
   );
+  app.post(
+    '/instances/users/:user_id/two-factor/recovery-codes',
+    middlewares.rateLimiter,
+    asyncMiddleware(middlewares.accessTokenInstanceAuth),
+    asyncMiddleware(controllers.userController.generateTwoFactorRecoveryCodesFromInstance),
+  );
   app.get(
     '/instances/:id',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:read' })),

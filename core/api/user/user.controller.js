@@ -303,6 +303,30 @@ module.exports = function UserController(userModel, mailService, socketModel, in
   }
 
   /**
+   * @api {post} /instances/users/:user_id/two-factor/recovery-codes Generate two factor recovery codes from an instance
+   * @apiName Generate two factor recovery codes from an instance
+   * @apiGroup Instance
+   *
+   * @apiDescription Authenticated as a Gladys instance. Generate a new set of
+   * single-use recovery codes for a user of the account the instance belongs to,
+   * without their two factor code: the instance (and the local admin behind it)
+   * stands in for the second factor. Any previously generated recovery codes are
+   * invalidated and the user is notified by email.
+   *
+   * @apiParam {String} user_id The Gladys Plus user
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "recovery_codes": ["1a2b-3c4d-5e6f-7a8b-9c0d-1e2f-3a4b-5c6d"]
+   * }
+   */
+  async function generateTwoFactorRecoveryCodesFromInstance(req, res, next) {
+    res.json(await userModel.generateTwoFactorRecoveryCodesFromInstance(req.instance, req.params.user_id));
+  }
+
+  /**
    * @api {post} /users/login-recovery-code Login with two factor recovery code
    * @apiName Login with two factor recovery code
    * @apiGroup User
@@ -469,6 +493,7 @@ module.exports = function UserController(userModel, mailService, socketModel, in
     loginTwoFactor,
     loginTwoFactorRecoveryCode,
     generateTwoFactorRecoveryCodes,
+    generateTwoFactorRecoveryCodesFromInstance,
     getAccessToken,
     forgotPassword,
     resetPassword,

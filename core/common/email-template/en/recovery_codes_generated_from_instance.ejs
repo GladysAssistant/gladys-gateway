@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - New recovery codes generated from your Gladys', preheader: 'New two-factor recovery codes were just generated for your account from your Gladys instance.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">New recovery codes were generated</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      A new set of <strong>two-factor recovery codes</strong> was just generated for your Gladys Plus account from your Gladys instance<% if (instanceName) { %> <strong><%= instanceName %></strong><% } %>, by an administrator logged in locally on it.
+                      The recovery codes you may have had before no longer work: only the new ones do.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      If you asked for this (for example because you lost your authenticator app), you can safely ignore this email. Keep the new codes somewhere safe.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>If you did not ask for this, someone with administrator access to your Gladys may be trying to get into your Gladys Plus account.</strong>
+                          A recovery code only replaces your authenticator app: your password is still required to sign in. Change it now from Gladys Plus and reply to this email so I can secure your account.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

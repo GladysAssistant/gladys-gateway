@@ -11,6 +11,7 @@ const {
   TooManyRequestsError,
 } = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { extractFirstname } = require('../../common/billing-email-scope');
 const schema = require('../../common/schema');
 
 const REDIS_LOGIN_SESSION_EXPIRY_IN_SECONDS = 120;
@@ -25,6 +26,7 @@ const TWO_FACTOR_RECOVERY_CODE_COUNT = 10;
 // doesn't allow to brute-force the code itself
 const TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES = 16;
 const TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS = 4;
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // recovery codes are case-insensitive and can be entered with or without dash/spaces
 function hashTwoFactorRecoveryCode(recoveryCode) {
@@ -590,6 +592,36 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     return db.withTransaction((tx) => createDeviceSession(tx, userWithSecret, deviceName, userAgent));
   }
 
+  /**
+   * Generate a new set of recovery codes, store their hashes and return the codes.
+   * Any previously generated code is invalidated. The caller is responsible for
+   * checking the second factor (or what stands in for it) first.
+   */
+  async function storeNewTwoFactorRecoveryCodes(userId) {
+    const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
+
+    const recoveryCodes = [];
+    for (let i = 0; i < TWO_FACTOR_RECOVERY_CODE_COUNT; i += 1) {
+      const code = buffer
+        .slice(i * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES, (i + 1) * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES)
+        .toString('hex');
+      // the code is displayed in groups of characters so it's easier to read & type
+      recoveryCodes.push(code.match(new RegExp(`.{${TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS}}`, 'g')).join('-'));
+    }
+
+    // we only store a hash of the codes so it's not possible to use them
+    // if the DB is compromised in read-only (due to SQL injection for example)
+    // the reminder date is reset too: a user who later uses every code is reminded at once
+    await db.t_user.update(userId, {
+      two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
+      recovery_codes_reminder_sent_at: null,
+    });
+
+    return {
+      recovery_codes: recoveryCodes,
+    };
+  }
+
   async function generateTwoFactorRecoveryCodes(user, twoFactorCode) {
     const fullUser = await db.t_user.findOne(
       {
@@ -606,28 +638,67 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     // generating new ones requires the current second factor
     await verifyCurrentTwoFactor(fullUser, twoFactorCode, 'generate new recovery codes');
 
-    const buffer = await randomBytes(TWO_FACTOR_RECOVERY_CODE_COUNT * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES);
+    return storeNewTwoFactorRecoveryCodes(user.id);
+  }
 
-    const recoveryCodes = [];
-    for (let i = 0; i < TWO_FACTOR_RECOVERY_CODE_COUNT; i += 1) {
-      const code = buffer
-        .slice(i * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES, (i + 1) * TWO_FACTOR_RECOVERY_CODE_SIZE_IN_BYTES)
-        .toString('hex');
-      // the code is displayed in groups of characters so it's easier to read & type
-      recoveryCodes.push(code.match(new RegExp(`.{${TWO_FACTOR_RECOVERY_CODE_GROUP_SIZE_IN_CHARS}}`, 'g')).join('-'));
+  /**
+   * Generate a new set of recovery codes for a user of the account of a Gladys instance.
+   *
+   * The instance stands in for the second factor here: it is authenticated by its own
+   * token, it belongs to the account, and this call is only reachable by an admin logged
+   * in locally on that instance (Gladys asks for their local password again). A user who
+   * lost both their two-factor app and their recovery codes gets back into their account
+   * this way without any human intervention. The user is notified by email, so a rotation
+   * they did not ask for cannot go unnoticed.
+   */
+  async function generateTwoFactorRecoveryCodesFromInstance(instance, userId) {
+    // a malformed id would make PostgreSQL throw (uuid column): not found is the right answer
+    if (typeof userId !== 'string' || !UUID_REGEX.test(userId)) {
+      throw new NotFoundError('User not found in the account of this instance');
     }
 
-    // we only store a hash of the codes so it's not possible to use them
-    // if the DB is compromised in read-only (due to SQL injection for example)
-    // the reminder date is reset too: a user who later uses every code is reminded at once
-    await db.t_user.update(user.id, {
-      two_factor_recovery_codes: recoveryCodes.map(hashTwoFactorRecoveryCode),
-      recovery_codes_reminder_sent_at: null,
-    });
+    const users = await db.query(
+      `
+      SELECT t_user.id, t_user.email, t_user.language, t_user.name, t_user.two_factor_enabled,
+        t_instance.name as instance_name
+      FROM t_user
+      JOIN t_instance ON t_instance.account_id = t_user.account_id
+      WHERE t_user.id = $1
+      AND t_instance.id = $2
+      AND t_user.is_deleted = false
+      AND t_user.email_confirmed = true
+    `,
+      [userId, instance.id],
+    );
 
-    return {
-      recovery_codes: recoveryCodes,
-    };
+    if (users.length === 0) {
+      throw new NotFoundError('User not found in the account of this instance');
+    }
+
+    const [user] = users;
+
+    if (user.two_factor_enabled !== true) {
+      throw new ForbiddenError('Two Factor Authentication is not enabled');
+    }
+
+    const result = await storeNewTwoFactorRecoveryCodes(user.id);
+
+    logger.warn(`Two factor recovery codes of user ${user.id} generated from instance ${instance.id}`);
+
+    // Security notification: the codes stand in for the second factor of the account.
+    // The codes are already rotated, so a mail failure must not make the call fail: the
+    // admin would retry and rotate them once more for nothing.
+    try {
+      await mailService.send({ email: user.email, language: user.language }, 'recovery_codes_generated_from_instance', {
+        firstname: extractFirstname(user.name),
+        instanceName: user.instance_name,
+      });
+    } catch (e) {
+      logger.error(`Unable to send the recovery codes notification email to user ${user.id}`);
+      logger.error(e);
+    }
+
+    return result;
   }
 
   async function loginTwoFactorRecoveryCode(user, recoveryCode, deviceName, userAgent) {
@@ -905,6 +976,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
     loginTwoFactor,
     loginTwoFactorRecoveryCode,
     generateTwoFactorRecoveryCodes,
+    generateTwoFactorRecoveryCodesFromInstance,
     getAccessToken,
     forgotPassword,
     resetPassword,

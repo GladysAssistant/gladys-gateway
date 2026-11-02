@@ -1,4 +1,5 @@
 const request = require('supertest');
+const crypto = require('crypto');
 const speakeasy = require('speakeasy');
 const jwt = require('jsonwebtoken');
 const { expect } = require('chai');
@@ -493,6 +494,186 @@ describe('POST /users/two-factor/recovery-codes', () => {
   it('should return 401 unauthorized, no jwt provided', () =>
     request(TEST_BACKEND_APP)
       .post('/users/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .expect('Content-Type', /json/)
+      .expect(401));
+});
+
+describe('POST /instances/users/:user_id/two-factor/recovery-codes', () => {
+  const USER_WITH_TWO_FACTOR = 'a139e4a6-ec6c-442d-9730-0499155d38d4';
+  const USER_WITHOUT_TWO_FACTOR = 'bdb1a902-a65e-46f9-8c2a-5c09840e2e10';
+  const OTHER_ACCOUNT = 'be2b9666-5c72-451e-98f4-efca76ffef54';
+  // hash of the recovery code '1a2b3c4d5e' of the fixtures
+  const EXISTING_RECOVERY_CODE_HASH = crypto.createHash('sha256').update('1a2b3c4d5e').digest('hex');
+
+  let sentEmails;
+  let originalSend;
+
+  beforeEach(() => {
+    const { mailService } = TEST_SERVICES;
+    originalSend = mailService.send;
+    sentEmails = [];
+    mailService.send = async (user, template, scope) => {
+      sentEmails.push({ email: user.email, language: user.language, template, scope });
+    };
+  });
+
+  afterEach(() => {
+    TEST_SERVICES.mailService.send = originalSend;
+  });
+
+  it('should generate 10 recovery codes without the two factor code, and notify the user', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update(
+      { id: USER_WITH_TWO_FACTOR },
+      { recovery_codes_reminder_sent_at: new Date() },
+    );
+    const userBefore = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+    expect(userBefore.two_factor_recovery_codes).to.include(EXISTING_RECOVERY_CODE_HASH);
+
+    const response = await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body.recovery_codes).to.have.lengthOf(10);
+    response.body.recovery_codes.forEach((recoveryCode) => {
+      expect(recoveryCode).to.match(/^([0-9a-f]{4}-){7}[0-9a-f]{4}$/);
+    });
+    expect(new Set(response.body.recovery_codes).size).to.equal(10);
+
+    // only hashes are stored, the previous codes are invalidated, the reminder is reset
+    const userAfter = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+    expect(userAfter.two_factor_recovery_codes).to.have.lengthOf(10);
+    expect(userAfter.two_factor_recovery_codes).to.not.include(EXISTING_RECOVERY_CODE_HASH);
+    response.body.recovery_codes.forEach((recoveryCode) => {
+      expect(userAfter.two_factor_recovery_codes).to.not.include(recoveryCode);
+    });
+    expect(userAfter.recovery_codes_reminder_sent_at).to.equal(null);
+    // the two factor itself is untouched: the codes only stand in for the app
+    expect(userAfter.two_factor_enabled).to.equal(true);
+    expect(userAfter.two_factor_secret).to.equal(userBefore.two_factor_secret);
+
+    // a new code logs in, the previous ones do not
+    await request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', 'my-browser')
+      .send({ two_factor_recovery_code: '1a2b3c4d5e', device_name: 'my-device' })
+      .expect(403);
+    await request(TEST_BACKEND_APP)
+      .post('/users/login-recovery-code')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtTwoFactorToken)
+      .set('user-agent', 'my-browser')
+      .send({ two_factor_recovery_code: response.body.recovery_codes[0], device_name: 'my-device' })
+      .expect(200);
+
+    expect(sentEmails).to.deep.equal([
+      {
+        email: 'email-confirmed-two-factor-enabled@gladysprojet.com',
+        language: 'en',
+        template: 'recovery_codes_generated_from_instance',
+        scope: { firstname: 'Tony', instanceName: 'Raspberry Pi 1' },
+      },
+    ]);
+  });
+
+  it('should still return the codes when the notification email cannot be sent', async () => {
+    TEST_SERVICES.mailService.send = async () => {
+      throw new Error('SMTP down');
+    };
+
+    const response = await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(200);
+
+    expect(response.body.recovery_codes).to.have.lengthOf(10);
+  });
+
+  it('should return 403 when two factor is not enabled for the user', async () => {
+    await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITHOUT_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(403);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITHOUT_TWO_FACTOR });
+    expect(user.two_factor_recovery_codes).to.equal(null);
+    expect(sentEmails).to.have.lengthOf(0);
+  });
+
+  it('should return 404 for a user of another account', async () => {
+    const otherAccountUser = await TEST_DATABASE_INSTANCE.t_user.insert({
+      email: 'other-account@gladysassistant.com',
+      email_confirmation_token_hash: 'hash',
+      email_confirmed: true,
+      language: 'fr',
+      role: 'admin',
+      account_id: OTHER_ACCOUNT,
+      two_factor_enabled: true,
+      two_factor_secret: twoFactorEnabledUserSecret,
+    });
+
+    await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${otherAccountUser.id}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(404);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: otherAccountUser.id });
+    expect(user.two_factor_recovery_codes).to.equal(null);
+    expect(sentEmails).to.have.lengthOf(0);
+  });
+
+  it('should return 404 for a revoked user of the account', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: USER_WITH_TWO_FACTOR }, { is_deleted: true });
+
+    await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(404);
+  });
+
+  it('should return 404 for an unknown or malformed user id', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/instances/users/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(404);
+    await request(TEST_BACKEND_APP)
+      .post('/instances/users/not-an-uuid/two-factor/recovery-codes')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect('Content-Type', /json/)
+      .expect(404);
+  });
+
+  it('should return 401 with a user access token: only an instance can call it', async () => {
+    await request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect('Content-Type', /json/)
+      .expect(401);
+
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
+    expect(user.two_factor_recovery_codes).to.include(EXISTING_RECOVERY_CODE_HASH);
+  });
+
+  it('should return 401 unauthorized, no jwt provided', () =>
+    request(TEST_BACKEND_APP)
+      .post(`/instances/users/${USER_WITH_TWO_FACTOR}/two-factor/recovery-codes`)
       .set('Accept', 'application/json')
       .expect('Content-Type', /json/)
       .expect(401));

@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Your two-factor authentication was reset', preheader: 'An administrator of your Gladys Plus account reset your two-factor authentication.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Your two-factor authentication was reset</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Hi <%= firstname %>,<% } else { %>Hi,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <strong><%= adminName %></strong>, an administrator of your Gladys Plus account, just reset your two-factor authentication: your authenticator app and your recovery codes no longer work.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Nothing else changes: your password and your encryption keys are the same, and your Gladys instance still knows you. Sign in with your password, then set up a new authenticator app, which Gladys Plus asks for right away.
+                    </p>
+
+<%- include('../partials/button', { url: loginUrl, label: 'Sign in to Gladys Plus' }) %>
+<%- include('../partials/link-fallback', { url: loginUrl }) %>
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>If you did not ask for this, reply to this email immediately</strong> so I can secure your account. Until a new authenticator is set up, only your password protects it.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

@@ -1,0 +1,21 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Ta double authentification a été réinitialisée', preheader: 'Un administrateur de ton compte Gladys Plus a réinitialisé ta double authentification.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Ta double authentification a été réinitialisée</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Bonjour <%= firstname %>,<% } else { %>Bonjour,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <strong><%= adminName %></strong>, administrateur de ton compte Gladys Plus, vient de réinitialiser ta double authentification : ton application d'authentification et tes codes de récupération ne fonctionnent plus.
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Rien d'autre ne change : ton mot de passe et tes clés de chiffrement sont les mêmes, et ton instance Gladys te reconnaît toujours. Connecte-toi avec ton mot de passe, puis configure une nouvelle application d'authentification, que Gladys Plus te demande aussitôt.
+                    </p>
+
+<%- include('../partials/button', { url: loginUrl, label: 'Me connecter à Gladys Plus' }) %>
+<%- include('../partials/link-fallback', { url: loginUrl }) %>
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>Si tu n'es pas à l'origine de cette demande, réponds immédiatement à cet email</strong> pour que je puisse sécuriser ton compte. Tant qu'une nouvelle application n'est pas configurée, seul ton mot de passe le protège.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

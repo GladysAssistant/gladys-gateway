@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
+const { assertGladysUserNotLinked } = require('../../common/gladys-user-link');
 
 const {
   buildPaymentFailedScope,
@@ -18,7 +19,8 @@ const {
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
-const { instanceOfflineAlertSchema } = require('../../common/schema');
+const { instanceOfflineAlertSchema, gladysUserLinkSchema, resetUserTwoFactorSchema } = require('../../common/schema');
+const TwoFactorVerifier = require('../../common/two-factor');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -77,9 +79,11 @@ module.exports = function AccountModel(
         account_id: userWithAccount.account_id,
         is_deleted: false,
       },
-      { fields: ['id', 'name', 'profile_url', 'email', 'role', 'created_at'] },
+      { fields: ['id', 'name', 'profile_url', 'email', 'role', 'gladys_4_user_id', 'created_at'] },
     );
 
+    // gladys_4_user_id: the Gladys user (on the instance) a user or an invitation is linked to,
+    // so Gladys shows them on that user's card
     const usersNotAccepted = await db.t_invitation.find(
       {
         account_id: userWithAccount.account_id,
@@ -87,7 +91,7 @@ module.exports = function AccountModel(
         is_deleted: false,
         accepted: false,
       },
-      { field: ['id', 'email', 'account_id', 'role', 'created_at'] },
+      { fields: ['id', 'email', 'account_id', 'role', 'gladys_4_user_id', 'created_at'] },
     );
 
     const allUsers = [];
@@ -892,6 +896,123 @@ module.exports = function AccountModel(
     return Promise.resolve();
   }
 
+  // Link a user of the account to a Gladys user of the instance (or unlink them with
+  // null), as an admin: the user then controls that Gladys user through Gladys Plus
+  async function updateUserGladysUser(user, userIdToUpdate, body) {
+    const { error, value } = gladysUserLinkSchema.validate(body, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw new ValidationError('user', error);
+    }
+
+    const userWithAccount = await getAdminWithAccount(user);
+
+    const userToUpdate = await db.t_user.findOne(
+      {
+        id: userIdToUpdate,
+        account_id: userWithAccount.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id'] },
+    );
+
+    if (userToUpdate === null) {
+      throw new NotFoundError();
+    }
+
+    return db.withTransaction(async (tx) => {
+      if (value.gladys_4_user_id !== null) {
+        await assertGladysUserNotLinked(tx, userWithAccount.account_id, value.gladys_4_user_id, {
+          ignoreUserId: userToUpdate.id,
+        });
+      }
+
+      const updatedUser = await tx.t_user.update(userToUpdate.id, {
+        gladys_4_user_id: value.gladys_4_user_id,
+      });
+
+      return {
+        id: updatedUser.id,
+        gladys_4_user_id: updatedUser.gladys_4_user_id,
+      };
+    });
+  }
+
+  // Reset the second factor of a user of the account who lost their authenticator and
+  // their recovery codes, as an admin of the account. The TOTP secret and the recovery
+  // codes are erased: the user signs in with their password and sets up a new
+  // authenticator at their next login. Their encryption keys do not change, so the
+  // instance keeps accepting them. The admin confirms with their OWN current code (an
+  // access token alone must not be enough to weaken another user's account), never for
+  // themselves (recovery codes or the support), and the user is told by email.
+  async function resetUserTwoFactor(user, userIdToReset, body) {
+    const { error, value } = resetUserTwoFactorSchema.validate(body, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw new ValidationError('user', error);
+    }
+
+    const admin = await db.t_user.findOne(
+      {
+        id: user.id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'email', 'role', 'account_id', 'two_factor_enabled', 'two_factor_secret'] },
+    );
+
+    if (admin === null || admin.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    if (userIdToReset === admin.id) {
+      throw new ForbiddenError('You cannot reset your own two factor authentication');
+    }
+
+    const userToReset = await db.t_user.findOne(
+      {
+        id: userIdToReset,
+        account_id: admin.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'name', 'email', 'language', 'two_factor_enabled'] },
+    );
+
+    if (userToReset === null) {
+      throw new NotFoundError();
+    }
+
+    const { verifyCurrentTwoFactor } = TwoFactorVerifier(logger, redisClient);
+    await verifyCurrentTwoFactor(admin, value.two_factor_code, 'reset the two factor authentication of a user');
+
+    await db.t_user.update(userToReset.id, {
+      two_factor_enabled: false,
+      two_factor_secret: null,
+      two_factor_recovery_codes: null,
+    });
+
+    logger.warn(`Two factor authentication of user ${userToReset.id} reset by admin ${admin.id}`);
+    telegramService.sendAlert(
+      `User ${admin.email} (${admin.name}) reset the two factor authentication of ${userToReset.email}.`,
+    );
+
+    await mailService.send({ email: userToReset.email, language: userToReset.language }, 'two_factor_reset', {
+      firstname: userToReset.name,
+      adminName: admin.name,
+      loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+    });
+
+    return {
+      id: userToReset.id,
+      two_factor_enabled: false,
+    };
+  }
+
   async function revokeUser(user, userIdToRevoke) {
     // get the account_id of the currently connected user, who must be admin: an admin removed
     // from the account cannot revoke the others with an access token issued before the removal
@@ -1039,6 +1160,8 @@ module.exports = function AccountModel(
   return {
     getUsers,
     updateCard,
+    updateUserGladysUser,
+    resetUserTwoFactor,
     revokeUser,
     updateInstanceOfflineAlert,
     subscribeMonthlyPlan,

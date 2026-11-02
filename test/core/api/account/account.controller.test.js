@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const speakeasy = require('speakeasy');
 const request = require('supertest');
 const nock = require('nock');
 const { expect } = require('chai');
@@ -18,6 +19,15 @@ describe('GET /accounts/users', () => {
         response.body.forEach((user) => {
           expect(user).to.have.property('email');
           expect(user).to.have.property('is_invitation');
+          // the Gladys user each user or invitation is linked to
+          expect(user).to.have.property('gladys_4_user_id');
+          // an invitation never exposes its token hash
+          expect(user).to.not.have.property('token_hash');
+        });
+        const invitation = response.body.find((user) => user.id === 'c5d3a6e0-7b1f-4c2e-9a8d-2f4b6e8a1c3d');
+        expect(invitation).to.include({
+          is_invitation: true,
+          gladys_4_user_id: '5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b',
         });
       }));
 });
@@ -36,6 +46,199 @@ describe('POST /accounts/subscribe', () => {
       .then((response) => {
         expect(response.body).to.have.property('current_period_end');
       }));
+});
+
+describe('PATCH /accounts/users/:id', () => {
+  it('should link a user of the account to a Gladys user', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({
+      id: '3b69f1c5-d36c-419d-884c-50b9dd6e33e4',
+      gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493',
+    });
+    const users = await request(TEST_BACKEND_APP)
+      .get('/accounts/users')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(200);
+    const linkedUser = users.body.find((user) => user.id === '3b69f1c5-d36c-419d-884c-50b9dd6e33e4');
+    expect(linkedUser.gladys_4_user_id).to.equal('df033006-ee42-4b94-a324-3f558171c493');
+  });
+
+  it('should unlink a user of the account', async () => {
+    const response = await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: null })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body.gladys_4_user_id).to.equal(null);
+  });
+
+  it('should keep the link when the same Gladys user is set again on the same user', async () => {
+    await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect(200);
+    await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect(200);
+  });
+
+  it('should not link a user to a Gladys user already linked to another user', async () => {
+    await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect(200);
+    await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/bdb1a902-a65e-46f9-8c2a-5c09840e2e10')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect('Content-Type', /json/)
+      .expect(409);
+  });
+
+  it('should not link a user to a Gladys user a pending invitation is for', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      // the fixture invitation is pending for this Gladys user
+      .send({ gladys_4_user_id: '5a1f2b3c-4d5e-4f60-8a7b-9c0d1e2f3a4b' })
+      .expect('Content-Type', /json/)
+      .expect(409));
+
+  it('should return 422 when gladys_4_user_id is not a uuid', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'not-a-uuid' })
+      .expect('Content-Type', /json/)
+      .expect(422));
+
+  it('should return 422 when gladys_4_user_id is missing', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({})
+      .expect('Content-Type', /json/)
+      .expect(422));
+
+  it('should return 404 for a user who is not in the account', () =>
+    request(TEST_BACKEND_APP)
+      .patch('/accounts/users/00000000-0000-4000-8000-000000000000')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect('Content-Type', /json/)
+      .expect(404));
+
+  it('should return 403 when the user is not admin', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, { role: 'user' });
+    await request(TEST_BACKEND_APP)
+      .patch('/accounts/users/3b69f1c5-d36c-419d-884c-50b9dd6e33e4')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ gladys_4_user_id: 'df033006-ee42-4b94-a324-3f558171c493' })
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
+});
+
+describe('POST /accounts/users/:id/reset-two-factor', () => {
+  // the admin of jwtAccessTokenDashboard has two factor enabled with this secret
+  const adminTwoFactorSecret = 'N5VTSUKVNBUDKZZFKQZUU2BEJ4SHMYZGNBAE652TO5HWQZ2VPV2Q';
+  const userToResetId = '3b69f1c5-d36c-419d-884c-50b9dd6e33e4';
+
+  const enableTwoFactorOnUserToReset = () =>
+    TEST_DATABASE_INSTANCE.t_user.update(
+      { id: userToResetId },
+      { two_factor_enabled: true, two_factor_recovery_codes: ['hash-1', 'hash-2'] },
+    );
+
+  it('should reset the two factor of a user of the account', async () => {
+    await enableTwoFactorOnUserToReset();
+    const response = await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(200);
+    expect(response.body).to.deep.equal({ id: userToResetId, two_factor_enabled: false });
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userToResetId });
+    expect(user.two_factor_enabled).to.equal(false);
+    expect(user.two_factor_secret).to.equal(null);
+    expect(user.two_factor_recovery_codes).to.equal(null);
+  });
+
+  it('should return 403 with a wrong two factor code of the admin, and keep the user untouched', async () => {
+    await enableTwoFactorOnUserToReset();
+    await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: '000000' })
+      .expect('Content-Type', /json/)
+      .expect(403);
+    const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: userToResetId });
+    expect(user.two_factor_enabled).to.equal(true);
+    expect(user.two_factor_secret).to.equal(adminTwoFactorSecret);
+  });
+
+  it('should return 422 without the two factor code of the admin', () =>
+    request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({})
+      .expect('Content-Type', /json/)
+      .expect(422));
+
+  it('should return 403 when the admin resets their own two factor', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/users/a139e4a6-ec6c-442d-9730-0499155d38d4/reset-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(403));
+
+  it('should return 403 when the user is not admin', async () => {
+    await TEST_DATABASE_INSTANCE.t_user.update({ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }, { role: 'user' });
+    await request(TEST_BACKEND_APP)
+      .post(`/accounts/users/${userToResetId}/reset-two-factor`)
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(403);
+  });
+
+  it('should return 404 for a user who is not in the account', () =>
+    request(TEST_BACKEND_APP)
+      .post('/accounts/users/00000000-0000-4000-8000-000000000000/reset-two-factor')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .send({ two_factor_code: speakeasy.totp({ secret: adminTwoFactorSecret }) })
+      .expect('Content-Type', /json/)
+      .expect(404));
 });
 
 describe('POST /accounts/users/:id/revoke', () => {

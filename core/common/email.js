@@ -44,6 +44,10 @@ const SUBJECTS = {
     en: 'Action needed: update your card to keep Gladys Plus',
     fr: 'Mets à jour ta carte pour garder Gladys Plus',
   },
+  two_factor_reset: {
+    en: 'Gladys Plus - Your two-factor authentication was reset',
+    fr: 'Gladys Plus - Ta double authentification a été réinitialisée',
+  },
   recovery_codes_reminder: {
     en: 'Remember to generate your Gladys Plus recovery codes',
     fr: 'Pense à générer tes codes de récupération Gladys Plus',

@@ -4,6 +4,7 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ValidationError, AlreadyExistError, ForbiddenError, NotFoundError } = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
 const schema = require('../../common/schema');
+const { assertGladysUserNotLinked } = require('../../common/gladys-user-link');
 
 module.exports = function InvitationModel(logger, db, redisClient, mailService, telegramService) {
   async function inviteUser(user, newInvitation) {
@@ -67,30 +68,7 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
       // the invitation is for a Gladys user of the instance: one Gladys Plus user per
       // Gladys user, so neither a user nor a pending invitation may already be linked to it
       if (gladys4UserId !== null) {
-        const userAlreadyLinked = await tx.t_user.findOne(
-          {
-            gladys_4_user_id: gladys4UserId,
-            account_id: userWithAccount.account_id,
-            is_deleted: false,
-          },
-          { fields: ['id'] },
-        );
-        if (userAlreadyLinked !== null) {
-          throw new AlreadyExistError('user linked to gladys_4_user_id', gladys4UserId);
-        }
-        const invitationAlreadyLinked = await tx.t_invitation.findOne(
-          {
-            gladys_4_user_id: gladys4UserId,
-            account_id: userWithAccount.account_id,
-            revoked: false,
-            accepted: false,
-            is_deleted: false,
-          },
-          { fields: ['id'] },
-        );
-        if (invitationAlreadyLinked !== null) {
-          throw new AlreadyExistError('invitation for gladys_4_user_id', gladys4UserId);
-        }
+        await assertGladysUserNotLinked(tx, userWithAccount.account_id, gladys4UserId);
       }
 
       // generate email confirmation token
@@ -242,10 +220,74 @@ module.exports = function InvitationModel(logger, db, redisClient, mailService, 
     );
   }
 
+  // Link a pending invitation to a Gladys user of the instance (or unlink it with null):
+  // the user created from it will be linked to that Gladys user
+  async function updateInvitationGladysUser(user, invitationId, body) {
+    const { error, value } = schema.gladysUserLinkSchema.validate(body, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      logger.debug(error);
+      throw new ValidationError('invitation', error);
+    }
+
+    const userWithAccount = await db.t_user.findOne(
+      {
+        id: user.id,
+        is_deleted: false,
+      },
+      { fields: ['id', 'role', 'account_id'] },
+    );
+
+    if (userWithAccount === null || userWithAccount.role !== 'admin') {
+      throw new ForbiddenError('You must be admin to perform this operation');
+    }
+
+    return db.withTransaction(async (tx) => {
+      const invitation = await tx.t_invitation.findOne(
+        {
+          id: invitationId,
+          account_id: userWithAccount.account_id,
+          revoked: false,
+          accepted: false,
+          is_deleted: false,
+        },
+        { fields: ['id'] },
+      );
+
+      if (invitation === null) {
+        throw new NotFoundError();
+      }
+
+      if (value.gladys_4_user_id !== null) {
+        await assertGladysUserNotLinked(tx, userWithAccount.account_id, value.gladys_4_user_id, {
+          ignoreInvitationId: invitation.id,
+        });
+      }
+
+      const updatedInvitation = await tx.t_invitation.update(invitation.id, {
+        gladys_4_user_id: value.gladys_4_user_id,
+      });
+
+      return {
+        id: updatedInvitation.id,
+        email: updatedInvitation.email,
+        role: updatedInvitation.role,
+        account_id: updatedInvitation.account_id,
+        gladys_4_user_id: updatedInvitation.gladys_4_user_id,
+        is_invitation: true,
+        created_at: updatedInvitation.created_at,
+      };
+    });
+  }
+
   return {
     inviteUser,
     accept,
     getInvitation,
     revokeInvitation,
+    updateInvitationGladysUser,
   };
 };

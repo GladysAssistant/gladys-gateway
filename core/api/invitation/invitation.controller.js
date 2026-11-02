@@ -104,10 +104,34 @@ module.exports = function InvitationController(invitationModel) {
     res.json({ success: true });
   }
 
+  /**
+   * @api {patch} /invitations/:id Link invitation to a Gladys user
+   * @apiName Link invitation to a Gladys user
+   * @apiGroup Invitation
+   *
+   * @apiParam {String} gladys_4_user_id Id of the Gladys user (on the instance) the
+   * invitation is for, null to unlink. The user created from the invitation is linked to it.
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "61243769-6b09-496d-85f6-2189bd54662e",
+   *   "email": "pepper.potts@starkindustries.com",
+   *   "gladys_4_user_id": "df033006-ee42-4b94-a324-3f558171c493",
+   *   "is_invitation": true
+   * }
+   */
+  async function updateInvitationGladysUser(req, res, next) {
+    const invitation = await invitationModel.updateInvitationGladysUser(req.user, req.params.id, req.body);
+    res.json(invitation);
+  }
+
   return {
     inviteUser,
     accept,
     getInvitation,
     revokeInvitation,
+    updateInvitationGladysUser,
   };
 };

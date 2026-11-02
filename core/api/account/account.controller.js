@@ -183,6 +183,30 @@ module.exports = function AccountController(accountModel, socketModel) {
   }
 
   /**
+   * @api {patch} /accounts/users/:id Link user to a Gladys user
+   * @apiName Link user to a Gladys user
+   * @apiGroup Account
+   *
+   * @apiParam {String} gladys_4_user_id Id of the Gladys user (on the instance) the user
+   * controls through Gladys Plus, null to unlink
+   *
+   * @apiSuccessExample {json} Success-Response:
+   * HTTP/1.1 200 OK
+   *
+   * {
+   *   "id": "86579179-a40b-44e9-9c22-2166b5de3805",
+   *   "gladys_4_user_id": "df033006-ee42-4b94-a324-3f558171c493"
+   * }
+   */
+  async function updateUserGladysUser(req, res, next) {
+    const updatedUser = await accountModel.updateUserGladysUser(req.user, req.params.id, req.body);
+    // the link travels with every message of the user's websocket session, read when
+    // it connects: their sessions reconnect with the new link
+    await socketModel.disconnectUser(req.params.id);
+    res.json(updatedUser);
+  }
+
+  /**
    * @api {post} /accounts/users/:id/revoke Revoke user
    * @apiName Revoke user
    * @apiGroup Account
@@ -269,6 +293,7 @@ module.exports = function AccountController(accountModel, socketModel) {
     subscribeMonthlyPlan,
     subscribeAgainToMonthlySubscription,
     updateCard,
+    updateUserGladysUser,
     revokeUser,
     updateInstanceOfflineAlert,
     getCard,

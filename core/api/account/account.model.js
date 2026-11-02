@@ -2,6 +2,7 @@ const Promise = require('bluebird');
 const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
+const { assertGladysUserNotLinked } = require('../../common/gladys-user-link');
 
 const {
   buildPaymentFailedScope,
@@ -18,7 +19,7 @@ const {
 } = require('../../common/billing-email-scope');
 const { normalizeLanguage } = require('../../common/language');
 const { normalizeEmail } = require('../../common/normalize-email');
-const { instanceOfflineAlertSchema } = require('../../common/schema');
+const { instanceOfflineAlertSchema, gladysUserLinkSchema } = require('../../common/schema');
 
 const ONE_DAY_IN_SECONDS = 24 * 60 * 60;
 const MAX_TRIAL_DAYS_FOR_EMAIL_LIST = 32;
@@ -894,6 +895,51 @@ module.exports = function AccountModel(
     return Promise.resolve();
   }
 
+  // Link a user of the account to a Gladys user of the instance (or unlink them with
+  // null), as an admin: the user then controls that Gladys user through Gladys Plus
+  async function updateUserGladysUser(user, userIdToUpdate, body) {
+    const { error, value } = gladysUserLinkSchema.validate(body, {
+      stripUnknown: true,
+      abortEarly: false,
+    });
+
+    if (error) {
+      throw new ValidationError('user', error);
+    }
+
+    const userWithAccount = await getAdminWithAccount(user);
+
+    const userToUpdate = await db.t_user.findOne(
+      {
+        id: userIdToUpdate,
+        account_id: userWithAccount.account_id,
+        is_deleted: false,
+      },
+      { fields: ['id'] },
+    );
+
+    if (userToUpdate === null) {
+      throw new NotFoundError();
+    }
+
+    return db.withTransaction(async (tx) => {
+      if (value.gladys_4_user_id !== null) {
+        await assertGladysUserNotLinked(tx, userWithAccount.account_id, value.gladys_4_user_id, {
+          ignoreUserId: userToUpdate.id,
+        });
+      }
+
+      const updatedUser = await tx.t_user.update(userToUpdate.id, {
+        gladys_4_user_id: value.gladys_4_user_id,
+      });
+
+      return {
+        id: updatedUser.id,
+        gladys_4_user_id: updatedUser.gladys_4_user_id,
+      };
+    });
+  }
+
   async function revokeUser(user, userIdToRevoke) {
     // get the account_id of the currently connected user, who must be admin: an admin removed
     // from the account cannot revoke the others with an access token issued before the removal
@@ -1041,6 +1087,7 @@ module.exports = function AccountModel(
   return {
     getUsers,
     updateCard,
+    updateUserGladysUser,
     revokeUser,
     updateInstanceOfflineAlert,
     subscribeMonthlyPlan,

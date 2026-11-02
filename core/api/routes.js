@@ -231,6 +231,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.invitationController.revokeInvitation),
   );
+  app.patch(
+    '/invitations/:id',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.invitationController.updateInvitationGladysUser),
+  );
 
   // account
   app.get(
@@ -277,6 +282,11 @@ module.exports.load = function Routes(app, io, controllers, middlewares) {
     '/accounts/users/:id/revoke',
     asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
     asyncMiddleware(controllers.accountController.revokeUser),
+  );
+  app.patch(
+    '/accounts/users/:id',
+    asyncMiddleware(middlewares.accessTokenAuth({ scope: 'dashboard:write' })),
+    asyncMiddleware(controllers.accountController.updateUserGladysUser),
   );
   app.patch(
     '/accounts/instance-offline-alert',

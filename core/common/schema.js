@@ -51,6 +51,12 @@ const invitationSchema = Joi.object().keys({
   gladys_4_user_id: Joi.string().guid().optional().allow(null),
 });
 
+// PATCH /accounts/users/:id and PATCH /invitations/:id: the Gladys user (on the instance)
+// an admin links a user of the account, or a pending invitation, to. null unlinks.
+const gladysUserLinkSchema = Joi.object().keys({
+  gladys_4_user_id: Joi.string().guid().allow(null).required(),
+});
+
 const resetPasswordSchema = Joi.object().keys({
   srp_salt: Joi.string(),
   srp_verifier: Joi.string(),
@@ -73,6 +79,7 @@ const enedisApiQuerySchema = Joi.object().keys({
 module.exports.signupSchema = signupSchema;
 module.exports.updateUserSchema = updateUserSchema;
 module.exports.invitationSchema = invitationSchema;
+module.exports.gladysUserLinkSchema = gladysUserLinkSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;

@@ -43,9 +43,23 @@ const instanceOfflineAlertSchema = Joi.object()
   })
   .min(1);
 
+// gladys_4_user_id: the Gladys user (on the instance) the invitation is for. The user
+// created from the invitation is linked to it, so they do not pick one themselves.
 const invitationSchema = Joi.object().keys({
   email: Joi.string().email(),
   role: Joi.string(),
+  gladys_4_user_id: Joi.string().guid({ separator: '-' }).optional().allow(null),
+});
+
+// PATCH /accounts/users/:id and PATCH /invitations/:id: the Gladys user (on the instance)
+// an admin links a user of the account, or a pending invitation, to. null unlinks.
+const gladysUserLinkSchema = Joi.object().keys({
+  gladys_4_user_id: Joi.string().guid({ separator: '-' }).allow(null).required(),
+});
+
+// POST /accounts/users/:id/reset-two-factor: the admin confirms with their own code
+const resetUserTwoFactorSchema = Joi.object().keys({
+  two_factor_code: Joi.alternatives().try(Joi.string(), Joi.number()).required(),
 });
 
 const resetPasswordSchema = Joi.object().keys({
@@ -70,6 +84,8 @@ const enedisApiQuerySchema = Joi.object().keys({
 module.exports.signupSchema = signupSchema;
 module.exports.updateUserSchema = updateUserSchema;
 module.exports.invitationSchema = invitationSchema;
+module.exports.gladysUserLinkSchema = gladysUserLinkSchema;
+module.exports.resetUserTwoFactorSchema = resetUserTwoFactorSchema;
 module.exports.resetPasswordSchema = resetPasswordSchema;
 module.exports.openApiSchema = openApiSchema;
 module.exports.enedisApiQuerySchema = enedisApiQuerySchema;

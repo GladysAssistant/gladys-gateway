@@ -48,11 +48,18 @@ const SUBJECTS = {
     en: 'Gladys Plus - New recovery codes generated from your Gladys',
     fr: 'Gladys Plus - Nouveaux codes de récupération générés depuis ta Gladys',
   },
-  two_factor_reset: {
+  // link to reset the two factor oneself, when no instance of the account is connected
+  two_factor_reset_link: {
     en: 'Gladys Plus - Reset your two-factor authentication',
     fr: 'Gladys Plus - Réinitialise ta double authentification',
   },
+  // notification: reset done with that link
   two_factor_reset_done: {
+    en: 'Gladys Plus - Your two-factor authentication was reset',
+    fr: 'Gladys Plus - Ta double authentification a été réinitialisée',
+  },
+  // notification: an admin of the account reset the two factor of a user
+  two_factor_reset: {
     en: 'Gladys Plus - Your two-factor authentication was reset',
     fr: 'Gladys Plus - Ta double authentification a été réinitialisée',
   },

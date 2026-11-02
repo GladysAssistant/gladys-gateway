@@ -36,6 +36,7 @@ function buildScope(templateName, language) {
   return {
     confirmationUrlGladys4: 'https://gladysassistant.com/confirm-email/token',
     nameOfAdminInviting: 'Tony',
+    adminName: 'Tony',
     invitationUrlGladys4: 'https://gladysassistant.com/signup?invitation=token',
     resetPasswordUrlGladys4: 'https://gladysassistant.com/reset-password/token',
     twoFactorResetUrlGladys4: 'https://plus.gladysassistant.com/reset-two-factor?token=token',

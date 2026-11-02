@@ -705,16 +705,26 @@ describe('two factor reset by email', () => {
     });
   }
 
-  function disconnectInstance() {
-    return new Promise((resolve) => {
-      if (!instanceSocket) {
-        resolve();
+  // Resolves once the Gateway no longer lists the instance as connected: the server
+  // handles the disconnection after the client sees it
+  async function disconnectInstance() {
+    if (!instanceSocket) {
+      return;
+    }
+    instanceSocket.disconnect();
+    instanceSocket = null;
+    for (let attempt = 0; attempt < 50; attempt += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      const connectedInstanceIds = await TEST_MODELS.socketModel.getConnectedInstanceIds();
+      if (!connectedInstanceIds.has(INSTANCE_OF_THE_ACCOUNT)) {
         return;
       }
-      instanceSocket.on('disconnect', () => resolve());
-      instanceSocket.disconnect();
-      instanceSocket = null;
-    });
+      // eslint-disable-next-line no-await-in-loop
+      await new Promise((resolve) => {
+        setTimeout(resolve, 20);
+      });
+    }
+    throw new Error('The instance is still connected');
   }
 
   function requestReset(twoFactorToken = configTest.jwtTwoFactorToken) {
@@ -756,7 +766,7 @@ describe('two factor reset by email', () => {
 
       expect(sentEmails).to.have.lengthOf(1);
       expect(sentEmails[0].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
-      expect(sentEmails[0].template).to.equal('two_factor_reset');
+      expect(sentEmails[0].template).to.equal('two_factor_reset_link');
       expect(sentEmails[0].scope.firstname).to.equal('Tony');
       expect(sentEmails[0].scope.twoFactorResetUrlGladys4).to.include('/reset-two-factor?token=');
       expect(getTokenFromEmail(sentEmails[0])).to.match(/^[0-9a-f]{64}$/);
@@ -819,7 +829,7 @@ describe('two factor reset by email', () => {
       expect(response.body).to.deep.equal({ success: true });
       expect(sentEmails).to.have.lengthOf(1);
       expect(sentEmails[0].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
-      expect(sentEmails[0].template).to.equal('two_factor_reset');
+      expect(sentEmails[0].template).to.equal('two_factor_reset_link');
 
       // the reset password link itself is still usable afterwards
       await request(TEST_BACKEND_APP)

@@ -1,0 +1,23 @@
+<%- include('../partials/head', { title: 'Gladys Plus - Réinitialise ta double authentification', preheader: 'Un lien pour réinitialiser la double authentification de ton compte Gladys Plus.' }) %>
+                    <h1 class="gl-h1" style="<%- s.h1 %>">Réinitialise ta double authentification</h1>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      <% if (firstname) { %>Salut <%= firstname %>,<% } else { %>Salut,<% } %>
+                    </p>
+
+                    <p class="gl-p" style="<%- s.p %>">
+                      Tu as demandé à réinitialiser la double authentification de ton compte Gladys Plus parce que tu n'as plus accès à ton application d'authentification ni à tes codes de récupération.
+                      Voici le lien pour le faire. Il ne fonctionne qu'une fois et expire dans une heure.
+                    </p>
+
+<%- include('../partials/button', { url: twoFactorResetUrlGladys4, label: 'Réinitialiser ma double authentification' }) %>
+<%- include('../partials/link-fallback', { url: twoFactorResetUrlGladys4 }) %>
+                    <p class="gl-p" style="<%- s.p %>">
+                      Une fois fait, reconnecte-toi avec ton mot de passe : Gladys Plus te demandera de configurer une nouvelle application d'authentification, puis d'enregistrer de nouveaux codes de récupération.
+                    </p>
+
+<%- include('../partials/tile-start', { variant: 'danger' }) %>
+                          <strong>Si ce n'est pas toi, ne clique pas sur le lien et change ton mot de passe dès maintenant.</strong>
+                          Quelqu'un qui connaît ton mot de passe essaie d'entrer dans ton compte. Réponds à cet email pour que je le sécurise.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/footer') %>

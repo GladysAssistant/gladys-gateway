@@ -15,6 +15,22 @@ const ALEXA_GRANT_ACCESS_TOKEN_REDIS_PREFIX = 'alexa-grant-access-token';
 
 const ALEXA_USERS_REDIS_PREFIX = 'alexa-users';
 
+// Alexa Event Gateway of each Alexa region. An event must go to the region of the
+// customer's Alexa account: the others answer 403 SKILL_NEVER_ENABLED_EXCEPTION.
+// Europe first, where most Gladys Plus users are.
+// https://developer.amazon.com/docs/alexaplus/smarthome/send-events
+const ALEXA_EVENT_GATEWAYS = {
+  eu: 'https://api.eu.amazonalexa.com/v3/events',
+  na: 'https://api.amazonalexa.com/v3/events',
+  fe: 'https://api.fe.amazonalexa.com/v3/events',
+};
+const ALEXA_WRONG_REGION_ERROR_CODE = 'SKILL_NEVER_ENABLED_EXCEPTION';
+const ALEXA_EVENT_GATEWAY_REGION_REDIS_PREFIX = 'alexa-event-gateway-region';
+// The region of an Alexa link never changes: a customer who moves to another region
+// has to link the skill again, which creates a new device. The expiry only cleans up
+// the keys of deleted devices, the region is found again after it.
+const ALEXA_EVENT_GATEWAY_REGION_EXPIRY_IN_SECONDS = 30 * 24 * 60 * 60;
+
 const JWT_AUDIENCE = 'alexa-oauth';
 const SCOPE = ['alexa'];
 
@@ -218,20 +234,54 @@ module.exports = function AlexaModel(logger, db, redisClient, jwtService) {
     return users;
   }
 
+  /**
+   * Send the event to the gateway of the first region that does not answer that the
+   * customer is in another region.
+   * @returns {Promise<string>} The region that accepted the event.
+   */
+  async function sendEventToFirstRegionOfCustomer(regions, accessToken, payload) {
+    const [region, ...otherRegions] = regions;
+    try {
+      await plainAxios({
+        method: 'POST',
+        headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },
+        data: payload,
+        url: ALEXA_EVENT_GATEWAYS[region],
+      });
+      return region;
+    } catch (e) {
+      const isWrongRegion =
+        get(e, 'response.status') === 403 && get(e, 'response.data.payload.code') === ALEXA_WRONG_REGION_ERROR_CODE;
+      if (isWrongRegion && otherRegions.length > 0) {
+        return sendEventToFirstRegionOfCustomer(otherRegions, accessToken, payload);
+      }
+      throw e;
+    }
+  }
+
+  async function sendEvent(deviceId, accessToken, payload) {
+    const regionKey = `${ALEXA_EVENT_GATEWAY_REGION_REDIS_PREFIX}:${deviceId}`;
+    const knownRegion = await redisClient.get(regionKey);
+    // once known, the region of the device is the only one tried
+    const regions = Object.hasOwn(ALEXA_EVENT_GATEWAYS, knownRegion)
+      ? [knownRegion]
+      : Object.keys(ALEXA_EVENT_GATEWAYS);
+    const region = await sendEventToFirstRegionOfCustomer(regions, accessToken, payload);
+    if (region !== knownRegion) {
+      logger.info(`Alexa.sendEvent : device ${deviceId} is in region ${region}`);
+      await redisClient.set(regionKey, region, {
+        EX: ALEXA_EVENT_GATEWAY_REGION_EXPIRY_IN_SECONDS,
+      });
+    }
+  }
+
   async function reportState(instanceId, payload) {
     const users = await getUsersWithAlexaActivated(instanceId);
     if (users.length > 0) {
       await Promise.each(users, async (user) => {
         try {
           const accessToken = await getAlexaAccessToken(user.device_id, user.provider_refresh_token);
-          const options = {
-            method: 'POST',
-            headers: { 'content-type': 'application/json', Authorization: `Bearer ${accessToken}` },
-            data: payload,
-            url: 'https://api.eu.amazonalexa.com/v3/events',
-          };
-          await plainAxios(options);
-          // report state
+          await sendEvent(user.device_id, accessToken, payload);
         } catch (e) {
           const status = get(e, 'response.status') || e.code;
           const description = get(e, 'response.data.payload.description') || get(e, 'response.statusText') || e.message;

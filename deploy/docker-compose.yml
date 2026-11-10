@@ -1,0 +1,61 @@
+# Blue/green deployment of the gateway on one VM, behind the DigitalOcean load
+# balancer. The load balancer terminates TLS and sends the traffic to this VM on
+# port 80, where nginx forwards it to the active slot (gateway-blue or
+# gateway-green, chosen in nginx/upstream.conf). deploy.sh starts the new version
+# on the inactive slot, checks it, switches nginx to it and stops the other one.
+# See README.md next to this file.
+#
+# .env (copied from .env.example) holds the image tag of each slot and the active
+# one, maintained by deploy.sh. gateway.env holds the environment of the gateway
+# itself (database, Redis, secrets...): it is never committed.
+#
+# The Enedis worker (node worker.js) runs on another VM, it is not part of this file.
+
+name: gladys-gateway
+
+x-gateway: &gateway
+  env_file: gateway.env
+  environment:
+    # nginx listens on the port the slots are known by (nginx/gateway.conf)
+    SERVER_PORT: 3000
+    # Two proxies add their hop to X-Forwarded-For: the load balancer and nginx
+    TRUSTED_PROXY_HOPS: 2
+  restart: unless-stopped
+  # Must cover the graceful shutdown: drain delay (5 s), websockets closed by
+  # batches (30 s), in-flight requests (15 s), see core/service/gracefulShutdown.js
+  stop_grace_period: 60s
+  healthcheck:
+    test: ['CMD', 'wget', '-qO-', 'http://127.0.0.1:3000/ping']
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    # the database migrations run before the server listens
+    start_period: 120s
+  logging:
+    driver: json-file
+    options:
+      max-size: '50m'
+      max-file: '5'
+
+services:
+  proxy:
+    image: nginx:1.28-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+    volumes:
+      # the whole directory, so that a rewritten upstream.conf is seen by the container
+      - ./nginx:/etc/nginx/conf.d:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: '50m'
+        max-file: '5'
+
+  gateway-blue:
+    <<: *gateway
+    image: gladysassistant/gladys-gateway-server:${BLUE_TAG:?set BLUE_TAG in .env}
+
+  gateway-green:
+    <<: *gateway
+    image: gladysassistant/gladys-gateway-server:${GREEN_TAG:?set GREEN_TAG in .env}

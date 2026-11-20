@@ -154,7 +154,7 @@ describe('email templates', () => {
         const scope = buildScope('two_factor_reset_link', language);
         const fromLogin = templates.two_factor_reset_link[language].ejs({ ...scope, fromPasswordReset: false });
         const fromPasswordReset = templates.two_factor_reset_link[language].ejs({ ...scope, fromPasswordReset: true });
-        const newPasswordStep = language === 'fr' ? 'choisir ton nouveau mot de passe' : 'choose your new password';
+        const newPasswordStep = language === 'fr' ? 'choisis ton nouveau mot de passe' : 'choose your new password';
         expect(fromPasswordReset).to.include(newPasswordStep);
         expect(fromLogin).to.not.include(newPasswordStep);
       });

@@ -14,7 +14,8 @@
 <%- include('../partials/link-fallback', { url: twoFactorResetUrlGladys4 }) %>
                     <p class="gl-p" style="<%- s.p %>">
 <% if (typeof fromPasswordReset !== 'undefined' && fromPasswordReset) { %>
-                      Une fois fait, la page te propose de <strong>choisir ton nouveau mot de passe</strong> : c'est la suite de la réinitialisation que tu as commencée (son lien reste valable deux heures).
+                      Une fois fait, <strong>choisis ton nouveau mot de passe</strong> : ouvert dans le navigateur où tu as fait la demande, ce lien t'y ramène directement ; sinon, retourne sur la page de réinitialisation du mot de passe d'où tu viens.
+                      Si elle indique que son lien a expiré (il est valable deux heures après l'email « mot de passe oublié »), demandes-en un nouveau : la double authentification ne te sera plus demandée.
                       Connecte-toi ensuite avec ce nouveau mot de passe : Gladys Plus te demandera de configurer une nouvelle application d'authentification, puis d'enregistrer de nouveaux codes de récupération.
 <% } else { %>
                       Une fois fait, reconnecte-toi avec ton mot de passe : Gladys Plus te demandera de configurer une nouvelle application d'authentification, puis d'enregistrer de nouveaux codes de récupération.

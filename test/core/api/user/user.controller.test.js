@@ -787,6 +787,8 @@ describe('two factor reset by email', () => {
       expect(sentEmails[0].scope.firstname).to.equal('Tony');
       expect(sentEmails[0].scope.twoFactorResetUrlGladys4).to.include('/reset-two-factor?token=');
       expect(getTokenFromEmail(sentEmails[0])).to.match(/^[0-9a-f]{64}$/);
+      // asked from the login: there is no password reset to bring the user back to
+      expect(sentEmails[0].scope.fromPasswordReset).to.equal(false);
 
       // two factor is still enabled until the link is used
       const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
@@ -893,6 +895,13 @@ describe('two factor reset by email', () => {
       expect(sentEmails).to.have.lengthOf(1);
       expect(sentEmails[0].email).to.equal('email-confirmed-two-factor-enabled@gladysprojet.com');
       expect(sentEmails[0].template).to.equal('two_factor_reset_link');
+      // the email announces the new password step...
+      expect(sentEmails[0].scope.fromPasswordReset).to.equal(true);
+      // ...but never carries the reset password token: the leaked link alone would take the account
+      const url = new URL(sentEmails[0].scope.twoFactorResetUrlGladys4, 'https://plus.gladysassistant.com');
+      expect(url.pathname).to.match(/\/reset-two-factor$/);
+      expect([...url.searchParams.keys()]).to.deep.equal(['token']);
+      expect(sentEmails[0].scope.twoFactorResetUrlGladys4).to.not.include(RESET_PASSWORD_TOKEN);
 
       // the reset password link itself is still usable afterwards
       await request(TEST_BACKEND_APP)

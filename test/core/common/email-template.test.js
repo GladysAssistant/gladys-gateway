@@ -43,6 +43,7 @@ function buildScope(templateName, language) {
     newEmail: 'new-email@gladysassistant.com',
     updateCardLink: 'https://plus.gladysassistant.com/accounts/stripe_customer_portal/key',
     loginUrl: 'https://plus.gladysassistant.com',
+    forgotPasswordUrl: 'https://plus.gladysassistant.com/forgot-password',
     firstname: 'Tony',
     trialEndDate: '25 June 2026',
     amount: '9.99',
@@ -136,6 +137,26 @@ describe('email templates', () => {
           // The wordmark carries the brand when images are blocked, so alt stays empty
           expect(html).to.include('alt=""');
         });
+      });
+    });
+  });
+
+  describe('recovery of a returning customer', () => {
+    LANGUAGES.forEach((language) => {
+      it(`welcome_back (${language}) should link to the forgot password page and not ask to write to support`, () => {
+        const html = templates.welcome_back[language].ejs(buildScope('welcome_back', language));
+        expect(html).to.include('href="https://plus.gladysassistant.com/forgot-password"');
+        // the reset of the second factor is self-service now, not a manual reset by support
+        expect(html).to.not.include(language === 'fr' ? 'je réinitialiserai ta 2FA' : 'I will reset your 2FA');
+      });
+
+      it(`two_factor_reset_link (${language}) should only promise the new password step from a password reset`, () => {
+        const scope = buildScope('two_factor_reset_link', language);
+        const fromLogin = templates.two_factor_reset_link[language].ejs({ ...scope, fromPasswordReset: false });
+        const fromPasswordReset = templates.two_factor_reset_link[language].ejs({ ...scope, fromPasswordReset: true });
+        const newPasswordStep = language === 'fr' ? 'choisis ton nouveau mot de passe' : 'choose your new password';
+        expect(fromPasswordReset).to.include(newPasswordStep);
+        expect(fromLogin).to.not.include(newPasswordStep);
       });
     });
   });

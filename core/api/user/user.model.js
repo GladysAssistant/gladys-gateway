@@ -861,7 +861,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
    * `isInstanceConnected(user)` is given by the controller: the user model is created
    * before the socket model.
    */
-  async function requestTwoFactorReset(userId, isInstanceConnected) {
+  async function requestTwoFactorReset(userId, isInstanceConnected, fromPasswordReset = false) {
     const user = await getUserForTwoFactorReset(userId);
 
     if (user.two_factor_enabled !== true) {
@@ -889,6 +889,11 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       await mailService.send(user, 'two_factor_reset_link', {
         firstname: extractFirstname(user.name),
         twoFactorResetUrlGladys4: `${process.env.GLADYS_PLUS_FRONTEND_URL}/reset-two-factor?token=${encodeURI(token)}`,
+        // Asked from a reset password link: the email tells the user to choose their new password
+        // next. The reset password token is never put in this link: a leaked link alone (history,
+        // Referer, a quoted reply) would then be enough to take the account. The browser that
+        // asked keeps it and the landing page leads back to it.
+        fromPasswordReset,
       });
     } catch (e) {
       // no link received: nothing to keep, and the user can ask again right away
@@ -903,7 +908,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
   // their second factor. The reset password token proves the mailbox.
   async function requestTwoFactorResetFromPasswordReset(forgotPasswordToken, isInstanceConnected) {
     const resetPasswordRequest = await getValidResetPasswordRequest(forgotPasswordToken);
-    return requestTwoFactorReset(resetPasswordRequest.user_id, isInstanceConnected);
+    return requestTwoFactorReset(resetPasswordRequest.user_id, isInstanceConnected, true);
   }
 
   async function resetTwoFactor(token, isInstanceConnected) {

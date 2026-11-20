@@ -268,6 +268,7 @@ module.exports = function AccountModel(
         logger.info(`createAccountFromStripeSession: sending welcome_back email to ${email} (lang=${language})`);
         await mailService.send({ email, language }, 'welcome_back', {
           loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+          forgotPasswordUrl: `${process.env.GLADYS_PLUS_FRONTEND_URL}/forgot-password`,
         });
 
         telegramService.sendAlert(`Existing customer re-subscribed! Customer email = ${email}, language = ${language}`);

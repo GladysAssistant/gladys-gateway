@@ -6,16 +6,23 @@
                     </p>
 
                     <p class="gl-p" style="<%- s.p %>">
-                      Your existing Gladys Plus account has been linked to your new subscription. You can simply log in with your usual credentials:
+                      Your existing Gladys Plus account has been linked to your new subscription: there is no new account to create.
+                      Log in with the email address and the password of your previous subscription:
                     </p>
 
 <%- include('../partials/button', { url: loginUrl, label: 'Log in to Gladys Plus' }) %>
 <%- include('../partials/link-fallback', { url: loginUrl }) %>
 <%- include('../partials/tile-start', { variant: 'neutral' }) %>
+                          <strong>Don't remember your password?</strong>
+                          That's normal after a break. <a href="<%= forgotPasswordUrl %>" class="gl-link" style="<%- s.link %>">Choose a new one</a>:
+                          you will receive a link by email.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/tile-start', { variant: 'neutral' }) %>
                           <strong>Lost access to your two-factor authentication?</strong>
-                          No worries: use one of your <strong>recovery codes</strong> to sign in again.
-                          If you have run out, or never generated any, just reply to this email or contact me at
-                          <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>
-                          and I will reset your 2FA for you.
+                          Use one of your <strong>recovery codes</strong> instead of the code of your app.
+                          If you have run out, or never generated any, an admin of your Gladys can generate new ones from
+                          Settings › Users. No Gladys connected? Click "Reset your two-factor authentication by email"
+                          under the code field, when you sign in or on the new password page: you will receive a link to
+                          reset it.
 <%- include('../partials/tile-end') %>
 <%- include('../partials/footer') %>

@@ -13,8 +13,12 @@
 <%- include('../partials/button', { url: twoFactorResetUrlGladys4, label: 'Réinitialiser ma double authentification' }) %>
 <%- include('../partials/link-fallback', { url: twoFactorResetUrlGladys4 }) %>
                     <p class="gl-p" style="<%- s.p %>">
+<% if (typeof fromPasswordReset !== 'undefined' && fromPasswordReset) { %>
+                      Une fois fait, la page te propose de <strong>choisir ton nouveau mot de passe</strong> : c'est la suite de la réinitialisation que tu as commencée (son lien reste valable deux heures).
+                      Connecte-toi ensuite avec ce nouveau mot de passe : Gladys Plus te demandera de configurer une nouvelle application d'authentification, puis d'enregistrer de nouveaux codes de récupération.
+<% } else { %>
                       Une fois fait, reconnecte-toi avec ton mot de passe : Gladys Plus te demandera de configurer une nouvelle application d'authentification, puis d'enregistrer de nouveaux codes de récupération.
-                      Si tu as aussi oublié ton mot de passe, retourne d'abord sur la page de réinitialisation du mot de passe d'où tu viens (son lien reste valable deux heures) pour en choisir un nouveau.
+<% } %>
                     </p>
 
 <%- include('../partials/tile-start', { variant: 'danger' }) %>

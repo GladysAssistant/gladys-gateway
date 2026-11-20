@@ -6,16 +6,23 @@
                     </p>
 
                     <p class="gl-p" style="<%- s.p %>">
-                      Ton compte Gladys Plus existant a été relié à ton nouvel abonnement. Il te suffit de te connecter avec tes identifiants habituels :
+                      Ton compte Gladys Plus existant a été relié à ton nouvel abonnement : il n'y a pas de nouveau compte à créer.
+                      Connecte-toi avec l'adresse email et le mot de passe de ton précédent abonnement :
                     </p>
 
 <%- include('../partials/button', { url: loginUrl, label: 'Se connecter à Gladys Plus' }) %>
 <%- include('../partials/link-fallback', { url: loginUrl }) %>
 <%- include('../partials/tile-start', { variant: 'neutral' }) %>
+                          <strong>Tu ne te souviens plus de ton mot de passe ?</strong>
+                          C'est normal après une pause. <a href="<%= forgotPasswordUrl %>" class="gl-link" style="<%- s.link %>">Choisis-en un nouveau</a> :
+                          tu recevras un lien par email.
+<%- include('../partials/tile-end') %>
+<%- include('../partials/tile-start', { variant: 'neutral' }) %>
                           <strong>Tu as perdu l'accès à ta double authentification ?</strong>
-                          Pas de panique : utilise l'un de tes <strong>codes de récupération</strong> pour te reconnecter.
-                          Si tu n'en as plus, ou si tu n'en as jamais généré, réponds simplement à cet email ou contacte-moi à
-                          <a href="mailto:hello@gladysassistant.com" class="gl-link" style="<%- s.link %>">hello@gladysassistant.com</a>
-                          et je réinitialiserai ta 2FA pour toi.
+                          Utilise l'un de tes <strong>codes de récupération</strong> à la place du code de ton application.
+                          Si tu n'en as plus, ou si tu n'en as jamais généré, un administrateur de ta Gladys peut en générer
+                          de nouveaux depuis Paramètres › Utilisateurs. Pas de Gladys connectée ? Clique sur
+                          « Réinitialisez votre double authentification par email » sous le champ du code, à la connexion
+                          ou sur la page de nouveau mot de passe : tu recevras un lien pour la réinitialiser.
 <%- include('../partials/tile-end') %>
 <%- include('../partials/footer') %>

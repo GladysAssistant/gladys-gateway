@@ -267,6 +267,12 @@ describe('stripeWebhook', () => {
     await TEST_DATABASE_INSTANCE.t_account.update(firstAccount.id, { status: 'canceled' });
 
     // Same email re-subscribes via Stripe Checkout, with brand new customer/subscription IDs.
+    const { mailService } = TEST_SERVICES;
+    const originalSend = mailService.send;
+    const sentEmails = [];
+    mailService.send = async (user, template, scope) => {
+      sentEmails.push({ email: user.email, template, scope });
+    };
     const event2 = {
       id: 'evt_test_webhook_2',
       object: 'event',
@@ -294,13 +300,25 @@ describe('stripeWebhook', () => {
       .get('/v1/customers/cus_resub')
       .reply(200, { id: 'cus_resub', email: 'toto@test.fr' });
 
-    await request(TEST_BACKEND_APP)
-      .post('/stripe/webhook')
-      .set('Accept', 'application/json')
-      .set('stripe-signature', signatureHeader2)
-      .set('Content-type', 'application/json')
-      .send(stringEvent2)
-      .expect(200);
+    try {
+      await request(TEST_BACKEND_APP)
+        .post('/stripe/webhook')
+        .set('Accept', 'application/json')
+        .set('stripe-signature', signatureHeader2)
+        .set('Content-type', 'application/json')
+        .send(stringEvent2)
+        .expect(200);
+    } finally {
+      mailService.send = originalSend;
+    }
+
+    // The returning customer is told how to get a new password: they rarely remember the old one
+    const welcomeBack = sentEmails.find((sentEmail) => sentEmail.template === 'welcome_back');
+    expect(welcomeBack).to.have.property('email', 'toto@test.fr');
+    expect(welcomeBack.scope).to.deep.equal({
+      loginUrl: process.env.GLADYS_PLUS_FRONTEND_URL,
+      forgotPasswordUrl: `${process.env.GLADYS_PLUS_FRONTEND_URL}/forgot-password`,
+    });
 
     // The existing account row has been re-linked, no new row was created.
     const allAccounts = await TEST_DATABASE_INSTANCE.t_account.find({ name: 'toto@test.fr' });

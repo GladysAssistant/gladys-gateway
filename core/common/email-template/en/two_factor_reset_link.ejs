@@ -13,8 +13,12 @@
 <%- include('../partials/button', { url: twoFactorResetUrlGladys4, label: 'Reset my two-factor authentication' }) %>
 <%- include('../partials/link-fallback', { url: twoFactorResetUrlGladys4 }) %>
                     <p class="gl-p" style="<%- s.p %>">
+<% if (typeof fromPasswordReset !== 'undefined' && fromPasswordReset) { %>
+                      Once done, the page offers you to <strong>choose your new password</strong>: it picks up the password reset you started (its link stays valid for two hours).
+                      Then sign in with this new password: Gladys Plus will ask you to set up a new authenticator app, then to save new recovery codes.
+<% } else { %>
                       Once done, sign in again with your password: Gladys Plus will ask you to set up a new authenticator app, then to save new recovery codes.
-                      If you also forgot your password, go back to the reset password page you came from (its link stays valid for two hours) to choose a new one first.
+<% } %>
                     </p>
 
 <%- include('../partials/tile-start', { variant: 'danger' }) %>

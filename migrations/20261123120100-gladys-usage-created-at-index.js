@@ -32,36 +32,39 @@ function readSql(fileName) {
 
 // The migrations run when the server starts (index.js): a container stopped while the index
 // is being built (startup timeout, new deployment...) leaves an INVALID index behind, that
-// IF NOT EXISTS would then take for the index. It is dropped first, to be built again. A valid
-// index (built by hand before the deployment for example) is kept.
-var DROP_INVALID_INDEX_SQL = [
-  'DO $$',
-  'BEGIN',
-  '  IF EXISTS (',
-  "    SELECT 1 FROM pg_index WHERE indexrelid = to_regclass('ix_t_gladys_usage_created_at') AND NOT indisvalid",
-  '  ) THEN',
-  '    DROP INDEX ix_t_gladys_usage_created_at;',
-  '  END IF;',
-  'END $$;',
-].join('\n');
+// IF NOT EXISTS would then take for the index. It is dropped first, CONCURRENTLY like the build
+// (a plain DROP INDEX waits for an exclusive lock on the table, blocking the inserts meanwhile),
+// to be built again. A valid index (built by hand before the deployment for example) is kept.
+var FIND_INVALID_INDEX_SQL =
+  "SELECT 1 FROM pg_index WHERE indexrelid = to_regclass('ix_t_gladys_usage_created_at') AND NOT indisvalid";
+var DROP_INVALID_INDEX_SQL = 'DROP INDEX CONCURRENTLY IF EXISTS ix_t_gladys_usage_created_at';
 
-// CREATE INDEX CONCURRENTLY cannot run inside a transaction block, and db-migrate runs every
-// migration inside one (BEGIN before, COMMIT after). The transaction opened by db-migrate is
-// committed first, the index is built on its own, then a new transaction is opened for
-// db-migrate to record the migration and commit.
+// CREATE (and DROP) INDEX CONCURRENTLY cannot run inside a transaction block, and db-migrate
+// runs every migration inside one (BEGIN before, COMMIT after). The transaction opened by
+// db-migrate is committed first, the index is dropped and built on their own, then a new
+// transaction is opened for db-migrate to record the migration and commit.
 exports.up = function(db) {
+  var createIndexSql;
   return readSql('20261123120100-gladys-usage-created-at-index-up.sql')
     .then(function(data) {
-      return db.runSql(DROP_INVALID_INDEX_SQL)
-        .then(function() {
-          return db.runSql('COMMIT;');
-        })
-        .then(function() {
-          return db.runSql(data);
-        })
-        .then(function() {
-          return db.runSql('BEGIN;');
-        });
+      createIndexSql = data;
+      return db.runSql('COMMIT;');
+    })
+    .then(function() {
+      return db.all(FIND_INVALID_INDEX_SQL);
+    })
+    .then(function(invalidIndexes) {
+      if (invalidIndexes.length > 0) {
+        console.log('ix_t_gladys_usage_created_at is INVALID (interrupted build): dropping it to build it again');
+        return db.runSql(DROP_INVALID_INDEX_SQL);
+      }
+      return null;
+    })
+    .then(function() {
+      return db.runSql(createIndexSql);
+    })
+    .then(function() {
+      return db.runSql('BEGIN;');
     });
 };
 

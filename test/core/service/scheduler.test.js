@@ -17,6 +17,17 @@ function fakeWatchdogModel(behavior = async () => WATCHDOG_REPORT) {
   };
 }
 
+function fakeStatModel(behavior = async () => [{ nb_instances: '12', month: '2026-11' }]) {
+  const calls = [];
+  return {
+    calls,
+    refreshNumberOfGladys4Instances: async () => {
+      calls.push('refresh');
+      return behavior();
+    },
+  };
+}
+
 function fakeLifecycleModel(behavior = async () => ({ total: 0, reminded: 0, skipped: 0, errors: 0 })) {
   const calls = [];
   return {
@@ -36,6 +47,7 @@ const SCHEDULE_ENV_NAMES = [
   'ACCOUNT_ACTIVATION_REMINDER_CRON',
   'RECOVERY_CODES_REMINDER_CRON',
   'INSTANCE_WATCHDOG_CRON',
+  'STATS_REFRESH_CRON',
 ];
 
 describe('scheduler service', () => {
@@ -111,6 +123,20 @@ describe('scheduler service', () => {
     expect(result.report.aborted).to.equal('no_instance_connected');
   });
 
+  it('should refresh the stats under a lock shorter than its hourly schedule', async () => {
+    const statModel = fakeStatModel();
+    scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, fakeLifecycleModel(), fakeWatchdogModel(), statModel);
+    const result = await scheduler.refreshStats();
+    expect(result).to.deep.equal({ name: 'stats-refresh', ran: true, report: { months: 1 } });
+    expect(statModel.calls).to.deep.equal(['refresh']);
+    // the job runs every hour: the lock is gone before the next tick
+    const ttl = await TEST_REDIS_CLIENT.ttl('scheduler:stats-refresh:lock');
+    expect(ttl).to.be.within(2900, 3000);
+    const again = await scheduler.refreshStats();
+    expect(again).to.deep.equal({ name: 'stats-refresh', ran: false, reason: 'already_ran' });
+    expect(statModel.calls).to.have.lengthOf(1);
+  });
+
   it('should not run the job again while another replica holds the lock', async () => {
     const model = fakeLifecycleModel();
     scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, model);
@@ -177,15 +203,28 @@ describe('scheduler service', () => {
     expect(watchdog.calls).to.deep.equal([{ execute: true }]);
   });
 
+  it('should schedule the stats refresh every hour by default and run it from the cron task', async () => {
+    delete process.env.STATS_REFRESH_CRON;
+    const statModel = fakeStatModel();
+    scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, fakeLifecycleModel(), fakeWatchdogModel(), statModel);
+    const { statsRefresh } = scheduler.start();
+    expect(statsRefresh).to.not.equal(null);
+    expect(statsRefresh.getNextRun().getUTCMinutes()).to.equal(23);
+    await statsRefresh.execute();
+    expect(statModel.calls).to.deep.equal(['refresh']);
+  });
+
   it('should not schedule a job set to disabled', () => {
     process.env.ACCOUNT_ACTIVATION_REMINDER_CRON = 'disabled';
     process.env.RECOVERY_CODES_REMINDER_CRON = 'disabled';
     process.env.INSTANCE_WATCHDOG_CRON = 'disabled';
+    process.env.STATS_REFRESH_CRON = 'disabled';
     scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, fakeLifecycleModel(), fakeWatchdogModel());
     expect(scheduler.start()).to.deep.equal({
       activationReminders: null,
       recoveryCodesReminders: null,
       instanceWatchdog: null,
+      statsRefresh: null,
     });
   });
 
@@ -201,5 +240,9 @@ describe('scheduler service', () => {
     process.env.INSTANCE_WATCHDOG_CRON = 'every 5 minutes';
     scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, fakeLifecycleModel(), fakeWatchdogModel());
     expect(() => scheduler.start()).to.throw(/INSTANCE_WATCHDOG_CRON/);
+    process.env.INSTANCE_WATCHDOG_CRON = 'disabled';
+    process.env.STATS_REFRESH_CRON = 'every hour';
+    scheduler = SchedulerService(silentLogger, TEST_REDIS_CLIENT, fakeLifecycleModel(), fakeWatchdogModel());
+    expect(() => scheduler.start()).to.throw(/STATS_REFRESH_CRON/);
   });
 });

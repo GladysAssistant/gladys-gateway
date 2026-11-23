@@ -36,6 +36,8 @@ describe('POST /admin/api/gladys/versions', () => {
   };
 
   it('should create an active version and make it the current one', async () => {
+    // the current version is in cache before the new one is created
+    expect((await getCurrentVersionSeenByGladys()).name).to.equal('v4.0.0-alpha');
     const response = await adminRequest('post', '/admin/api/gladys/versions')
       .send(newVersion)
       .expect('Content-Type', /json/)

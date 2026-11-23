@@ -6,6 +6,7 @@ const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { buildWelcomeScope } = require('../../common/billing-email-scope');
 const { normalizeEmail } = require('../../common/normalize-email');
 const { NotFoundError, ForbiddenError } = require('../../common/error');
+const { invalidateGoogleUsersCacheOfAccount } = require('../../common/google-users-cache');
 
 module.exports = function AdminModel(logger, db, redisClient, mailService, slackService, stripeService) {
   const s3Client = new S3Client({
@@ -129,6 +130,8 @@ module.exports = function AdminModel(logger, db, redisClient, mailService, slack
       await db.t_reset_password.destroy({ user_id: user.id });
       await db.t_user.destroy({ id: user.id });
     });
+    // the instances of the account stop reporting to Google Home (before they are deleted)
+    await invalidateGoogleUsersCacheOfAccount(logger, db, redisClient, accountId);
     // Getting enedis data
     const usagePoints = await db.t_enedis_usage_point.find({ account_id: accountId });
     await Promise.mapSeries(usagePoints, async (usagePoint) => {

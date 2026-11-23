@@ -62,8 +62,13 @@ describe('DELETE /admin/api/users/:id', () => {
       api_key_hash: 'hash',
     });
     await TEST_DATABASE_INSTANCE.t_reset_password.insert({ user_id: USER_WITH_TWO_FACTOR, token_hash: 'token' });
+    // the instance of the account was reporting the Google Home of the user
+    const googleUsersCacheKey = 'google-users:0bc53f3c-1e11-40d3-99a4-bd392a666eaf';
+    await TEST_REDIS_CLIENT.set(googleUsersCacheKey, JSON.stringify([{ id: USER_WITH_TWO_FACTOR }]));
 
     await adminRequest('delete', `/admin/api/users/${USER_WITH_TWO_FACTOR}`).expect('Content-Type', /json/).expect(200);
+
+    expect(await TEST_REDIS_CLIENT.get(googleUsersCacheKey)).to.equal('invalidated');
 
     const user = await TEST_DATABASE_INSTANCE.t_user.findOne({ id: USER_WITH_TWO_FACTOR });
     expect(user).to.equal(null);

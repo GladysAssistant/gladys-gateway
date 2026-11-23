@@ -11,6 +11,7 @@ const {
   TooManyRequestsError,
 } = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { invalidateGoogleUsersCacheOfUser } = require('../../common/google-users-cache');
 const { extractFirstname } = require('../../common/billing-email-scope');
 const schema = require('../../common/schema');
 const TwoFactorVerifier = require('../../common/two-factor');
@@ -1005,7 +1006,7 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
       }
     }
 
-    return db.withTransaction(async (tx) => {
+    const userWithNewPassword = await db.withTransaction(async (tx) => {
       // a recovery code is single-use, it's consumed in the same transaction as the password
       // reset so the user doesn't lose a recovery code if the password reset fails
       if (useRecoveryCode) {
@@ -1055,6 +1056,9 @@ module.exports = function UserModel(logger, db, redisClient, jwtService, mailSer
 
       return newUser;
     });
+    // a Google Home session is invalidated too: the instances stop reporting to Google
+    await invalidateGoogleUsersCacheOfUser(logger, db, redisClient, userWithNewPassword.id);
+    return userWithNewPassword;
   }
 
   async function getSetupState(user) {

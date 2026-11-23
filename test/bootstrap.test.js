@@ -43,6 +43,7 @@ before(async function Before() {
   process.env.ACCOUNT_ACTIVATION_REMINDER_CRON = 'disabled';
   process.env.RECOVERY_CODES_REMINDER_CRON = 'disabled';
   process.env.INSTANCE_WATCHDOG_CRON = 'disabled';
+  process.env.STATS_REFRESH_CRON = 'disabled';
 
   // starting 2 backends to try multi-server socket exchange
   const { io, app, db, redisClient, legacyRedisClient, services, models } = await server(process.env.SERVER_PORT);

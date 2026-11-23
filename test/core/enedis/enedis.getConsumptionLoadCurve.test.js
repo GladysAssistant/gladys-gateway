@@ -134,6 +134,70 @@ describe('EnedisWorker.getConsumptionLoadCurve', function Describe() {
     });
     expect(syncUpdated).to.have.property('jobs_done', 2);
   });
+  it('should keep the last reading of a repeated date and not rewrite the unchanged readings', async () => {
+    const accountId = 'b2d23f66-487d-493f-8acb-9c8adb400def';
+    const params = { usage_point_id: '16401220101758', start: '2022-10-30', end: '2022-10-31' };
+    const responseWith = (readings) => ({
+      meter_reading: { ...data.meter_reading, start: params.start, end: params.end, interval_reading: readings },
+    });
+    await linkEnedisUsagePoints([params.usage_point_id]);
+    mockAccessTokenRefresh();
+    const createdSync = await db.t_enedis_sync.insert({ usage_point_id: params.usage_point_id, jobs_total: 2 });
+    // 02:30 is listed twice on the switch to winter time (local time without offset)
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get(enedisRoute)
+      .query(params)
+      .reply(
+        200,
+        responseWith([
+          { value: '100', date: '2022-10-30 01:30:00' },
+          { value: '200', date: '2022-10-30 02:30:00' },
+          { value: '250', date: '2022-10-30 02:30:00' },
+        ]),
+      );
+    await enedisModel.getConsumptionLoadCurve(
+      accountId,
+      params.usage_point_id,
+      params.start,
+      params.end,
+      createdSync.id,
+    );
+    const getReadings = () =>
+      db.query(
+        `SELECT value, created_at, xmin::text AS row_version FROM t_enedis_consumption_load_curve
+        WHERE usage_point_id = $1 ORDER BY created_at`,
+        [params.usage_point_id],
+      );
+    const [first, repeated] = await getReadings();
+    expect(first).to.include({ value: 100 });
+    expect(first.created_at).to.deep.equal(new Date('2022-10-29T23:30:00.000Z'));
+    expect(repeated).to.include({ value: 250 });
+    // The same week fetched again (daily refresh): only the reading that changed is written
+    nock(`https://${process.env.ENEDIS_BACKEND_URL}`)
+      .get(enedisRoute)
+      .query(params)
+      .reply(
+        200,
+        responseWith([
+          { value: '100', date: '2022-10-30 01:30:00' },
+          { value: '300', date: '2022-10-30 02:30:00' },
+        ]),
+      );
+    await enedisModel.getConsumptionLoadCurve(
+      accountId,
+      params.usage_point_id,
+      params.start,
+      params.end,
+      createdSync.id,
+    );
+    const readingsAfterRefresh = await getReadings();
+    expect(readingsAfterRefresh).to.have.lengthOf(2);
+    expect(readingsAfterRefresh[0]).to.deep.equal(first);
+    expect(readingsAfterRefresh[1]).to.include({ value: 300 });
+    expect(readingsAfterRefresh[1].row_version).to.not.equal(repeated.row_version);
+    const syncUpdated = await db.t_enedis_sync.findOne({ id: createdSync.id });
+    expect(syncUpdated).to.have.property('jobs_done', 2);
+  });
   it('should play jobs and return enedis data', async () => {
     // First, finalize Enedis Oauth process
     nock(`https://${process.env.ENEDIS_BACKEND_URL}`)

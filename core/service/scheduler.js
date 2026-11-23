@@ -7,6 +7,8 @@ const LOCK_TTL_IN_SECONDS = 60 * 60;
 // The watchdog runs every few minutes: its lock only has to cover the replicas firing at
 // the same minute, and must be gone before the next tick.
 const INSTANCE_WATCHDOG_LOCK_TTL_IN_SECONDS = 4 * 60;
+// The stats are refreshed every hour: same reasoning, the lock is gone before the next tick.
+const STATS_REFRESH_LOCK_TTL_IN_SECONDS = 50 * 60;
 const DISABLED_VALUES = ['', 'false', 'disabled', 'off'];
 
 /**
@@ -15,7 +17,13 @@ const DISABLED_VALUES = ['', 'false', 'disabled', 'off'];
  * A job is configured by a cron expression in an environment variable; set it to "disabled"
  * to turn the job off (tests, a replica that must not send emails...).
  */
-module.exports = function SchedulerService(logger, redisClient, adminAccountLifecycleModel, instanceWatchdogModel) {
+module.exports = function SchedulerService(
+  logger,
+  redisClient,
+  adminAccountLifecycleModel,
+  instanceWatchdogModel,
+  statModel,
+) {
   const tasks = [];
 
   function getSchedule(envName, defaultSchedule) {
@@ -97,6 +105,20 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     );
   }
 
+  // The public stats (GET /stats) count the instances per month over the last months of
+  // t_gladys_usage: computed here, they are never computed on a public request
+  function refreshStats() {
+    return runWithLock(
+      'stats-refresh',
+      async () => {
+        const stats = await statModel.refreshNumberOfGladys4Instances();
+        logger.info(`scheduler: stats refreshed (${stats.length} months)`);
+        return { months: stats.length };
+      },
+      STATS_REFRESH_LOCK_TTL_IN_SECONDS,
+    );
+  }
+
   function scheduleJob(name, envName, defaultSchedule, job) {
     const schedule = getSchedule(envName, defaultSchedule);
     if (schedule === null) {
@@ -128,6 +150,8 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
         sendRecoveryCodesReminders,
       ),
       instanceWatchdog: scheduleJob('instance-watchdog', 'INSTANCE_WATCHDOG_CRON', '*/5 * * * *', runInstanceWatchdog),
+      // Every hour, at a minute where no other job runs
+      statsRefresh: scheduleJob('stats-refresh', 'STATS_REFRESH_CRON', '23 * * * *', refreshStats),
     };
   }
 
@@ -142,5 +166,6 @@ module.exports = function SchedulerService(logger, redisClient, adminAccountLife
     sendActivationReminders,
     sendRecoveryCodesReminders,
     runInstanceWatchdog,
+    refreshStats,
   };
 };

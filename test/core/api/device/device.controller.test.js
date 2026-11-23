@@ -37,3 +37,13 @@ describe('POST /devices/:id/revoke', () => {
         });
       }));
 });
+
+describe('POST /devices/:id/revoke (not found)', () => {
+  it('should return 404 for a device of another user or an unknown device', async () => {
+    await request(TEST_BACKEND_APP)
+      .post('/devices/6b0e4a2e-6fd1-4bc5-9b73-8bd6a1a4f4d1/revoke')
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenDashboard)
+      .expect(404);
+  });
+});

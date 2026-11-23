@@ -311,7 +311,11 @@ describe('DELETE /admin/api/accounts/:id', () => {
       request_type: 'text',
       total_tokens: 42,
     });
+    const googleUsersCacheKey = 'google-users:0bc53f3c-1e11-40d3-99a4-bd392a666eaf';
+    await TEST_REDIS_CLIENT.set(googleUsersCacheKey, JSON.stringify([{ id: 'a139e4a6-ec6c-442d-9730-0499155d38d4' }]));
     await adminRequest('delete', `/admin/api/accounts/${ACCOUNT_WITH_USERS}`).expect(200);
+    // the instance stops reporting to Google Home
+    expect(await TEST_REDIS_CLIENT.get(googleUsersCacheKey)).to.equal('invalidated');
     const aiUsage = await TEST_DATABASE_INSTANCE.t_ai_usage.find({ account_id: ACCOUNT_WITH_USERS });
     expect(aiUsage).to.have.lengthOf(0);
     const account = await TEST_DATABASE_INSTANCE.t_account.findOne({ id: ACCOUNT_WITH_USERS });

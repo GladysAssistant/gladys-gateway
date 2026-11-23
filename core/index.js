@@ -210,7 +210,7 @@ module.exports = async (port) => {
     deviceModel: Device(logger, db, redisClient),
     adminModel: Admin(logger, db, redisClient, services.mailService, services.slackService, services.stripeService),
     openApiModel: OpenApi(logger, db),
-    versionModel: Version(logger, db),
+    versionModel: Version(logger, db, redisClient),
     backupModel: Backup(logger, db),
     statModel: StatModel(logger, db, redisClient),
     googleModel: GoogleModel(logger, db, redisClient, services.jwtService),
@@ -223,6 +223,7 @@ module.exports = async (port) => {
   models.adminAccountModel = AdminAccountModel(
     logger,
     db,
+    redisClient,
     services.stripeService,
     services.mailService,
     models.enedisModel,
@@ -234,7 +235,7 @@ module.exports = async (port) => {
     services.mailService,
     models.adminModel,
   );
-  models.adminVersionModel = AdminVersionModel(logger, db);
+  models.adminVersionModel = AdminVersionModel(logger, db, redisClient);
   models.instanceWatchdogModel = InstanceWatchdog(logger, db, models.socketModel, services.mailService);
 
   const controllers = {
@@ -329,9 +330,15 @@ module.exports = async (port) => {
 
   routes.load(app, io, controllers, middlewares);
 
-  // Recurring jobs (activation reminders, recovery codes reminders, instance watchdog...):
+  // Recurring jobs (activation reminders, recovery codes reminders, instance watchdog, stats...):
   // every replica schedules them, a Redis lock makes sure only one runs each of them
-  const scheduler = Scheduler(logger, redisClient, models.adminAccountLifecycleModel, models.instanceWatchdogModel);
+  const scheduler = Scheduler(
+    logger,
+    redisClient,
+    models.adminAccountLifecycleModel,
+    models.instanceWatchdogModel,
+    models.statModel,
+  );
   scheduler.start();
 
   server.listen(port);

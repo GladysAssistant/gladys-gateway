@@ -2,6 +2,7 @@ const Joi = require('joi');
 const Promise = require('bluebird');
 const { NotFoundError, ForbiddenError, ValidationError, AlreadyExistError } = require('../../common/error');
 const { normalizeEmail } = require('../../common/normalize-email');
+const { invalidateGoogleUsersCacheOfAccount } = require('../../common/google-users-cache');
 const {
   adminListAccountsQuerySchema,
   adminUpdateAccountSchema,
@@ -54,7 +55,7 @@ function toLikePattern(search) {
   return `%${search.replace(/[\\%_]/g, '\\$&')}%`;
 }
 
-module.exports = function AdminAccountModel(logger, db, stripeService, mailService, enedisModel) {
+module.exports = function AdminAccountModel(logger, db, redisClient, stripeService, mailService, enedisModel) {
   function validateId(id) {
     const { error } = uuidSchema.validate(id);
     if (error) {
@@ -363,6 +364,8 @@ module.exports = function AdminAccountModel(logger, db, stripeService, mailServi
       await tx.t_reset_password.destroy({ user_id: userId });
       await tx.t_user.destroy({ id: userId });
     });
+    // the instances of the account stop reporting the Google Home of the user
+    await invalidateGoogleUsersCacheOfAccount(logger, db, redisClient, user.account_id);
     logger.warn(`Admin API: user ${userId} of account ${user.account_id} deleted`);
   }
 

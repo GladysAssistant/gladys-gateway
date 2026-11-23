@@ -10,8 +10,16 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 dayjs.extend(customParseFormat);
 
+const { BadRequestError } = require('../../common/error');
+const { callOptionalRedisCommand } = require('../../common/redis');
+
 const TEMPO_CACHE_KEY = 'tempo';
 const TEMPO_REDIS_EXPIRY_IN_SECONDS = 5 * 24 * 60 * 60; // 5 days
+// Every day of the history (one row per day since the start of Tempo, a few thousand rows),
+// cached under a single key whatever the start date asked. Dropped when the color of the day
+// is saved, the expiry is the one of the Cache-Control header of the route.
+const TEMPO_HISTORICAL_CACHE_KEY = 'tempo:historical';
+const TEMPO_HISTORICAL_CACHE_EXPIRY_IN_SECONDS = 60 * 60;
 
 module.exports = function TempoModel(logger, db, redisClient) {
   // the key is the same as ecowatt
@@ -94,6 +102,10 @@ module.exports = function TempoModel(logger, db, redisClient) {
             },
           },
         );
+        // the history now has the day
+        await callOptionalRedisCommand(redisClient, () => redisClient.del(TEMPO_HISTORICAL_CACHE_KEY)).catch((e) =>
+          logger.warn(`Tempo: unable to drop the historical data cache (${e.message})`),
+        );
       } catch (e) {
         logger.debug(e);
         todayData = 'unknown';
@@ -144,17 +156,81 @@ module.exports = function TempoModel(logger, db, redisClient) {
     return retry(async () => getDataLiveOrFromCache(), options);
   }
 
-  async function getHistoricalData(params) {
-    const { start_date: startDate, take } = params;
+  // The day as stored is returned too (day), to filter the cached history
+  const historicalDataColumns = `
+    created_at::text as day,
+    TO_CHAR(created_at AT TIME ZONE 'Europe/Paris', 'YYYY-MM-DD') as created_at,
+    day_type
+  `;
+
+  async function getHistoricalDataFromDb(startDate) {
     const request = `
-      SELECT TO_CHAR(created_at AT TIME ZONE 'Europe/Paris', 'YYYY-MM-DD') as created_at, day_type 
+      SELECT ${historicalDataColumns}
       FROM t_tempo_historical_data
       WHERE created_at >= $1
-      ORDER BY created_at ASC
-      LIMIT $2;
+      ORDER BY created_at ASC;
     `;
-    const tempoData = await db.query(request, [startDate, take]);
-    return tempoData;
+    return db.query(request, [startDate]);
+  }
+
+  async function getWholeHistoryFromDb() {
+    return db.query(`SELECT ${historicalDataColumns} FROM t_tempo_historical_data ORDER BY created_at ASC;`);
+  }
+
+  async function getWholeHistoryFromCacheOrDb() {
+    try {
+      const historyInCache = await callOptionalRedisCommand(redisClient, () =>
+        redisClient.get(TEMPO_HISTORICAL_CACHE_KEY),
+      );
+      if (historyInCache) {
+        return JSON.parse(historyInCache);
+      }
+    } catch (e) {
+      logger.warn(`Tempo: unable to read the historical data cache (${e.message})`);
+    }
+    const history = await getWholeHistoryFromDb();
+    // not awaited: the response does not wait for Redis to cache the history
+    callOptionalRedisCommand(redisClient, () =>
+      redisClient.set(TEMPO_HISTORICAL_CACHE_KEY, JSON.stringify(history), {
+        EX: TEMPO_HISTORICAL_CACHE_EXPIRY_IN_SECONDS,
+      }),
+    ).catch((e) => {
+      logger.warn(`Tempo: unable to cache the historical data (${e.message})`);
+    });
+    return history;
+  }
+
+  // take is a number of days: every day since start_date without it. Anything else than a
+  // number used to reach the query, and failed there (500).
+  function parseTake(take) {
+    if (take === undefined || take === '') {
+      return null;
+    }
+    if (!/^\d+$/.test(String(take))) {
+      throw new BadRequestError('take must be a positive integer');
+    }
+    return parseInt(take, 10);
+  }
+
+  /**
+   * The colors of the days since start_date (included), take of them at most. Gladys
+   * instances ask for the days since their last sync, with a day (YYYY-MM-DD): they are
+   * served from the cached history. Any other start date is read in database, as before.
+   */
+  async function getHistoricalData(params) {
+    const { start_date: startDate, take } = params;
+    const limit = parseTake(take);
+    let days;
+    if (typeof startDate === 'string' && dayjs(startDate, 'YYYY-MM-DD', true).isValid()) {
+      const history = await getWholeHistoryFromCacheOrDb();
+      days = history.filter((day) => day.day >= startDate);
+    } else {
+      days = await getHistoricalDataFromDb(startDate);
+    }
+    return days.slice(0, limit === null ? undefined : limit).map(({ created_at: createdAt, day_type: dayType }) => ({
+      created_at: createdAt,
+      day_type: dayType,
+    }));
   }
 
   return {

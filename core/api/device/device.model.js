@@ -1,4 +1,5 @@
 const { NotFoundError } = require('../../common/error');
+const { invalidateGoogleUsersCacheOfUser } = require('../../common/google-users-cache');
 
 module.exports = function DeviceModel(logger, db, redisClient) {
   async function getDevices(user) {
@@ -32,6 +33,11 @@ module.exports = function DeviceModel(logger, db, redisClient) {
       },
       { fields: ['id', 'revoked'] },
     );
+
+    // the instances of the account stop reporting their states to Google right away
+    if (device.client_id === process.env.GOOGLE_HOME_OAUTH_CLIENT_ID) {
+      await invalidateGoogleUsersCacheOfUser(logger, db, redisClient, user.id);
+    }
 
     return deviceRevoked;
   }

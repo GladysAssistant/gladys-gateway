@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { AlreadyExistError, ForbiddenError, NotFoundError, ValidationError } = require('../../common/error');
 const { assertGladysUserNotLinked } = require('../../common/gladys-user-link');
+const { invalidateGoogleUsersCacheOfUser } = require('../../common/google-users-cache');
 
 const {
   buildPaymentFailedScope,
@@ -1038,7 +1039,7 @@ module.exports = function AccountModel(
       throw new NotFoundError();
     }
 
-    return db.withTransaction(async (tx) => {
+    const revokedUser = await db.withTransaction(async (tx) => {
       // deleting user
       const deletedUser = await tx.t_user.update(userToRevoke.id, {
         is_deleted: true,
@@ -1077,6 +1078,9 @@ module.exports = function AccountModel(
 
       return deletedUser;
     });
+    // the Google Home session of the user is revoked too: the instances stop reporting it
+    await invalidateGoogleUsersCacheOfUser(logger, db, redisClient, userToRevoke.id);
+    return revokedUser;
   }
 
   /**

@@ -6,9 +6,13 @@ const retry = require('async-retry');
 const { homegraph, auth } = require('@googleapis/homegraph');
 const randomBytes = Promise.promisify(require('crypto').randomBytes);
 const { ForbiddenError } = require('../../common/error');
+const {
+  GOOGLE_USERS_CACHE_EXPIRY_IN_SECONDS,
+  getGoogleUsersCacheKey,
+  invalidateGoogleUsersCacheOfUser,
+} = require('../../common/google-users-cache');
 
 const GOOGLE_OAUTH_CODE_REDIS_PREFIX = `GOOGLE_OAUTH_CODE`;
-const GOOGLE_USERS_REDIS_PREFIX = 'google-users';
 const GOOGLE_REQUEST_SYNC_LOCK_REDIS_PREFIX = 'google-request-sync-lock';
 const GOOGLE_REQUEST_SYNC_LOCK_EXPIRY_IN_SECONDS = 60 * 60; // 1 hour
 const GOOGLE_CODE_EXPIRY_IN_SECONDS = 60 * 60;
@@ -110,6 +114,8 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
     const accessToken = jwtService.generateAccessTokenOauth(user, newDevice, SCOPE, JWT_AUDIENCE);
     newDevice.refresh_token_hash = crypto.createHash('sha256').update(refreshToken).digest('hex');
     await db.t_device.insert(newDevice);
+    // the instances of the account report their states to Google right away
+    await invalidateGoogleUsersCacheOfUser(logger, db, redisClient, user.id);
 
     return {
       accessToken,
@@ -243,14 +249,14 @@ module.exports = function GoogleHomeModel(logger, db, redisClient, jwtService) {
   }
 
   async function getGoogleUsers(instanceId) {
-    const usersFromCache = await redisClient.get(`${GOOGLE_USERS_REDIS_PREFIX}:${instanceId}`);
+    const usersFromCache = await redisClient.get(getGoogleUsersCacheKey(instanceId));
     if (usersFromCache) {
       logger.debug(`getGoogleUsers: Returning Google users from Redis cache (instance = ${instanceId})`);
       return JSON.parse(usersFromCache);
     }
     const users = await db.query(getUsersWithGoogleActivatedQuery, [instanceId, GOOGLE_HOME_OAUTH_CLIENT_ID]);
-    await redisClient.set(`${GOOGLE_USERS_REDIS_PREFIX}:${instanceId}`, JSON.stringify(users), {
-      EX: 1 * 60, // 1 minute
+    await redisClient.set(getGoogleUsersCacheKey(instanceId), JSON.stringify(users), {
+      EX: GOOGLE_USERS_CACHE_EXPIRY_IN_SECONDS,
     });
     return users;
   }

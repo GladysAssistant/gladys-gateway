@@ -79,6 +79,34 @@ const getMeteringReadings = (v2026, response) => {
 const DATE_WITH_OFFSET_REGEX = /(Z|[+-]\d{2}:?\d{2})$/;
 const parseLoadCurveDate = (date) => (DATE_WITH_OFFSET_REGEX.test(date) ? dayjs(date) : dayjs.tz(date, 'Europe/Paris'));
 
+// The readings of an Enedis response are saved with one statement (a week of load curve is
+// 336 readings) instead of one upsert per reading. A reading already saved with the same
+// value is not written again: the daily refresh fetches the last week again, and rewriting
+// identical rows only left dead rows behind.
+const upsertDailyConsumptionsQuery = `
+  INSERT INTO t_enedis_daily_consumption (usage_point_id, value, created_at)
+  SELECT $1, readings.value, readings.created_at
+  FROM unnest($2::double precision[], $3::date[]) AS readings(value, created_at)
+  ON CONFLICT (usage_point_id, created_at) DO UPDATE SET value = EXCLUDED.value
+  WHERE t_enedis_daily_consumption.value IS DISTINCT FROM EXCLUDED.value;
+`;
+const upsertConsumptionLoadCurveQuery = `
+  INSERT INTO t_enedis_consumption_load_curve (usage_point_id, value, created_at)
+  SELECT $1, readings.value, readings.created_at
+  FROM unnest($2::double precision[], $3::timestamptz[]) AS readings(value, created_at)
+  ON CONFLICT (usage_point_id, created_at) DO UPDATE SET value = EXCLUDED.value
+  WHERE t_enedis_consumption_load_curve.value IS DISTINCT FROM EXCLUDED.value;
+`;
+
+// One statement cannot update the same row twice: when a response lists the same date twice
+// (the repeated hour of the switch to winter time, in local time without offset), the last
+// reading wins, as it did with one upsert per reading.
+const getLastValuePerDate = (readings) => {
+  const valuesByDate = new Map();
+  readings.forEach(({ value, date }) => valuesByDate.set(date, value));
+  return { values: [...valuesByDate.values()], dates: [...valuesByDate.keys()] };
+};
+
 const getDevicesWithEnedisActivated = `
         SELECT DISTINCT t_user.id, t_user.account_id, 
         t_device.id as device_id, t_device.provider_refresh_token
@@ -284,23 +312,16 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     if (v2026 && readings.length === 0) {
       logger.warn(`Enedis - no daily consumption reading in the Mesures V2 response for usagePoint = ${usagePointId}`);
     }
-    // Foreach data points, we insert in DB if not exist
-    await Promise.each(readings, async (reading) => {
-      await db.t_enedis_daily_consumption.insert(
-        {
-          usage_point_id: usagePointId,
+    if (readings.length > 0) {
+      const { values, dates } = getLastValuePerDate(
+        readings.map((reading) => ({
           value: reading.value,
           // The column is a date: keep the day only, in case the API returns a full timestamp
-          created_at: v2026 ? String(reading.date).substring(0, 10) : reading.date,
-        },
-        {
-          onConflict: {
-            target: ['usage_point_id', 'created_at'],
-            action: 'update',
-          },
-        },
+          date: v2026 ? String(reading.date).substring(0, 10) : reading.date,
+        })),
       );
-    });
+      await db.query(upsertDailyConsumptionsQuery, [usagePointId, values, dates]);
+    }
     await increaseSyncJobDone(syncId);
     return response;
   }
@@ -328,22 +349,15 @@ module.exports = function EnedisModel(logger, db, redisClient) {
     if (v2026 && readings.length === 0) {
       logger.warn(`Enedis - no load curve reading in the Mesures V2 response for usagePoint = ${usagePointId}`);
     }
-    // Foreach data points, we insert in DB if not exist
-    await Promise.each(readings, async (reading) => {
-      await db.t_enedis_consumption_load_curve.insert(
-        {
-          usage_point_id: usagePointId,
+    if (readings.length > 0) {
+      const { values, dates } = getLastValuePerDate(
+        readings.map((reading) => ({
           value: reading.value,
-          created_at: parseLoadCurveDate(reading.date),
-        },
-        {
-          onConflict: {
-            target: ['usage_point_id', 'created_at'],
-            action: 'update',
-          },
-        },
+          date: parseLoadCurveDate(reading.date).toISOString(),
+        })),
       );
-    });
+      await db.query(upsertConsumptionLoadCurveQuery, [usagePointId, values, dates]);
+    }
 
     await increaseSyncJobDone(syncId);
 

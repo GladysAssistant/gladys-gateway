@@ -191,6 +191,7 @@ module.exports = function EnedisModel(logger, db, redisClient, enedisCoreModel) 
         WHERE t_instance.id = $1
         AND t_enedis_consumption_load_curve.usage_point_id = $3
         AND t_enedis_consumption_load_curve.created_at > $5
+        ORDER BY t_enedis_consumption_load_curve.created_at ASC
         LIMIT $4;
     `;
     const dailyConsumptions = await db.query(getConsumptionLoadCurveSql, [

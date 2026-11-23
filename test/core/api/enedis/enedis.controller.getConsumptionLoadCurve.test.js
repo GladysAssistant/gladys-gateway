@@ -54,6 +54,30 @@ describe('Enedis.getConsumptionLoadCurve', () => {
       },
     ]);
   });
+  it('should return the oldest readings first, whatever the order they were saved in', async () => {
+    // a reading of the night, saved after the others (a sync of an older week)
+    await TEST_DATABASE_INSTANCE.t_enedis_consumption_load_curve.insert({
+      usage_point_id: '16401220101758',
+      value: 99,
+      created_at: '2022-08-01 02:00:00',
+    });
+    const response = await request(TEST_BACKEND_APP)
+      .get('/enedis/metering_data/consumption_load_curve')
+      .query({ usage_point_id: '16401220101758', after: '2022-08-01 00:00:00', take: 2 })
+      .set('Accept', 'application/json')
+      .set('Authorization', configTest.jwtAccessTokenInstance)
+      .expect(200);
+    expect(response.body).to.deep.equal([
+      {
+        value: 99,
+        created_at: '2022-08-01T02:00:00.000Z',
+      },
+      {
+        value: 100,
+        created_at: '2022-08-01T03:00:00.000Z',
+      },
+    ]);
+  });
   it('should return 422', async () => {
     const response = await request(TEST_BACKEND_APP)
       .get('/enedis/metering_data/consumption_load_curve')

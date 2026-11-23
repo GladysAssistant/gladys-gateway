@@ -44,3 +44,39 @@ describe('GET/POST /v1/api/gladys/version', () => {
         });
       }));
 });
+
+describe('Current Gladys version cache', () => {
+  const VersionModel = require('../../../../core/api/version/version.model'); // eslint-disable-line global-require
+
+  it('should cache the current version for 5 minutes', async () => {
+    await request(TEST_BACKEND_APP).get('/v1/api/gladys/version').expect(200);
+    const versionInCache = JSON.parse(await TEST_REDIS_CLIENT.get('gladys-version:current'));
+    expect(versionInCache).to.include({ name: 'v4.0.0-alpha' });
+    expect(await TEST_REDIS_CLIENT.ttl('gladys-version:current')).to.be.within(290, 300);
+    // a version changed in database by hand is seen when the cache expires
+    await TEST_DATABASE_INSTANCE.t_gladys_version.insert({ name: 'v4.58.0', active: true });
+    const res = await request(TEST_BACKEND_APP).get('/v1/api/gladys/version').expect(200);
+    expect(res.body.name).to.equal('v4.0.0-alpha');
+    await TEST_REDIS_CLIENT.del('gladys-version:current');
+    const fresh = await request(TEST_BACKEND_APP).get('/v1/api/gladys/version').expect(200);
+    expect(fresh.body.name).to.equal('v4.58.0');
+  });
+
+  it('should read the version in database when Redis fails', async () => {
+    const warnings = [];
+    const logger = { warn: (message) => warnings.push(message) };
+    const brokenRedis = {
+      isReady: true,
+      get: async () => {
+        throw new Error('redis down');
+      },
+      set: async () => {
+        throw new Error('redis down');
+      },
+    };
+    const versionModel = VersionModel(logger, TEST_DATABASE_INSTANCE, brokenRedis);
+    const version = await versionModel.getCurrentVersion();
+    expect(version).to.include({ name: 'v4.0.0-alpha' });
+    expect(warnings[0]).to.equal('Unable to read the current Gladys version cache (redis down)');
+  });
+});

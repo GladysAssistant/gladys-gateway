@@ -1,0 +1,25 @@
+const { callOptionalRedisCommand } = require('./redis');
+
+// The current Gladys version is asked by every Gladys instance (GET /v1/api/gladys/version),
+// it is cached. The admin API drops the cache when it creates or updates a version; the
+// expiry covers a version changed in database by hand.
+const CURRENT_GLADYS_VERSION_CACHE_KEY = 'gladys-version:current';
+const CURRENT_GLADYS_VERSION_CACHE_EXPIRY_IN_SECONDS = 5 * 60;
+
+/**
+ * Drop the cached current version. Never throws: the version is created or updated anyway,
+ * Gladys instances then see it when the cache expires.
+ */
+async function invalidateCurrentGladysVersionCache(logger, redisClient) {
+  try {
+    await callOptionalRedisCommand(redisClient, () => redisClient.del(CURRENT_GLADYS_VERSION_CACHE_KEY));
+  } catch (e) {
+    logger.warn(`Unable to invalidate the current Gladys version cache (${e.message})`);
+  }
+}
+
+module.exports = {
+  CURRENT_GLADYS_VERSION_CACHE_KEY,
+  CURRENT_GLADYS_VERSION_CACHE_EXPIRY_IN_SECONDS,
+  invalidateCurrentGladysVersionCache,
+};

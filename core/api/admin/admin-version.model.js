@@ -1,6 +1,7 @@
 const Joi = require('joi');
 const { NotFoundError, AlreadyExistError, ValidationError } = require('../../common/error');
 const { adminCreateGladysVersionSchema, adminUpdateGladysVersionSchema } = require('../../common/schema');
+const { invalidateCurrentGladysVersionCache } = require('../../common/gladys-version-cache');
 
 const uuidSchema = Joi.string().guid({ version: 'uuidv4' }).required();
 
@@ -17,7 +18,7 @@ const VERSION_FIELDS = [
   'updated_at',
 ];
 
-module.exports = function AdminVersionModel(logger, db) {
+module.exports = function AdminVersionModel(logger, db, redisClient) {
   async function listVersions() {
     return db.t_gladys_version.find(
       {},
@@ -50,6 +51,8 @@ module.exports = function AdminVersionModel(logger, db) {
       throw e;
     }
     logger.warn(`Admin API: Gladys version ${version.name} created (active: ${version.active})`);
+    // Gladys instances see the new version right away
+    await invalidateCurrentGladysVersionCache(logger, redisClient);
     return version;
   }
 
@@ -66,6 +69,7 @@ module.exports = function AdminVersionModel(logger, db) {
       throw new NotFoundError('Version not found');
     }
     logger.warn(`Admin API: Gladys version ${version.name} updated (${Object.keys(value).join(', ')})`);
+    await invalidateCurrentGladysVersionCache(logger, redisClient);
     return version;
   }
 

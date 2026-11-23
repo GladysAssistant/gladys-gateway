@@ -17,9 +17,10 @@ describe('Google Home users cache', () => {
     return device;
   }
 
-  // No user linked Google Home: the instance has nothing to report, nothing is sent to Google
+  // With a user who linked Google Home, the report is sent to Google (not mocked here, the
+  // error is ignored): only the users the instance found matter
   async function reportState() {
-    await TEST_MODELS.googleModel.reportState(INSTANCE_ID, { devices: { states: {} } });
+    await TEST_MODELS.googleModel.reportState(INSTANCE_ID, { devices: { states: {} } }).catch(() => {});
   }
 
   it('should cache the users of the instance for 15 minutes', async () => {
@@ -28,20 +29,25 @@ describe('Google Home users cache', () => {
     expect(await TEST_REDIS_CLIENT.ttl(CACHE_KEY)).to.be.within(15 * 60 - 10, 15 * 60);
   });
 
-  it('should drop the cache of the instances of the account when Google Home is linked', async () => {
+  it('should invalidate the cache of the instances of the account when Google Home is linked', async () => {
     await reportState();
     await linkGoogleHome();
-    expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal(null);
-    // the next report state finds the new user
-    await TEST_MODELS.googleModel.reportState(INSTANCE_ID, { devices: { states: {} } }).catch(() => {});
+    expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal('invalidated');
+    // while the marker lives, the report states read the database and cache nothing
+    await reportState();
+    expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal('invalidated');
+    // once it expired, the new user is cached
+    await TEST_REDIS_CLIENT.del(CACHE_KEY);
+    await reportState();
     expect(JSON.parse(await TEST_REDIS_CLIENT.get(CACHE_KEY))).to.deep.equal([{ id: USER_ID, account_id: ACCOUNT_ID }]);
   });
 
-  it('should drop the cache when the Google Home session is revoked', async () => {
+  it('should invalidate the cache when the Google Home session is revoked', async () => {
     const device = await linkGoogleHome();
     await TEST_REDIS_CLIENT.set(CACHE_KEY, JSON.stringify([{ id: USER_ID, account_id: ACCOUNT_ID }]));
     await TEST_MODELS.deviceModel.revokeDevice({ id: USER_ID }, device.id);
-    expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal(null);
+    expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal('invalidated');
+    await TEST_REDIS_CLIENT.del(CACHE_KEY);
     await reportState();
     expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal('[]');
   });
@@ -53,15 +59,25 @@ describe('Google Home users cache', () => {
     expect(await TEST_REDIS_CLIENT.get(CACHE_KEY)).to.equal('[]');
   });
 
-  it('should never throw when the cache cannot be dropped', async () => {
+  it('should never throw when the cache cannot be invalidated', async () => {
     const warnings = [];
     const logger = { warn: (message) => warnings.push(message) };
-    const brokenRedis = {
-      del: async () => {
-        throw new Error('redis down');
-      },
+    // Redis reconnecting: the invalidation does not wait for it
+    const reconnectingRedis = { isReady: false };
+    await invalidateGoogleUsersCacheOfUser(logger, TEST_DATABASE_INSTANCE, reconnectingRedis, USER_ID);
+    expect(warnings[0]).to.equal(`Unable to invalidate the Google Home users cache (${USER_ID}): Redis is not ready`);
+  });
+
+  it('should not wait more than a moment for a Redis that does not answer', async () => {
+    const warnings = [];
+    const logger = { warn: (message) => warnings.push(message) };
+    const silentRedis = {
+      isReady: true,
+      multi: () => ({ set() {}, exec: () => new Promise(() => {}) }),
     };
-    await invalidateGoogleUsersCacheOfUser(logger, TEST_DATABASE_INSTANCE, brokenRedis, USER_ID);
-    expect(warnings[0]).to.equal(`Unable to invalidate the Google Home users cache of user ${USER_ID}`);
+    const start = Date.now();
+    await invalidateGoogleUsersCacheOfUser(logger, TEST_DATABASE_INSTANCE, silentRedis, USER_ID);
+    expect(Date.now() - start).to.be.below(1000);
+    expect(warnings[0]).to.match(/Redis did not answer within 200 ms$/);
   });
 });

@@ -12,12 +12,13 @@ dayjs.extend(customParseFormat);
 
 const { BadRequestError } = require('../../common/error');
 const { callOptionalRedisCommand } = require('../../common/redis');
+const { getCachedValue, setCachedValue, invalidateCachedValues } = require('../../common/cache');
 
 const TEMPO_CACHE_KEY = 'tempo';
 const TEMPO_REDIS_EXPIRY_IN_SECONDS = 5 * 24 * 60 * 60; // 5 days
 // Every day of the history (one row per day since the start of Tempo, a few thousand rows),
-// cached under a single key whatever the start date asked. Dropped when the color of the day
-// is saved, the expiry is the one of the Cache-Control header of the route.
+// cached under a single key whatever the start date asked. Invalidated when the color of the
+// day is saved, the expiry is the one of the Cache-Control header of the route.
 const TEMPO_HISTORICAL_CACHE_KEY = 'tempo:historical';
 const TEMPO_HISTORICAL_CACHE_EXPIRY_IN_SECONDS = 60 * 60;
 
@@ -103,9 +104,9 @@ module.exports = function TempoModel(logger, db, redisClient) {
           },
         );
         // the history now has the day
-        await callOptionalRedisCommand(redisClient, () => redisClient.del(TEMPO_HISTORICAL_CACHE_KEY)).catch((e) =>
-          logger.warn(`Tempo: unable to drop the historical data cache (${e.message})`),
-        );
+        await callOptionalRedisCommand(redisClient, () =>
+          invalidateCachedValues(redisClient, [TEMPO_HISTORICAL_CACHE_KEY]),
+        ).catch((e) => logger.warn(`Tempo: unable to invalidate the historical data cache (${e.message})`));
       } catch (e) {
         logger.debug(e);
         todayData = 'unknown';
@@ -180,10 +181,10 @@ module.exports = function TempoModel(logger, db, redisClient) {
   async function getWholeHistoryFromCacheOrDb() {
     try {
       const historyInCache = await callOptionalRedisCommand(redisClient, () =>
-        redisClient.get(TEMPO_HISTORICAL_CACHE_KEY),
+        getCachedValue(redisClient, TEMPO_HISTORICAL_CACHE_KEY),
       );
-      if (historyInCache) {
-        return JSON.parse(historyInCache);
+      if (historyInCache !== null) {
+        return historyInCache;
       }
     } catch (e) {
       logger.warn(`Tempo: unable to read the historical data cache (${e.message})`);
@@ -191,9 +192,7 @@ module.exports = function TempoModel(logger, db, redisClient) {
     const history = await getWholeHistoryFromDb();
     // not awaited: the response does not wait for Redis to cache the history
     callOptionalRedisCommand(redisClient, () =>
-      redisClient.set(TEMPO_HISTORICAL_CACHE_KEY, JSON.stringify(history), {
-        EX: TEMPO_HISTORICAL_CACHE_EXPIRY_IN_SECONDS,
-      }),
+      setCachedValue(redisClient, TEMPO_HISTORICAL_CACHE_KEY, history, TEMPO_HISTORICAL_CACHE_EXPIRY_IN_SECONDS),
     ).catch((e) => {
       logger.warn(`Tempo: unable to cache the historical data (${e.message})`);
     });

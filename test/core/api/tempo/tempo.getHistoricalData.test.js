@@ -66,7 +66,7 @@ describe('GET /edf/tempo/historical (cache)', () => {
     expect(withoutTake.body).to.deep.equal([{ created_at: '2024-09-04', day_type: 'red' }]);
   });
 
-  it('should drop the cached history when the color of the day is saved', async () => {
+  it('should invalidate the cached history when the color of the day is saved', async () => {
     await getHistoricalData({ start_date: '2024-09-02', take: 10 });
     expect(await TEST_REDIS_CLIENT.get('tempo:historical')).to.not.equal(null);
     nock('https://digital.iservices.rte-france.com')
@@ -78,7 +78,12 @@ describe('GET /edf/tempo/historical (cache)', () => {
       .times(2)
       .reply(200, { tempo_like_calendars: { values: [{ value: 'WHITE' }] } });
     await request(TEST_BACKEND_APP).get('/edf/tempo/today').expect(200);
-    expect(await TEST_REDIS_CLIENT.get('tempo:historical')).to.equal(null);
+    expect(await TEST_REDIS_CLIENT.get('tempo:historical')).to.equal('invalidated');
+    // the history read meanwhile has the new day, and is not cached until the marker expires
+    const response = await getHistoricalData({ start_date: '2024-09-04' });
+    expect(response.body[0]).to.deep.equal({ created_at: '2024-09-04', day_type: 'red' });
+    expect(response.body).to.have.lengthOf(2);
+    expect(await TEST_REDIS_CLIENT.get('tempo:historical')).to.equal('invalidated');
   });
 
   it('should read any other start date in database', async () => {

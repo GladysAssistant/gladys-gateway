@@ -1,5 +1,6 @@
 const { NotFoundError } = require('../../common/error');
 const { callOptionalRedisCommand } = require('../../common/redis');
+const { getCachedValue, setCachedValue } = require('../../common/cache');
 const {
   CURRENT_GLADYS_VERSION_CACHE_KEY,
   CURRENT_GLADYS_VERSION_CACHE_EXPIRY_IN_SECONDS,
@@ -9,10 +10,9 @@ module.exports = function VersionModel(logger, db, redisClient) {
   // The cache is only a shortcut: when Redis fails, the version is read in database
   async function getCurrentVersionFromCache() {
     try {
-      const versionInCache = await callOptionalRedisCommand(redisClient, () =>
-        redisClient.get(CURRENT_GLADYS_VERSION_CACHE_KEY),
+      return await callOptionalRedisCommand(redisClient, () =>
+        getCachedValue(redisClient, CURRENT_GLADYS_VERSION_CACHE_KEY),
       );
-      return versionInCache ? JSON.parse(versionInCache) : null;
     } catch (e) {
       logger.warn(`Unable to read the current Gladys version cache (${e.message})`);
       return null;
@@ -45,9 +45,12 @@ module.exports = function VersionModel(logger, db, redisClient) {
     }
     // not awaited: the response does not wait for Redis to cache the version
     callOptionalRedisCommand(redisClient, () =>
-      redisClient.set(CURRENT_GLADYS_VERSION_CACHE_KEY, JSON.stringify(versions[0]), {
-        EX: CURRENT_GLADYS_VERSION_CACHE_EXPIRY_IN_SECONDS,
-      }),
+      setCachedValue(
+        redisClient,
+        CURRENT_GLADYS_VERSION_CACHE_KEY,
+        versions[0],
+        CURRENT_GLADYS_VERSION_CACHE_EXPIRY_IN_SECONDS,
+      ),
     ).catch((e) => {
       logger.warn(`Unable to cache the current Gladys version (${e.message})`);
     });

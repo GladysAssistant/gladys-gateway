@@ -223,6 +223,7 @@ module.exports = async (port) => {
   models.adminAccountModel = AdminAccountModel(
     logger,
     db,
+    redisClient,
     services.stripeService,
     services.mailService,
     models.enedisModel,

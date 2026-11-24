@@ -7,9 +7,10 @@ const TTS_TOKEN_PREFIX = 'tts-token:';
 const TTS_GENERATIONS_PREFIX = 'tts-generations:';
 const TTS_TOKEN_TTL_IN_SECONDS = 5 * 60;
 // The monthly quota is spent once, when the token is created, while each generation is a
-// paid call to the TTS provider: the generations of a token are limited. A few are allowed,
-// as a speaker can fetch the file more than once (HEAD then GET, retry...).
-const MAX_GENERATIONS_PER_TOKEN = 3;
+// call to the TTS provider: the generations of a token are limited. Several are allowed,
+// as a speaker can fetch the file more than once (HEAD, then GET with Range headers, retry...):
+// a Sonos speaker, for example, needs more than 3.
+const MAX_GENERATIONS_PER_TOKEN = 10;
 const MAX_TEXT_LENGTH = 5000;
 
 module.exports = function TTSController(redisClient) {

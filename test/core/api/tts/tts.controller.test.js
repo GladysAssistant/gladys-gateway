@@ -59,7 +59,7 @@ describe('TTS API', () => {
   it('should limit the generations of a token, each one is paid', async () => {
     const ttsProvider = nock(process.env.TEXT_TO_SPEECH_URL)
       .post('/', { text: 'bonjour' })
-      .times(3)
+      .times(10)
       .reply(200, voiceFile, {
         'content-type': 'audio/mpeg',
         'content-length': 36362,
@@ -74,10 +74,11 @@ describe('TTS API', () => {
     const generate = () =>
       request(TEST_BACKEND_APP).get(`/tts/${response.body.token}/generate.mp3`).responseType('arraybuffer');
 
-    // a speaker can fetch the file a few times
-    await generate().expect(200);
-    await generate().expect(200);
-    await generate().expect(200);
+    // a speaker can fetch the file several times
+    for (let i = 0; i < 10; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await generate().expect(200);
+    }
     const refusedResponse = await generate().expect(429);
     expect(JSON.parse(refusedResponse.body.toString())).to.deep.equal({
       status: 429,

@@ -33,6 +33,12 @@ Docker images are only published from a Git tag, so a release can be rolled back
 
 Merging a regular pull request to `master` no longer publishes an image.
 
+## Deployment
+
+The gateway is deployed blue/green on a VM behind the DigitalOcean load balancer: nginx in front of two slots of the gateway image, switched by `deploy/deploy.sh`. The compose file, the nginx configuration, the runbook and the rules it implies for the code (additive database migrations, graceful shutdown, trusted proxy hops) are in [deploy/README.md](deploy/README.md).
+
+On `docker stop` (SIGTERM), the server drains instead of dying: `/ping` answers 503, the scheduled jobs stop, the websockets are closed by batches so that the instances and dashboards reconnect to the other slot, and the in-flight requests finish (`core/service/gracefulShutdown.js`, tuned by the `SHUTDOWN_*` environment variables). `TRUSTED_PROXY_HOPS` tells Express how many proxies add their hop to `X-Forwarded-For` (1 by default, the load balancer; 2 with nginx in front).
+
 ## Allowed hosts
 
 `ALLOWED_HOSTS` (optional) is a comma-separated list of the host names the API answers, e.g. `api.gladysgateway.com`. A request whose `Host` header is not in the list (port and trailing dot ignored, case insensitive) is answered `421 Misdirected Request` with an empty body, and a socket.io handshake is refused. The load balancer forwards any `Host`, so this keeps internet scanners hitting the API with random domains out of the logs and Sentry. When the variable is unset or empty, the filter is disabled (local development, tests). `/ping` is always allowed, whatever the `Host`: the load balancer health check calls it.

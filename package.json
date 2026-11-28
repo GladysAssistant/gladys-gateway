@@ -19,7 +19,8 @@
     "setup-db-dev": "db-migrate up -e dev",
     "setup-db-test": "db-migrate up -e test",
     "create-migration": "db-migrate create $npm_config_name --sql-file",
-    "start-email-preview": "node ./core/common/dev-email-server.js"
+    "start-email-preview": "node ./core/common/dev-email-server.js",
+    "check-mondial-relay": "node ./scripts/check-mondial-relay.js"
   },
   "repository": {
     "type": "git",
